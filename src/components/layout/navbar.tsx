@@ -1,9 +1,11 @@
 import Link from "next/link";
 
 const navigationItems = [
-  { label: "Shop", href: "#" },
-  { label: "Brands", href: "#" },
-  { label: "About", href: "#" },
+  { label: "Shop", href: "/shop" },
+  { label: "Brands", href: "/brands" },
+  { label: "About", href: "/about" },
+  { label: "Cart", href: "/cart" },
+  { label: "Login", href: "/login" },
 ];
 
 function CartIcon() {
@@ -41,31 +43,31 @@ export function Navbar() {
           className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-stone-300 md:flex-1"
         >
           {navigationItems.map((item) => (
-            <a
+            <Link
               key={item.label}
               href={item.href}
               className="transition-colors hover:text-stone-100"
             >
               {item.label}
-            </a>
+            </Link>
           ))}
         </nav>
 
         <div className="flex items-center gap-3 self-center sm:gap-4 md:self-auto">
-          <button
-            type="button"
+          <Link
+            href="/cart"
             aria-label="Cart"
             className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 text-stone-200 transition-colors hover:border-white/20 hover:text-stone-100"
           >
             <CartIcon />
-          </button>
+          </Link>
 
-          <button
-            type="button"
+          <Link
+            href="/login"
             className="rounded-full border border-white/10 px-4 py-2 text-sm text-stone-100 transition-colors hover:border-white/20 hover:bg-white/5"
           >
             Login
-          </button>
+          </Link>
         </div>
       </div>
     </header>
