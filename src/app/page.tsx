@@ -1,6 +1,6 @@
 export default function Home() {
   return (
-    <section className="flex min-h-[calc(100vh-169px)] items-center justify-center px-6 py-24 sm:px-10 lg:px-12">
+    <section className="flex items-center justify-center px-6 py-24 sm:px-10 sm:py-32 lg:px-12">
       <div className="mx-auto flex w-full max-w-4xl flex-col items-center gap-6 text-center">
         <p className="text-xs uppercase tracking-[0.36em] text-stone-400">
           Luxury E-commerce

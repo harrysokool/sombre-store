@@ -4,8 +4,6 @@ const navigationItems = [
   { label: "Shop", href: "/shop" },
   { label: "Brands", href: "/brands" },
   { label: "About", href: "/about" },
-  { label: "Cart", href: "/cart" },
-  { label: "Login", href: "/login" },
 ];
 
 function CartIcon() {

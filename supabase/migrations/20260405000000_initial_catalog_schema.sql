@@ -62,6 +62,8 @@ create table if not exists public.products (
   name text not null,
   slug text not null,
   description text,
+  short_description text,
+  size_label text,
   price numeric(10, 2) not null check (price >= 0),
   stock_quantity integer not null default 0 check (stock_quantity >= 0),
   is_featured boolean not null default false,
