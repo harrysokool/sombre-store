@@ -2,17 +2,77 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
+import { FormEvent, useRef, useState } from "react";
 
 import { getCartItemCount, getCartItems, type CartItem } from "@/lib/cart/cart";
+import type { CheckoutSessionPayload } from "@/lib/checkout/payload";
 import { getCartLineTotal, getCartSubtotal } from "@/lib/cart/math";
 import { formatPrice } from "@/lib/storefront/format-price";
 
 export function CheckoutPageContent() {
+  const formRef = useRef<HTMLFormElement>(null);
   const [cartItems] = useState<CartItem[]>(() => getCartItems());
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const itemCount = getCartItemCount(cartItems);
   const subtotal = getCartSubtotal(cartItems);
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!formRef.current || cartItems.length === 0 || isSubmitting) {
+      return;
+    }
+
+    const formData = new FormData(formRef.current);
+
+    const payload: CheckoutSessionPayload = {
+      cartItems,
+      subtotal,
+      customer: {
+        fullName: String(formData.get("fullName") ?? "").trim(),
+        email: String(formData.get("email") ?? "").trim(),
+        phone: String(formData.get("phone") ?? "").trim(),
+        addressLine1: String(formData.get("addressLine1") ?? "").trim(),
+        addressLine2: String(formData.get("addressLine2") ?? "").trim(),
+        city: String(formData.get("city") ?? "").trim(),
+        postalCode: String(formData.get("postalCode") ?? "").trim(),
+        country: String(formData.get("country") ?? "").trim(),
+      },
+    };
+
+    try {
+      setIsSubmitting(true);
+      setErrorMessage(null);
+
+      const response = await fetch("/api/checkout/session", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = (await response.json()) as {
+        error?: string;
+        url?: string;
+      };
+
+      if (!response.ok || !data.url) {
+        throw new Error(data.error ?? "Could not start Stripe Checkout.");
+      }
+
+      window.location.assign(data.url);
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Could not start Stripe Checkout.",
+      );
+      setIsSubmitting(false);
+    }
+  }
 
   return (
     <section className="px-6 py-24 sm:px-10 sm:py-32 lg:px-12">
@@ -43,7 +103,12 @@ export function CheckoutPageContent() {
                 </h2>
               </div>
 
-              <form className="grid gap-5 sm:grid-cols-2">
+              <form
+                id="checkout-form"
+                ref={formRef}
+                onSubmit={handleSubmit}
+                className="grid gap-5 sm:grid-cols-2"
+              >
                 <label className="space-y-2 sm:col-span-2">
                   <span className="text-xs uppercase tracking-[0.24em] text-stone-500">
                     Full name
@@ -51,6 +116,7 @@ export function CheckoutPageContent() {
                   <input
                     type="text"
                     name="fullName"
+                    required
                     className="w-full rounded-2xl border border-white/10 bg-transparent px-4 py-3 text-stone-100 outline-none transition-colors placeholder:text-stone-600 focus:border-white/20"
                     placeholder="Your full name"
                   />
@@ -63,6 +129,7 @@ export function CheckoutPageContent() {
                   <input
                     type="email"
                     name="email"
+                    required
                     className="w-full rounded-2xl border border-white/10 bg-transparent px-4 py-3 text-stone-100 outline-none transition-colors placeholder:text-stone-600 focus:border-white/20"
                     placeholder="you@example.com"
                   />
@@ -87,6 +154,7 @@ export function CheckoutPageContent() {
                   <input
                     type="text"
                     name="addressLine1"
+                    required
                     className="w-full rounded-2xl border border-white/10 bg-transparent px-4 py-3 text-stone-100 outline-none transition-colors placeholder:text-stone-600 focus:border-white/20"
                     placeholder="Street address"
                   />
@@ -111,6 +179,7 @@ export function CheckoutPageContent() {
                   <input
                     type="text"
                     name="city"
+                    required
                     className="w-full rounded-2xl border border-white/10 bg-transparent px-4 py-3 text-stone-100 outline-none transition-colors placeholder:text-stone-600 focus:border-white/20"
                     placeholder="City"
                   />
@@ -123,6 +192,7 @@ export function CheckoutPageContent() {
                   <input
                     type="text"
                     name="postalCode"
+                    required
                     className="w-full rounded-2xl border border-white/10 bg-transparent px-4 py-3 text-stone-100 outline-none transition-colors placeholder:text-stone-600 focus:border-white/20"
                     placeholder="Postal code"
                   />
@@ -135,6 +205,7 @@ export function CheckoutPageContent() {
                   <input
                     type="text"
                     name="country"
+                    required
                     className="w-full rounded-2xl border border-white/10 bg-transparent px-4 py-3 text-stone-100 outline-none transition-colors placeholder:text-stone-600 focus:border-white/20"
                     placeholder="Country"
                   />
@@ -223,15 +294,23 @@ export function CheckoutPageContent() {
 
                   <div className="space-y-4 pt-2">
                     <button
-                      type="button"
-                      className="w-full rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm uppercase tracking-[0.22em] text-stone-100 transition-colors hover:border-white/20 hover:bg-white/10"
+                      type="submit"
+                      form="checkout-form"
+                      disabled={isSubmitting}
+                      className="w-full rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm uppercase tracking-[0.22em] text-stone-100 transition-colors hover:border-white/20 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      Payment Coming Next
+                      {isSubmitting ? "Redirecting to Stripe..." : "Proceed to Payment"}
                     </button>
 
+                    {errorMessage ? (
+                      <p className="text-center text-xs leading-6 text-red-300">
+                        {errorMessage}
+                      </p>
+                    ) : null}
+
                     <p className="text-center text-xs leading-6 text-stone-500">
-                      Payment, taxes, and shipping calculations will be added in the
-                      next checkout step.
+                      You will be redirected to Stripe Checkout to complete
+                      payment securely.
                     </p>
                   </div>
                 </div>
