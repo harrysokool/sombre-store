@@ -89,8 +89,8 @@ export function Navbar() {
     return (
         <>
             <header className="sticky top-0 z-30 border-b border-white/10 bg-stone-950/90 backdrop-blur-md">
-                <div className="relative w-full px-4 py-5 sm:px-5 lg:px-6">
-                    <div className="grid grid-cols-[5.5rem_auto_7.75rem] items-center sm:grid-cols-[7.5rem_auto_9.5rem]">
+                <div className="relative w-full py-5 pl-4 pr-2 sm:pl-5 sm:pr-3 lg:pl-6 lg:pr-3">
+                    <div className="grid grid-cols-[5.5rem_auto_5rem] items-center sm:grid-cols-[7.5rem_auto_6.75rem]">
                         <div className="z-10 flex items-center justify-start">
                             <button
                                 type="button"
@@ -108,10 +108,11 @@ export function Navbar() {
                             </button>
                         </div>
 
-                        <div className="pointer-events-none absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 justify-center">
+                        <div className="absolute inset-x-0 top-1/2 flex -translate-y-1/2 justify-center pointer-events-none">
                             <Link
                                 href="/"
                                 onClick={() => setIsMenuOpen(false)}
+                                aria-label="Sombre home"
                                 className="pointer-events-auto font-serif text-[1.35rem] font-medium tracking-[0.18em] text-stone-100 sm:text-[2.0rem]"
                             >
                                 Sombre
