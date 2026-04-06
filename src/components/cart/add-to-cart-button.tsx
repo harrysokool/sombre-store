@@ -31,7 +31,10 @@ export function AddToCartButton({ product }: AddToCartButtonProps) {
   }, [didAddToCart]);
 
   function handleAddToCart() {
-    addItemToCart(product);
+    addItemToCart({
+      ...product,
+      price: Number(product.price),
+    });
     setDidAddToCart(true);
   }
 

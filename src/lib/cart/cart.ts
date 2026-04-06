@@ -5,7 +5,7 @@ export type CartItem = {
   id: string;
   slug: string;
   name: string;
-  price: number | string;
+  price: number;
   size_label: string | null;
   image_url: string | null;
   quantity: number;
@@ -22,7 +22,7 @@ function isCartItem(value: unknown): value is CartItem {
     typeof item.id === "string" &&
     typeof item.slug === "string" &&
     typeof item.name === "string" &&
-    (typeof item.price === "number" || typeof item.price === "string") &&
+    typeof item.price === "number" &&
     (typeof item.size_label === "string" || item.size_label === null) &&
     (typeof item.image_url === "string" || item.image_url === null) &&
     typeof item.quantity === "number"
