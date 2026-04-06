@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 
 type ProductCardProps = {
@@ -7,6 +8,8 @@ type ProductCardProps = {
   price: number | string;
   sizeLabel: string | null;
   isFeatured: boolean;
+  imageUrl: string | null;
+  imageAlt: string | null;
 };
 
 function formatPrice(price: number | string) {
@@ -20,13 +23,34 @@ export function ProductCard({
   price,
   sizeLabel,
   isFeatured,
+  imageUrl,
+  imageAlt,
 }: ProductCardProps) {
   return (
     <Link
       href={`/products/${slug}`}
       className="group flex h-full flex-col justify-between rounded-3xl border border-white/10 bg-white/[0.02] p-6 transition-colors hover:border-white/20 hover:bg-white/[0.04]"
     >
-      <div className="space-y-4">
+      <div className="space-y-6">
+        <div className="overflow-hidden rounded-2xl border border-white/10 bg-stone-900/80">
+          {imageUrl ? (
+            <Image
+              src={imageUrl}
+              alt={imageAlt ?? `${name} product image`}
+              width={720}
+              height={900}
+              className="aspect-[4/5] w-full object-cover"
+              unoptimized
+            />
+          ) : (
+            <div className="flex aspect-[4/5] items-center justify-center bg-white/[0.02]">
+              <p className="text-xs uppercase tracking-[0.24em] text-stone-500">
+                No image
+              </p>
+            </div>
+          )}
+        </div>
+
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-2">
             <h2 className="text-xl font-medium tracking-[0.08em] text-stone-100">
