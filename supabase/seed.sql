@@ -182,84 +182,84 @@ from (
   values
     (
       'velvet-ember',
-      'https://dev.sombre.local/images/products/velvet-ember-01.jpg',
+      '/images/products/velvet-ember-01.jpg',
       'Velvet Ember bottle on dark stone',
       0,
       true
     ),
     (
       'velvet-ember',
-      'https://dev.sombre.local/images/products/velvet-ember-02.jpg',
+      '/images/products/velvet-ember-02.jpg',
       'Velvet Ember detail with cap and carton',
       1,
       false
     ),
     (
       'dusk-veil',
-      'https://dev.sombre.local/images/products/dusk-veil-01.jpg',
+      '/images/products/dusk-veil-01.jpg',
       'Dusk Veil bottle in soft shadow',
       0,
       true
     ),
     (
       'dusk-veil',
-      'https://dev.sombre.local/images/products/dusk-veil-02.jpg',
+      '/images/products/dusk-veil-02.jpg',
       'Dusk Veil fragrance with folded paper backdrop',
       1,
       false
     ),
     (
       'silken-resin-body-lotion',
-      'https://dev.sombre.local/images/products/silken-resin-body-lotion-01.jpg',
+      '/images/products/silken-resin-body-lotion-01.jpg',
       'Silken Resin Body Lotion bottle on travertine',
       0,
       true
     ),
     (
       'silken-resin-body-lotion',
-      'https://dev.sombre.local/images/products/silken-resin-body-lotion-02.jpg',
+      '/images/products/silken-resin-body-lotion-02.jpg',
       'Silken Resin Body Lotion texture close-up',
       1,
       false
     ),
     (
       'stone-moss-hand-wash',
-      'https://dev.sombre.local/images/products/stone-moss-hand-wash-01.jpg',
+      '/images/products/stone-moss-hand-wash-01.jpg',
       'Stone Moss Hand Wash beside matte basin',
       0,
       true
     ),
     (
       'stone-moss-hand-wash',
-      'https://dev.sombre.local/images/products/stone-moss-hand-wash-02.jpg',
+      '/images/products/stone-moss-hand-wash-02.jpg',
       'Stone Moss Hand Wash pump detail',
       1,
       false
     ),
     (
       'quiet-flame-candle',
-      'https://dev.sombre.local/images/products/quiet-flame-candle-01.jpg',
+      '/images/products/quiet-flame-candle-01.jpg',
       'Quiet Flame Candle lit on dark oak',
       0,
       true
     ),
     (
       'quiet-flame-candle',
-      'https://dev.sombre.local/images/products/quiet-flame-candle-02.jpg',
+      '/images/products/quiet-flame-candle-02.jpg',
       'Quiet Flame Candle vessel and packaging',
       1,
       false
     ),
     (
       'pale-marble-body-cleanser',
-      'https://dev.sombre.local/images/products/pale-marble-body-cleanser-01.jpg',
+      '/images/products/pale-marble-body-cleanser-01.jpg',
       'Pale Marble Body Cleanser bottle in warm light',
       0,
       true
     ),
     (
       'pale-marble-body-cleanser',
-      'https://dev.sombre.local/images/products/pale-marble-body-cleanser-02.jpg',
+      '/images/products/pale-marble-body-cleanser-02.jpg',
       'Pale Marble Body Cleanser texture and bottle detail',
       1,
       false
