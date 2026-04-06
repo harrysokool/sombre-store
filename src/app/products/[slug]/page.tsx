@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { notFound } from "next/navigation";
 
+import { AddToCartButton } from "@/components/cart/add-to-cart-button";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formatPrice } from "@/lib/storefront/format-price";
 
@@ -82,6 +83,14 @@ function normalizeProductDetail(row: ProductDetailRow): ProductDetail {
     };
 }
 
+function getPrimaryImage(images: ProductImage[] | null) {
+    const sortedImages = [...(images ?? [])].sort(
+        (left, right) => left.sort_order - right.sort_order,
+    );
+
+    return sortedImages.find((image) => image.is_primary) ?? sortedImages[0] ?? null;
+}
+
 async function getProductBySlug(slug: string) {
     const supabase = createSupabaseServerClient();
     const { data, error } = await supabase
@@ -129,6 +138,8 @@ export default async function ProductDetailPage({
     if (!product) {
         notFound();
     }
+
+    const primaryImage = getPrimaryImage(product.product_images);
 
     return (
         <section className="px-6 py-24 sm:px-10 sm:py-32 lg:px-12">
@@ -229,6 +240,17 @@ export default async function ProductDetailPage({
                             </div>
                         ) : null}
                     </div>
+
+                    <AddToCartButton
+                        product={{
+                            id: product.id,
+                            slug: slug,
+                            name: product.name,
+                            price: product.price,
+                            size_label: product.size_label,
+                            image_url: primaryImage?.image_url ?? null,
+                        }}
+                    />
 
                     <div className="space-y-3">
                         <p className="text-xs uppercase tracking-[0.24em] text-stone-500">
