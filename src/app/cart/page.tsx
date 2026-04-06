@@ -1,5 +1,5 @@
-import { PagePlaceholder } from "@/components/shared/page-placeholder";
+import { CartPageContent } from "@/components/cart/cart-page-content";
 
 export default function CartPage() {
-  return <PagePlaceholder title="Cart" />;
+  return <CartPageContent />;
 }
