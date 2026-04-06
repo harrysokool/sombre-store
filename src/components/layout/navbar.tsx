@@ -4,8 +4,8 @@ import { NavbarCartIndicator } from "@/components/cart/navbar-cart-indicator";
 
 const navigationItems = [
   { label: "Shop", href: "/shop" },
-  { label: "Brands", href: "/brands" },
   { label: "About", href: "/about" },
+  { label: "Contact", href: "/contact" },
 ];
 
 export function Navbar() {
@@ -36,13 +36,6 @@ export function Navbar() {
 
         <div className="flex items-center gap-3 self-center sm:gap-4 md:self-auto">
           <NavbarCartIndicator />
-
-          <Link
-            href="/login"
-            className="rounded-full border border-white/10 px-4 py-2 text-sm text-stone-100 transition-colors hover:border-white/20 hover:bg-white/5"
-          >
-            Login
-          </Link>
         </div>
       </div>
     </header>

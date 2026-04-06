@@ -1,4 +1,10 @@
-const footerLinks = ["Privacy", "Contact", "Journal"];
+import Link from "next/link";
+
+const footerLinks = [
+  { label: "About", href: "/about" },
+  { label: "Contact", href: "/contact" },
+  { label: "Shop", href: "/shop" },
+];
 
 export function Footer() {
   return (
@@ -18,13 +24,13 @@ export function Footer() {
           className="flex flex-wrap gap-x-6 gap-y-2 text-stone-300"
         >
           {footerLinks.map((link) => (
-            <a
-              key={link}
-              href="#"
+            <Link
+              key={link.label}
+              href={link.href}
               className="transition-colors hover:text-stone-100"
             >
-              {link}
-            </a>
+              {link.label}
+            </Link>
           ))}
         </nav>
       </div>
