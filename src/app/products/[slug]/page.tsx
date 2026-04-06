@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { notFound } from "next/navigation";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -143,18 +144,25 @@ export default async function ProductDetailPage({
                                 key={`${image.image_url}-${image.sort_order}`}
                                 className="rounded-3xl border border-white/10 bg-white/[0.02] p-6"
                             >
-                                <div className="flex aspect-[4/5] items-end rounded-2xl border border-dashed border-white/10 bg-stone-900/80 p-4">
-                                    <div className="space-y-2">
-                                        {image.is_primary ? (
-                                            <span className="rounded-full border border-white/10 px-3 py-1 text-[11px] uppercase tracking-[0.24em] text-stone-300">
-                                                Primary
-                                            </span>
-                                        ) : null}
-                                        <p className="break-all text-sm leading-6 text-stone-400">
-                                            {image.image_url}
-                                        </p>
-                                    </div>
+                                <div className="overflow-hidden rounded-2xl border border-white/10 bg-stone-900/80">
+                                    <Image
+                                        src={image.image_url}
+                                        alt={
+                                            image.alt_text ??
+                                            `${product.name} product image`
+                                        }
+                                        width={960}
+                                        height={1200}
+                                        className="aspect-[4/5] w-full object-cover"
+                                    />
                                 </div>
+                                {image.is_primary ? (
+                                    <div className="mt-4">
+                                        <span className="rounded-full border border-white/10 px-3 py-1 text-[11px] uppercase tracking-[0.24em] text-stone-300">
+                                            Primary
+                                        </span>
+                                    </div>
+                                ) : null}
                                 {image.alt_text ? (
                                     <p className="mt-3 text-sm text-stone-500">
                                         {image.alt_text}
