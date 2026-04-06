@@ -1,5 +1,6 @@
 export const CART_STORAGE_KEY = "sombre-cart";
 export const CART_UPDATED_EVENT = "sombre-cart-updated";
+const CHECKOUT_SNAPSHOT_KEY_PREFIX = "sombre-checkout-session";
 
 export type CartItem = {
   id: string;
@@ -62,6 +63,10 @@ function saveCartItems(items: CartItem[]) {
   window.dispatchEvent(new CustomEvent(CART_UPDATED_EVENT));
 }
 
+function getCheckoutSnapshotStorageKey(sessionId: string) {
+  return `${CHECKOUT_SNAPSHOT_KEY_PREFIX}:${sessionId}`;
+}
+
 function updateCartItems(updater: (items: CartItem[]) => CartItem[]) {
   const updatedItems = updater(getCartItems());
   saveCartItems(updatedItems);
@@ -121,4 +126,72 @@ export function removeCartItem(itemId: string) {
 
 export function clearCartItems() {
   return updateCartItems(() => []);
+}
+
+export function saveCheckoutCartSnapshot(sessionId: string, items: CartItem[]) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.setItem(
+    getCheckoutSnapshotStorageKey(sessionId),
+    JSON.stringify(items),
+  );
+}
+
+export function reconcileCartWithCheckoutSession(sessionId: string) {
+  if (typeof window === "undefined") {
+    return getCartItems();
+  }
+
+  const snapshot = window.localStorage.getItem(
+    getCheckoutSnapshotStorageKey(sessionId),
+  );
+
+  if (!snapshot) {
+    return getCartItems();
+  }
+
+  try {
+    const parsedSnapshot = JSON.parse(snapshot);
+
+    if (!Array.isArray(parsedSnapshot)) {
+      window.localStorage.removeItem(getCheckoutSnapshotStorageKey(sessionId));
+      return getCartItems();
+    }
+
+    const checkoutItems = parsedSnapshot.filter(isCartItem);
+
+    const reconciledItems = updateCartItems((currentItems) => {
+      const checkoutQuantities = new Map(
+        checkoutItems.map((item) => [item.id, item.quantity]),
+      );
+
+      return currentItems.flatMap((currentItem) => {
+        const purchasedQuantity = checkoutQuantities.get(currentItem.id);
+
+        if (!purchasedQuantity) {
+          return [currentItem];
+        }
+
+        if (currentItem.quantity <= purchasedQuantity) {
+          return [];
+        }
+
+        return [
+          {
+            ...currentItem,
+            quantity: currentItem.quantity - purchasedQuantity,
+          },
+        ];
+      });
+    });
+
+    window.localStorage.removeItem(getCheckoutSnapshotStorageKey(sessionId));
+
+    return reconciledItems;
+  } catch {
+    window.localStorage.removeItem(getCheckoutSnapshotStorageKey(sessionId));
+    return getCartItems();
+  }
 }

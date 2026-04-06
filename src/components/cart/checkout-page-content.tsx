@@ -8,6 +8,7 @@ import {
   CART_UPDATED_EVENT,
   getCartItemCount,
   getCartItems,
+  saveCheckoutCartSnapshot,
   type CartItem,
 } from "@/lib/cart/cart";
 import type { CheckoutSessionPayload } from "@/lib/checkout/payload";
@@ -78,13 +79,15 @@ export function CheckoutPageContent() {
 
       const data = (await response.json()) as {
         error?: string;
+        sessionId?: string;
         url?: string;
       };
 
-      if (!response.ok || !data.url) {
+      if (!response.ok || !data.url || !data.sessionId) {
         throw new Error(data.error ?? "Could not start Stripe Checkout.");
       }
 
+      saveCheckoutCartSnapshot(data.sessionId, resolvedCartItems);
       window.location.assign(data.url);
     } catch (error) {
       setErrorMessage(

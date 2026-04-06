@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { CheckoutSuccessCartReset } from "@/components/cart/checkout-success-cart-reset";
+import { CheckoutSuccessStateManager } from "@/components/cart/checkout-success-state-manager";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type SuccessPageSearchParams =
@@ -44,7 +44,12 @@ export default async function CheckoutSuccessPage({
 
   return (
     <section className="px-6 py-24 sm:px-10 sm:py-32 lg:px-12">
-      <CheckoutSuccessCartReset shouldClearCart={isOrderConfirmed} />
+      {stripeSessionId ? (
+        <CheckoutSuccessStateManager
+          isOrderConfirmed={isOrderConfirmed}
+          sessionId={stripeSessionId}
+        />
+      ) : null}
 
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 rounded-[2rem] border border-white/10 bg-white/[0.02] px-6 py-14 text-center sm:px-10">
         <div className="space-y-4">
@@ -57,7 +62,7 @@ export default async function CheckoutSuccessPage({
           <p className="mx-auto max-w-2xl text-base leading-8 text-stone-400">
             {isOrderConfirmed
               ? "Your payment has been recorded and your order is now saved with Sombre. A formal confirmation experience can be added next without changing the purchase flow again."
-              : "Stripe has redirected you back to Sombre. We are still waiting for the confirmed order record to finish syncing, so this page is intentionally conservative for now."}
+              : "Stripe has redirected you back to Sombre. We are still waiting for the confirmed order record to finish syncing and will check again automatically."}
           </p>
         </div>
 

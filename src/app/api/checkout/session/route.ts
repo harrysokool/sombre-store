@@ -224,7 +224,7 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json({ url: session.url });
+    return NextResponse.json({ sessionId: session.id, url: session.url });
   } catch (error) {
     console.error("Failed to create Stripe Checkout Session:", error);
 
