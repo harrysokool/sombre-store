@@ -45,6 +45,44 @@ function CloseIcon() {
   );
 }
 
+function SearchIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-5 w-5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+    >
+      <path
+        d="m21 21-4.35-4.35m1.85-5.15a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function UserIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-5 w-5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+    >
+      <path
+        d="M15.75 6.75a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Zm-11.25 13.5a7.5 7.5 0 0 1 15 0"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -52,7 +90,7 @@ export function Navbar() {
     <>
       <header className="sticky top-0 z-30 border-b border-white/10 bg-stone-950/90 backdrop-blur-md">
         <div className="relative w-full px-4 py-5 sm:px-5 lg:px-6">
-          <div className="grid grid-cols-[5.5rem_auto_5.5rem] items-center sm:grid-cols-[7.5rem_auto_7.5rem]">
+          <div className="grid grid-cols-[5.5rem_auto_7.75rem] items-center sm:grid-cols-[7.5rem_auto_9.5rem]">
             <div className="z-10 flex items-center justify-start">
               <button
                 type="button"
@@ -62,10 +100,9 @@ export function Navbar() {
                   isMenuOpen ? "Close navigation menu" : "Open navigation menu"
                 }
                 onClick={() => setIsMenuOpen((open) => !open)}
-                className="inline-flex items-center gap-3 text-sm uppercase tracking-[0.28em] text-stone-300 transition-colors hover:text-stone-100"
+                className="inline-flex h-10 w-10 items-center justify-center text-stone-300 transition-colors hover:text-stone-100"
               >
                 <MenuIcon />
-                <span className="hidden sm:inline">Menu</span>
               </button>
             </div>
 
@@ -73,13 +110,29 @@ export function Navbar() {
               <Link
                 href="/"
                 onClick={() => setIsMenuOpen(false)}
-                className="pointer-events-auto text-sm font-medium uppercase tracking-[0.38em] text-stone-100"
+                className="pointer-events-auto text-base font-medium uppercase tracking-[0.42em] text-stone-100 sm:text-lg"
               >
                 Sombre
               </Link>
             </div>
 
-            <div className="z-10 flex items-center justify-end">
+            <div className="z-10 flex items-center justify-end gap-1 sm:gap-2">
+              <button
+                type="button"
+                aria-label="Search coming soon"
+                className="inline-flex h-10 w-10 items-center justify-center text-stone-300 transition-colors hover:text-stone-100"
+              >
+                <SearchIcon />
+              </button>
+
+              <button
+                type="button"
+                aria-label="Account features coming soon"
+                className="inline-flex h-10 w-10 items-center justify-center text-stone-300 transition-colors hover:text-stone-100"
+              >
+                <UserIcon />
+              </button>
+
               <NavbarCartIndicator />
             </div>
           </div>
