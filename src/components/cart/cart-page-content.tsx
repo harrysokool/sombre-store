@@ -25,7 +25,9 @@ function getSubtotal(items: CartItem[]) {
 }
 
 export function CartPageContent() {
-    const [cartItems, setCartItems] = useState<CartItem[]>(() => getCartItems());
+    const [cartItems, setCartItems] = useState<CartItem[]>(() =>
+        getCartItems(),
+    );
 
     const subtotal = getSubtotal(cartItems);
 
