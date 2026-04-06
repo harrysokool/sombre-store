@@ -50,10 +50,10 @@ export function Navbar() {
 
   return (
     <>
-      <header className="sticky top-0 z-50 border-b border-white/10 bg-stone-950/90 backdrop-blur-md">
-        <div className="mx-auto w-full max-w-7xl px-6 py-5 sm:px-10 lg:px-12">
-          <div className="grid grid-cols-[1fr_auto_1fr] items-center">
-            <div className="flex justify-start">
+      <header className="sticky top-0 z-30 border-b border-white/10 bg-stone-950/90 backdrop-blur-md">
+        <div className="relative w-full px-4 py-5 sm:px-5 lg:px-6">
+          <div className="grid grid-cols-[5.5rem_auto_5.5rem] items-center sm:grid-cols-[7.5rem_auto_7.5rem]">
+            <div className="z-10 flex items-center justify-start">
               <button
                 type="button"
                 aria-expanded={isMenuOpen}
@@ -69,17 +69,17 @@ export function Navbar() {
               </button>
             </div>
 
-            <div className="flex justify-center">
+            <div className="pointer-events-none absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 justify-center">
               <Link
                 href="/"
                 onClick={() => setIsMenuOpen(false)}
-                className="text-sm font-medium uppercase tracking-[0.38em] text-stone-100"
+                className="pointer-events-auto text-sm font-medium uppercase tracking-[0.38em] text-stone-100"
               >
                 Sombre
               </Link>
             </div>
 
-            <div className="flex justify-end">
+            <div className="z-10 flex items-center justify-end">
               <NavbarCartIndicator />
             </div>
           </div>
@@ -100,63 +100,63 @@ export function Navbar() {
           onClick={() => setIsMenuOpen(false)}
           className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         />
+      </div>
 
-        <aside
-          id="site-menu"
-          aria-label="Navigation panel"
-          className={`relative h-full w-full max-w-[24rem] border-r border-white/10 bg-stone-950 px-6 py-6 transition-transform duration-300 ease-out sm:px-8 ${
-            isMenuOpen ? "translate-x-0" : "-translate-x-full"
-          }`}
-        >
-          <div className="flex h-full flex-col">
-            <div className="flex items-start justify-between gap-6 border-b border-white/10 pb-6">
-              <div className="space-y-3">
-                <p className="text-xs uppercase tracking-[0.34em] text-stone-500">
-                  Navigation
-                </p>
-                <p className="max-w-xs text-sm leading-7 text-stone-400">
-                  Enter the collection through the house, the shop, or customer
-                  correspondence.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setIsMenuOpen(false)}
-                aria-label="Close navigation menu"
-                className="inline-flex h-10 w-10 items-center justify-center text-stone-300 transition-colors hover:text-stone-100"
-              >
-                <CloseIcon />
-              </button>
+      <aside
+        id="site-menu"
+        aria-label="Navigation panel"
+        className={`fixed left-0 top-0 z-50 h-full w-full max-w-[24rem] border-r border-white/10 bg-stone-950 px-6 py-6 transition-transform duration-300 ease-out sm:px-8 ${
+          isMenuOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        <div className="flex h-full flex-col">
+          <div className="flex items-start justify-between gap-6 border-b border-white/10 pb-6">
+            <div className="space-y-3">
+              <p className="text-xs uppercase tracking-[0.34em] text-stone-500">
+                Navigation
+              </p>
+              <p className="max-w-xs text-sm leading-7 text-stone-400">
+                Enter the collection through the house, the shop, or customer
+                correspondence.
+              </p>
             </div>
 
-            <nav aria-label="Primary" className="flex flex-1 flex-col justify-between">
-              <div className="space-y-5 pt-8">
-                {navigationItems.map((item) => (
-                  <Link
-                    key={item.label}
-                    href={item.href}
-                    onClick={() => setIsMenuOpen(false)}
-                    className="block text-3xl font-medium tracking-[0.08em] text-stone-100 transition-colors hover:text-white"
-                  >
-                    {item.label}
-                  </Link>
-                ))}
-              </div>
-
-              <div className="border-t border-white/10 pt-6">
-                <Link
-                  href="/shop"
-                  onClick={() => setIsMenuOpen(false)}
-                  className="text-xs uppercase tracking-[0.3em] text-stone-500 transition-colors hover:text-stone-100"
-                >
-                  Explore the Collection
-                </Link>
-              </div>
-            </nav>
+            <button
+              type="button"
+              onClick={() => setIsMenuOpen(false)}
+              aria-label="Close navigation menu"
+              className="inline-flex h-10 w-10 items-center justify-center text-stone-300 transition-colors hover:text-stone-100"
+            >
+              <CloseIcon />
+            </button>
           </div>
-        </aside>
-      </div>
+
+          <nav aria-label="Primary" className="flex flex-1 flex-col justify-between">
+            <div className="space-y-5 pt-8">
+              {navigationItems.map((item) => (
+                <Link
+                  key={item.label}
+                  href={item.href}
+                  onClick={() => setIsMenuOpen(false)}
+                  className="block text-3xl font-medium tracking-[0.08em] text-stone-100 transition-colors hover:text-white"
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </div>
+
+            <div className="border-t border-white/10 pt-6">
+              <Link
+                href="/shop"
+                onClick={() => setIsMenuOpen(false)}
+                className="text-xs uppercase tracking-[0.3em] text-stone-500 transition-colors hover:text-stone-100"
+              >
+                Explore the Collection
+              </Link>
+            </div>
+          </nav>
+        </div>
+      </aside>
     </>
   );
 }

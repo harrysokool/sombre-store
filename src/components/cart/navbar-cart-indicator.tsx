@@ -68,7 +68,7 @@ export function NavbarCartIndicator() {
     >
       <CartIcon />
       {hasMounted && itemCount > 0 ? (
-        <span className="absolute -right-1 -top-1 min-w-5 rounded-full border border-white/10 bg-stone-100 px-1.5 py-0.5 text-center text-[10px] font-medium text-stone-950">
+        <span className="absolute right-0.5 top-0.5 flex min-w-4 items-center justify-center rounded-full border border-white/10 bg-stone-100 px-1 py-[2px] text-center text-[9px] font-medium leading-none text-stone-950">
           {itemCount}
         </span>
       ) : null}
