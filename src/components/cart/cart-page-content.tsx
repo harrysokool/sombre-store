@@ -6,6 +6,7 @@ import { useState } from "react";
 
 import {
     decrementCartItemQuantity,
+    getCartItemCount,
     getCartItems,
     incrementCartItemQuantity,
     removeCartItem,
@@ -30,6 +31,7 @@ export function CartPageContent() {
     );
 
     const subtotal = getSubtotal(cartItems);
+    const itemCount = getCartItemCount(cartItems);
 
     function handleIncrement(itemId: string) {
         setCartItems(incrementCartItemQuantity(itemId));
@@ -177,23 +179,54 @@ export function CartPageContent() {
                             ))}
                         </div>
 
-                        <div className="h-fit rounded-3xl border border-white/10 bg-white/[0.02] p-6">
-                            <div className="space-y-6">
+                        <div className="h-fit rounded-[2rem] border border-white/10 bg-white/[0.02] p-6 sm:p-8">
+                            <div className="space-y-8">
                                 <div className="space-y-2">
                                     <p className="text-xs uppercase tracking-[0.24em] text-stone-500">
                                         Summary
                                     </p>
                                     <h2 className="text-2xl font-medium text-stone-100">
-                                        Cart subtotal
+                                        Ready for checkout
                                     </h2>
                                 </div>
 
-                                <div className="flex items-end justify-between border-t border-white/10 pt-6">
-                                    <p className="text-sm uppercase tracking-[0.18em] text-stone-400">
-                                        Subtotal
-                                    </p>
-                                    <p className="text-2xl font-medium text-stone-100">
-                                        {formatPrice(subtotal)}
+                                <div className="space-y-4 border-t border-white/10 pt-6">
+                                    <div className="flex items-end justify-between gap-4">
+                                        <p className="text-sm uppercase tracking-[0.18em] text-stone-400">
+                                            Items
+                                        </p>
+                                        <p className="text-base text-stone-300">
+                                            {itemCount}
+                                        </p>
+                                    </div>
+
+                                    <div className="flex items-end justify-between gap-4">
+                                        <p className="text-sm uppercase tracking-[0.18em] text-stone-400">
+                                            Subtotal
+                                        </p>
+                                        <p className="text-2xl font-medium text-stone-100">
+                                            {formatPrice(subtotal)}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-4">
+                                    <button
+                                        type="button"
+                                        className="w-full rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm uppercase tracking-[0.22em] text-stone-100 transition-colors hover:border-white/20 hover:bg-white/10"
+                                    >
+                                        Proceed to Checkout
+                                    </button>
+
+                                    <Link
+                                        href="/shop"
+                                        className="block text-center text-sm uppercase tracking-[0.22em] text-stone-400 transition-colors hover:text-stone-100"
+                                    >
+                                        Continue Shopping
+                                    </Link>
+
+                                    <p className="text-center text-xs leading-6 text-stone-500">
+                                        Taxes and shipping calculated at checkout.
                                     </p>
                                 </div>
                             </div>

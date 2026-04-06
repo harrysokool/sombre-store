@@ -1,4 +1,5 @@
 export const CART_STORAGE_KEY = "sombre-cart";
+export const CART_UPDATED_EVENT = "sombre-cart-updated";
 
 export type CartItem = {
   id: string;
@@ -52,8 +53,13 @@ export function getCartItems(): CartItem[] {
   }
 }
 
+export function getCartItemCount(items: CartItem[] = getCartItems()) {
+  return items.reduce((total, item) => total + item.quantity, 0);
+}
+
 function saveCartItems(items: CartItem[]) {
   window.localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(items));
+  window.dispatchEvent(new CustomEvent(CART_UPDATED_EVENT));
 }
 
 function updateCartItems(updater: (items: CartItem[]) => CartItem[]) {
