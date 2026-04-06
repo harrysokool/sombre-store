@@ -2,9 +2,10 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
+  CART_UPDATED_EVENT,
   decrementCartItemQuantity,
   getCartItemCount,
   getCartItems,
@@ -16,10 +17,27 @@ import { getCartLineTotal, getCartSubtotal } from "@/lib/cart/math";
 import { formatPrice } from "@/lib/storefront/format-price";
 
 export function CartPageContent() {
-  const [cartItems, setCartItems] = useState<CartItem[]>(() => getCartItems());
+  const [cartItems, setCartItems] = useState<CartItem[] | null>(null);
 
-  const subtotal = getCartSubtotal(cartItems);
-  const itemCount = getCartItemCount(cartItems);
+  useEffect(() => {
+    function syncCartItems() {
+      setCartItems(getCartItems());
+    }
+
+    syncCartItems();
+
+    window.addEventListener(CART_UPDATED_EVENT, syncCartItems);
+    window.addEventListener("storage", syncCartItems);
+
+    return () => {
+      window.removeEventListener(CART_UPDATED_EVENT, syncCartItems);
+      window.removeEventListener("storage", syncCartItems);
+    };
+  }, []);
+
+  const resolvedCartItems = cartItems ?? [];
+  const subtotal = getCartSubtotal(resolvedCartItems);
+  const itemCount = getCartItemCount(resolvedCartItems);
 
   function handleIncrement(itemId: string) {
     setCartItems(incrementCartItemQuantity(itemId));
@@ -50,10 +68,19 @@ export function CartPageContent() {
           </div>
         </div>
 
-        {cartItems.length > 0 ? (
+        {cartItems === null ? (
+          <div className="rounded-3xl border border-white/10 bg-white/[0.02] px-6 py-16 text-center">
+            <h2 className="text-2xl font-medium text-stone-100">
+              Loading cart
+            </h2>
+            <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-stone-400">
+              Retrieving the items currently saved in your cart.
+            </p>
+          </div>
+        ) : resolvedCartItems.length > 0 ? (
           <div className="grid gap-10 lg:grid-cols-[1.2fr_0.8fr]">
             <div className="space-y-4">
-              {cartItems.map((item) => (
+              {resolvedCartItems.map((item) => (
                 <div
                   key={item.id}
                   className="grid gap-5 rounded-3xl border border-white/10 bg-white/[0.02] p-5 sm:grid-cols-[160px_1fr] sm:p-6"
@@ -213,6 +240,12 @@ export function CartPageContent() {
               Add a product from the catalog and it will appear here
               automatically.
             </p>
+            <Link
+              href="/shop"
+              className="mt-8 inline-flex items-center justify-center rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm uppercase tracking-[0.22em] text-stone-100 transition-colors hover:border-white/20 hover:bg-white/10"
+            >
+              Return to Shop
+            </Link>
           </div>
         )}
       </div>

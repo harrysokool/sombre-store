@@ -118,3 +118,7 @@ export function removeCartItem(itemId: string) {
     currentItems.filter((currentItem) => currentItem.id !== itemId),
   );
 }
+
+export function clearCartItems() {
+  return updateCartItems(() => []);
+}
