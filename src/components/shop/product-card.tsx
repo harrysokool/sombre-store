@@ -5,22 +5,18 @@ type ProductCardProps = {
   name: string;
   slug: string;
   shortDescription: string | null;
-  price: number | string;
+  formattedPrice: string;
   sizeLabel: string | null;
   isFeatured: boolean;
   imageUrl: string | null;
   imageAlt: string | null;
 };
 
-function formatPrice(price: number | string) {
-  return `$${Number(price).toFixed(2)}`;
-}
-
 export function ProductCard({
   name,
   slug,
   shortDescription,
-  price,
+  formattedPrice,
   sizeLabel,
   isFeatured,
   imageUrl,
@@ -40,7 +36,6 @@ export function ProductCard({
               width={720}
               height={900}
               className="aspect-[4/5] w-full object-cover"
-              unoptimized
             />
           ) : (
             <div className="flex aspect-[4/5] items-center justify-center bg-white/[0.02]">
@@ -72,7 +67,7 @@ export function ProductCard({
       </div>
 
       <div className="mt-10 flex items-end justify-between gap-4">
-        <p className="text-lg font-medium text-stone-100">{formatPrice(price)}</p>
+        <p className="text-lg font-medium text-stone-100">{formattedPrice}</p>
         {sizeLabel ? (
           <p className="text-sm uppercase tracking-[0.18em] text-stone-500">
             {sizeLabel}

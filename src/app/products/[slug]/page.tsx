@@ -2,6 +2,7 @@ import Image from "next/image";
 import { notFound } from "next/navigation";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { formatPrice } from "@/lib/storefront/format-price";
 
 type ProductDetailPageProps = {
     params: Promise<{
@@ -34,10 +35,6 @@ type ProductDetail = {
     } | null;
     product_images: ProductImage[] | null;
 };
-
-function formatPrice(price: number | string) {
-    return `$${Number(price).toFixed(2)}`;
-}
 
 type RelationName = {
     name: string;
