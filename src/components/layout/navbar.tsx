@@ -108,7 +108,7 @@ export function Navbar() {
                             </button>
                         </div>
 
-                        <div className="absolute inset-x-0 top-1/2 flex -translate-y-1/2 justify-center pointer-events-none">
+                        <div className="absolute inset-x-0 top-1/2 z-20 flex -translate-y-1/2 justify-center pointer-events-none">
                             <Link
                                 href="/"
                                 onClick={() => setIsMenuOpen(false)}
