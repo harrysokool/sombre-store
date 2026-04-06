@@ -1,4 +1,6 @@
-import { PagePlaceholder } from "@/components/shared/page-placeholder";
+import { notFound } from "next/navigation";
+
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type ProductDetailPageProps = {
   params: Promise<{
@@ -6,10 +8,187 @@ type ProductDetailPageProps = {
   }>;
 };
 
+export const dynamic = "force-dynamic";
+
+type ProductImage = {
+  image_url: string;
+  alt_text: string | null;
+  sort_order: number;
+  is_primary: boolean;
+};
+
+type ProductDetail = {
+  id: string;
+  name: string;
+  description: string | null;
+  short_description: string | null;
+  price: number | string;
+  size_label: string | null;
+  is_featured: boolean;
+  brand: {
+    name: string;
+  } | null;
+  category: {
+    name: string;
+  } | null;
+  product_images: ProductImage[] | null;
+};
+
+function formatPrice(price: number | string) {
+  return `$${Number(price).toFixed(2)}`;
+}
+
+async function getProductBySlug(slug: string) {
+  const supabase = createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("products")
+    .select(
+      `
+        id,
+        name,
+        description,
+        short_description,
+        price,
+        size_label,
+        is_featured,
+        brand:brands ( name ),
+        category:categories ( name ),
+        product_images (
+          image_url,
+          alt_text,
+          sort_order,
+          is_primary
+        )
+      `,
+    )
+    .eq("slug", slug)
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  if (!data) {
+    return null;
+  }
+
+  return {
+    ...(data as ProductDetail),
+    product_images: [...(data.product_images ?? [])].sort(
+      (left, right) => left.sort_order - right.sort_order,
+    ),
+  };
+}
+
 export default async function ProductDetailPage({
   params,
 }: ProductDetailPageProps) {
   const { slug } = await params;
+  const product = await getProductBySlug(slug);
 
-  return <PagePlaceholder eyebrow={slug} title="Product Detail" />;
+  if (!product) {
+    notFound();
+  }
+
+  return (
+    <section className="px-6 py-24 sm:px-10 sm:py-32 lg:px-12">
+      <div className="mx-auto grid w-full max-w-7xl gap-12 lg:grid-cols-[1.15fr_0.85fr] lg:items-start">
+        <div className="grid gap-4 sm:grid-cols-2">
+          {product.product_images && product.product_images.length > 0 ? (
+            product.product_images.map((image) => (
+              <div
+                key={`${image.image_url}-${image.sort_order}`}
+                className="rounded-3xl border border-white/10 bg-white/[0.02] p-6"
+              >
+                <div className="flex aspect-[4/5] items-end rounded-2xl border border-dashed border-white/10 bg-stone-900/80 p-4">
+                  <div className="space-y-2">
+                    {image.is_primary ? (
+                      <span className="rounded-full border border-white/10 px-3 py-1 text-[11px] uppercase tracking-[0.24em] text-stone-300">
+                        Primary
+                      </span>
+                    ) : null}
+                    <p className="break-all text-sm leading-6 text-stone-400">
+                      {image.image_url}
+                    </p>
+                  </div>
+                </div>
+                {image.alt_text ? (
+                  <p className="mt-3 text-sm text-stone-500">{image.alt_text}</p>
+                ) : null}
+              </div>
+            ))
+          ) : (
+            <div className="rounded-3xl border border-white/10 bg-white/[0.02] p-6 sm:col-span-2">
+              <div className="flex aspect-[16/10] items-center justify-center rounded-2xl border border-dashed border-white/10 bg-stone-900/80">
+                <p className="text-sm uppercase tracking-[0.24em] text-stone-500">
+                  No product images
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-8">
+          <div className="space-y-5">
+            <div className="flex flex-wrap items-center gap-3 text-xs uppercase tracking-[0.28em] text-stone-500">
+              <span>{product.brand?.name ?? "Unbranded"}</span>
+              <span className="text-stone-700">/</span>
+              <span>{product.category?.name ?? "Uncategorized"}</span>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center gap-3">
+                <h1 className="text-4xl font-medium tracking-[0.14em] text-stone-100 sm:text-5xl">
+                  {product.name}
+                </h1>
+                {product.is_featured ? (
+                  <span className="rounded-full border border-white/10 px-3 py-1 text-[11px] uppercase tracking-[0.24em] text-stone-300">
+                    Featured
+                  </span>
+                ) : null}
+              </div>
+
+              {product.short_description ? (
+                <p className="text-lg leading-8 text-stone-300">
+                  {product.short_description}
+                </p>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-end gap-x-8 gap-y-4 border-y border-white/10 py-6">
+            <div className="space-y-2">
+              <p className="text-xs uppercase tracking-[0.24em] text-stone-500">
+                Price
+              </p>
+              <p className="text-2xl font-medium text-stone-100">
+                {formatPrice(product.price)}
+              </p>
+            </div>
+
+            {product.size_label ? (
+              <div className="space-y-2">
+                <p className="text-xs uppercase tracking-[0.24em] text-stone-500">
+                  Size
+                </p>
+                <p className="text-sm uppercase tracking-[0.18em] text-stone-300">
+                  {product.size_label}
+                </p>
+              </div>
+            ) : null}
+          </div>
+
+          <div className="space-y-3">
+            <p className="text-xs uppercase tracking-[0.24em] text-stone-500">
+              Description
+            </p>
+            <p className="max-w-2xl text-base leading-8 text-stone-400">
+              {product.description ?? "Product description coming soon."}
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
 }
