@@ -29,7 +29,8 @@ function CartIcon() {
 }
 
 export function NavbarCartIndicator() {
-  const [itemCount, setItemCount] = useState(() => getCartItemCount());
+  const [itemCount, setItemCount] = useState(0);
+  const [hasMounted, setHasMounted] = useState(false);
 
   useEffect(() => {
     function refreshCount() {
@@ -42,10 +43,16 @@ export function NavbarCartIndicator() {
       }
     }
 
+    const timeoutId = window.setTimeout(() => {
+      setHasMounted(true);
+      refreshCount();
+    }, 0);
+
     window.addEventListener(CART_UPDATED_EVENT, refreshCount);
     window.addEventListener("storage", handleStorage);
 
     return () => {
+      window.clearTimeout(timeoutId);
       window.removeEventListener(CART_UPDATED_EVENT, refreshCount);
       window.removeEventListener("storage", handleStorage);
     };
@@ -54,11 +61,13 @@ export function NavbarCartIndicator() {
   return (
     <Link
       href="/cart"
-      aria-label={`Cart${itemCount > 0 ? ` with ${itemCount} items` : ""}`}
+      aria-label={
+        hasMounted && itemCount > 0 ? `Cart with ${itemCount} items` : "Cart"
+      }
       className="relative flex h-10 w-10 items-center justify-center rounded-full border border-white/10 text-stone-200 transition-colors hover:border-white/20 hover:text-stone-100"
     >
       <CartIcon />
-      {itemCount > 0 ? (
+      {hasMounted && itemCount > 0 ? (
         <span className="absolute -right-1 -top-1 min-w-5 rounded-full bg-stone-100 px-1.5 py-0.5 text-center text-[10px] font-medium text-stone-950">
           {itemCount}
         </span>
