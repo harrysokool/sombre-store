@@ -4,7 +4,13 @@ import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
 
-import { getCartItems, type CartItem } from "@/lib/cart/cart";
+import {
+    decrementCartItemQuantity,
+    getCartItems,
+    incrementCartItemQuantity,
+    removeCartItem,
+    type CartItem,
+} from "@/lib/cart/cart";
 import { formatPrice } from "@/lib/storefront/format-price";
 
 function getLineTotal(price: number | string, quantity: number) {
@@ -19,9 +25,21 @@ function getSubtotal(items: CartItem[]) {
 }
 
 export function CartPageContent() {
-    const [cartItems] = useState<CartItem[]>(() => getCartItems());
+    const [cartItems, setCartItems] = useState<CartItem[]>(() => getCartItems());
 
     const subtotal = getSubtotal(cartItems);
+
+    function handleIncrement(itemId: string) {
+        setCartItems(incrementCartItemQuantity(itemId));
+    }
+
+    function handleDecrement(itemId: string) {
+        setCartItems(decrementCartItemQuantity(itemId));
+    }
+
+    function handleRemove(itemId: string) {
+        setCartItems(removeCartItem(itemId));
+    }
 
     return (
         <section className="px-6 py-24 sm:px-10 sm:py-32 lg:px-12">
@@ -69,12 +87,23 @@ export function CartPageContent() {
 
                                     <div className="flex flex-col justify-between gap-6">
                                         <div className="space-y-3">
-                                            <Link
-                                                href={`/products/${item.slug}`}
-                                                className="text-2xl font-medium tracking-[0.08em] text-stone-100"
-                                            >
-                                                {item.name}
-                                            </Link>
+                                            <div className="flex flex-wrap items-start justify-between gap-4">
+                                                <Link
+                                                    href={`/products/${item.slug}`}
+                                                    className="text-2xl font-medium tracking-[0.08em] text-stone-100"
+                                                >
+                                                    {item.name}
+                                                </Link>
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        handleRemove(item.id)
+                                                    }
+                                                    className="text-xs uppercase tracking-[0.22em] text-stone-500 transition-colors hover:text-stone-200"
+                                                >
+                                                    Remove
+                                                </button>
+                                            </div>
                                             {item.size_label ? (
                                                 <p className="text-sm uppercase tracking-[0.18em] text-stone-500">
                                                     {item.size_label}
@@ -96,9 +125,35 @@ export function CartPageContent() {
                                                 <p className="text-xs uppercase tracking-[0.24em] text-stone-500">
                                                     Quantity
                                                 </p>
-                                                <p className="text-base text-stone-300">
-                                                    {item.quantity}
-                                                </p>
+                                                <div className="flex items-center gap-3">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            handleDecrement(
+                                                                item.id,
+                                                            )
+                                                        }
+                                                        className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 text-stone-200 transition-colors hover:border-white/20 hover:text-stone-100"
+                                                        aria-label={`Decrease quantity for ${item.name}`}
+                                                    >
+                                                        -
+                                                    </button>
+                                                    <p className="min-w-6 text-center text-base text-stone-300">
+                                                        {item.quantity}
+                                                    </p>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            handleIncrement(
+                                                                item.id,
+                                                            )
+                                                        }
+                                                        className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 text-stone-200 transition-colors hover:border-white/20 hover:text-stone-100"
+                                                        aria-label={`Increase quantity for ${item.name}`}
+                                                    >
+                                                        +
+                                                    </button>
+                                                </div>
                                             </div>
 
                                             <div className="space-y-1 text-right">

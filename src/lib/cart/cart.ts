@@ -56,25 +56,59 @@ function saveCartItems(items: CartItem[]) {
   window.localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(items));
 }
 
-export function addItemToCart(item: Omit<CartItem, "quantity">) {
-  const currentItems = getCartItems();
-  const existingItem = currentItems.find(
-    (currentItem) => currentItem.id === item.id,
-  );
-
-  if (existingItem) {
-    const updatedItems = currentItems.map((currentItem) =>
-      currentItem.id === item.id
-        ? { ...currentItem, quantity: currentItem.quantity + 1 }
-        : currentItem,
-    );
-
-    saveCartItems(updatedItems);
-    return updatedItems;
-  }
-
-  const updatedItems = [...currentItems, { ...item, quantity: 1 }];
+function updateCartItems(updater: (items: CartItem[]) => CartItem[]) {
+  const updatedItems = updater(getCartItems());
   saveCartItems(updatedItems);
 
   return updatedItems;
+}
+
+export function addItemToCart(item: Omit<CartItem, "quantity">) {
+  return updateCartItems((currentItems) => {
+    const existingItem = currentItems.find(
+      (currentItem) => currentItem.id === item.id,
+    );
+
+    if (existingItem) {
+      return currentItems.map((currentItem) =>
+        currentItem.id === item.id
+          ? { ...currentItem, quantity: currentItem.quantity + 1 }
+          : currentItem,
+      );
+    }
+
+    return [...currentItems, { ...item, quantity: 1 }];
+  });
+}
+
+export function incrementCartItemQuantity(itemId: string) {
+  return updateCartItems((currentItems) =>
+    currentItems.map((currentItem) =>
+      currentItem.id === itemId
+        ? { ...currentItem, quantity: currentItem.quantity + 1 }
+        : currentItem,
+    ),
+  );
+}
+
+export function decrementCartItemQuantity(itemId: string) {
+  return updateCartItems((currentItems) =>
+    currentItems.flatMap((currentItem) => {
+      if (currentItem.id !== itemId) {
+        return [currentItem];
+      }
+
+      if (currentItem.quantity <= 1) {
+        return [];
+      }
+
+      return [{ ...currentItem, quantity: currentItem.quantity - 1 }];
+    }),
+  );
+}
+
+export function removeCartItem(itemId: string) {
+  return updateCartItems((currentItems) =>
+    currentItems.filter((currentItem) => currentItem.id !== itemId),
+  );
 }
