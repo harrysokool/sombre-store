@@ -9,11 +9,11 @@ export default function CheckoutSuccessPage() {
             Sombre
           </p>
           <h1 className="text-4xl font-medium tracking-[0.14em] text-stone-100 sm:text-5xl">
-            Payment received
+            Returned from checkout
           </h1>
           <p className="mx-auto max-w-2xl text-base leading-8 text-stone-400">
-            Your checkout was completed in Stripe. Order confirmation and
-            fulfillment steps will be added next.
+            Stripe has redirected you back to Sombre. Final payment confirmation
+            and order updates will be added with the next backend step.
           </p>
         </div>
 

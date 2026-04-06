@@ -7,6 +7,7 @@ import type {
   CheckoutCustomerDetails,
   CheckoutSessionPayload,
 } from "@/lib/checkout/payload";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { stripe } from "@/lib/stripe/server";
 
 function isNonEmptyString(value: unknown) {
@@ -35,15 +36,37 @@ function isValidCartItem(value: unknown): value is CartItem {
   return (
     isNonEmptyString(item.id) &&
     isNonEmptyString(item.slug) &&
-    isNonEmptyString(item.name) &&
-    typeof item.price === "number" &&
-    Number.isFinite(item.price) &&
-    item.price > 0 &&
     Number.isInteger(item.quantity) &&
     item.quantity > 0 &&
     isOptionalString(item.size_label) &&
     isOptionalString(item.image_url)
   );
+}
+
+type CheckoutProduct = {
+  id: string;
+  slug: string;
+  name: string;
+  price: number;
+  size_label: string | null;
+  is_active: boolean;
+};
+
+async function getCheckoutProducts(cartItems: CartItem[]) {
+  const supabase = createSupabaseServerClient();
+  const productIds = cartItems.map((item) => item.id);
+
+  const { data, error } = await supabase
+    .from("products")
+    .select("id, slug, name, price, size_label, is_active")
+    .in("id", productIds)
+    .returns<CheckoutProduct[]>();
+
+  if (error) {
+    throw error;
+  }
+
+  return data ?? [];
 }
 
 function isValidCustomer(value: unknown): value is CheckoutCustomerDetails {
@@ -111,11 +134,49 @@ export async function POST(request: Request) {
       );
     }
 
-    const calculatedSubtotal = getCartSubtotal(payload.cartItems);
+    const products = await getCheckoutProducts(payload.cartItems);
+    const productMap = new Map(products.map((product) => [product.id, product]));
+
+    if (products.length !== payload.cartItems.length) {
+      return NextResponse.json(
+        { error: "One or more cart items could not be found." },
+        { status: 400 },
+      );
+    }
+
+    const serverCartItems = payload.cartItems.map((item) => {
+      const product = productMap.get(item.id);
+
+      if (!product || !product.is_active || product.slug !== item.slug) {
+        return null;
+      }
+
+      return {
+        id: product.id,
+        slug: product.slug,
+        name: product.name,
+        price: product.price,
+        size_label: product.size_label,
+        quantity: item.quantity,
+      };
+    });
+
+    if (serverCartItems.some((item) => item === null)) {
+      return NextResponse.json(
+        { error: "One or more cart items are no longer available." },
+        { status: 400 },
+      );
+    }
+
+    const validatedCartItems = serverCartItems.filter(
+      (item): item is NonNullable<typeof item> => item !== null,
+    );
+
+    const calculatedSubtotal = getCartSubtotal(validatedCartItems);
 
     if (Math.abs(calculatedSubtotal - payload.subtotal) > 0.01) {
       return NextResponse.json(
-        { error: "Checkout subtotal did not match cart contents." },
+        { error: "Checkout prices changed. Please review your cart and try again." },
         { status: 400 },
       );
     }
@@ -127,7 +188,7 @@ export async function POST(request: Request) {
       customer_email: payload.customer.email,
       success_url: `${origin}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/checkout/cancel`,
-      line_items: payload.cartItems.map((item) => ({
+      line_items: validatedCartItems.map((item) => ({
         quantity: item.quantity,
         price_data: {
           currency: "usd",
@@ -150,8 +211,9 @@ export async function POST(request: Request) {
         city: payload.customer.city,
         postal_code: payload.customer.postalCode,
         country: payload.customer.country,
-        cart_item_count: String(payload.cartItems.length),
-        cart_quantity_total: String(getCartItemCount(payload.cartItems)),
+        cart_item_count: String(validatedCartItems.length),
+        cart_quantity_total: String(getCartItemCount(validatedCartItems)),
+        subtotal: calculatedSubtotal.toFixed(2),
       },
     });
 
