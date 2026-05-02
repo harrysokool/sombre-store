@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import Stripe from "stripe";
 
 import { getStripeWebhookSecret, stripe } from "@/lib/stripe/server";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
 export const runtime = "nodejs";
 
@@ -33,7 +33,7 @@ function getOrderSubtotal(
 }
 
 async function findExistingOrder(stripeSessionId: string) {
-  const supabase = createSupabaseServerClient();
+  const supabase = createSupabaseServiceRoleClient();
   const { data, error } = await supabase
     .from("orders")
     .select("id")
@@ -51,7 +51,7 @@ async function insertOrderFromSession(
   session: Stripe.Checkout.Session,
   lineItems: Stripe.ApiList<Stripe.LineItem>,
 ) {
-  const supabase = createSupabaseServerClient();
+  const supabase = createSupabaseServiceRoleClient();
 
   const { data, error } = await supabase
     .from("orders")
@@ -85,7 +85,7 @@ async function insertOrderItems(
   orderId: string,
   lineItems: Stripe.ApiList<Stripe.LineItem>,
 ) {
-  const supabase = createSupabaseServerClient();
+  const supabase = createSupabaseServiceRoleClient();
 
   const items = lineItems.data.map((lineItem) => {
     const stripeProduct =
@@ -133,7 +133,10 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
   try {
     await insertOrderItems(order.id, lineItems);
   } catch (error) {
-    await createSupabaseServerClient().from("orders").delete().eq("id", order.id);
+    await createSupabaseServiceRoleClient()
+      .from("orders")
+      .delete()
+      .eq("id", order.id);
     throw error;
   }
 

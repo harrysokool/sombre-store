@@ -2,59 +2,54 @@
 
 ## Current State
 
-Sombre has moved beyond a storefront prototype and is now a real early-stage ecommerce system.
+Sombre is now a working early-stage ecommerce MVP.
 
-The project currently includes:
+The core purchase flow has been tested locally and is working:
 
-- a shared app shell and routed storefront structure
-- an editorial luxury homepage direction
-- a live `/shop` page backed by Supabase product data
-- a live `/products/[slug]` page with real product details and imagery
-- a localStorage-based cart with:
-  - add to cart
-  - quantity updates
-  - remove item
-  - navbar cart indicator
-- a real `/checkout` page with customer information fields
-- a server-side Stripe Checkout Session handoff
-- server-side price authority for checkout
-- a Stripe webhook route with signature verification
-- persisted `orders` and `order_items` records created from `checkout.session.completed`
+`product -> cart -> checkout -> Stripe Checkout -> Stripe webhook -> Supabase order -> success page`
 
-This means the project already has the core shape of a real ecommerce MVP:
+Confirmed working locally:
 
-browse -> product -> cart -> checkout -> Stripe -> confirmed webhook -> persisted order
+- users can add products to the cart
+- users can open the checkout page
+- users can complete a Stripe test payment
+- Stripe CLI receives `checkout.session.completed`
+- the webhook returns `200`
+- the webhook creates an `orders` row in Supabase
+- the webhook creates related `order_items` rows in Supabase
+- the checkout success page works after payment
+
+The project is no longer just a storefront prototype. It has a real working checkout and order persistence path.
 
 ---
 
-## What Is Going On Technically
+## What Is Built
 
-### Catalog and Storefront
+### Storefront
 
-Products, brands, categories, and product images are stored in Supabase/Postgres.
-
-The storefront is already connected to real backend data.
-
-- `/shop` fetches live product data from Supabase
-- `/products/[slug]` fetches one product plus related brand, category, and ordered product images
-- product images are now rendered from local project image paths
+- Shared app shell with navbar and footer
+- Homepage redesigned to feel more like a fragrance ecommerce site
+- `/shop` page backed by Supabase product data
+- `/products/[slug]` page backed by Supabase product details
+- Product images rendered from local project image paths
 
 ### Cart
 
-The cart is intentionally MVP-simple and browser-based.
+The cart is browser-based and stored in `localStorage`.
 
-It uses localStorage and supports:
+It supports:
 
-- adding a product from the product page
-- incrementing quantity
-- decrementing quantity
-- removing an item
-- calculating subtotal and item count
-- showing live cart count in the navbar
+- add to cart
+- quantity increase
+- quantity decrease
+- remove item
+- subtotal calculation
+- navbar cart count
+- checkout cart snapshot for post-payment reconciliation
 
 ### Checkout
 
-The checkout page reads the local cart on the client and collects a lightweight customer information structure:
+The `/checkout` page collects:
 
 - full name
 - email
@@ -65,266 +60,195 @@ The checkout page reads the local cart on the client and collects a lightweight 
 - postal code
 - country
 
-### Stripe Session Creation
+The checkout page sends the cart and customer details to `/api/checkout/session`.
 
-The checkout handoff is already server-backed.
+### Stripe Checkout
+
+Stripe Checkout is implemented and tested locally.
 
 The `/api/checkout/session` route:
 
-- accepts cart + customer payload from `/checkout`
-- validates the payload at MVP level
-- fetches the real product data from Supabase
-- rebuilds checkout pricing on the server
-- recalculates subtotal on the server
-- creates a hosted Stripe Checkout Session
+- validates the checkout payload
+- fetches current product data from Supabase
+- rebuilds pricing on the server
+- compares server subtotal against the client subtotal
+- creates a Stripe Checkout Session
+- redirects the customer to Stripe-hosted checkout
 
-This is important because the server, not the browser, now decides the actual prices used for payment.
+This means product prices are not trusted from the browser.
 
-### Webhook and Order Persistence
+### Stripe Webhook and Orders
 
-The Stripe webhook route now:
+The Stripe webhook route is implemented and tested locally.
 
-- verifies Stripe signature using the raw request body
+The `/api/stripe/webhook` route:
+
+- verifies the Stripe signature using the raw request body
 - handles `checkout.session.completed`
-- checks whether an order already exists for the session
+- checks whether the Stripe session was already persisted
 - fetches Stripe line items
 - creates an `orders` row
 - creates related `order_items` rows
-- avoids duplicate order creation using `stripe_session_id`
+- avoids duplicate order creation through `stripe_session_id`
 
-This is the point where the project becomes a real server-tracked commerce system.
+Order persistence now uses a Supabase service role client for trusted backend writes.
+
+This is safer than using the public anon key for webhook order inserts.
+
+---
+
+## Supabase Usage
+
+The project currently uses Supabase for:
+
+- products
+- brands
+- categories
+- product images
+- orders
+- order items
+
+There are two Supabase client paths:
+
+- the existing anon client for public catalog reads
+- the service role client for trusted backend order persistence in the Stripe webhook
+
+The service role key is server-only and should never be exposed as a `NEXT_PUBLIC_` environment variable.
+
+---
+
+## Important Files
+
+- `src/app/page.tsx`  
+  Homepage.
+
+- `src/app/shop/page.tsx`  
+  Loads active products from Supabase.
+
+- `src/app/products/[slug]/page.tsx`  
+  Loads one product, its brand, category, and images from Supabase.
+
+- `src/lib/cart/cart.ts`  
+  Browser cart helpers and checkout cart snapshot logic.
+
+- `src/components/cart/checkout-page-content.tsx`  
+  Checkout form and Stripe redirect trigger.
+
+- `src/app/api/checkout/session/route.ts`  
+  Creates Stripe Checkout Sessions and validates prices on the server.
+
+- `src/app/api/stripe/webhook/route.ts`  
+  Verifies Stripe webhooks and persists orders/order items.
+
+- `src/lib/supabase/service-role.ts`  
+  Server-only Supabase service role client for trusted backend writes.
+
+- `supabase/migrations/20260405000000_initial_catalog_schema.sql`  
+  Catalog schema.
+
+- `supabase/migrations/20260406000000_add_orders_schema.sql`  
+  Order and order item schema.
 
 ---
 
 ## What Is Good Right Now
 
-### 1. The architecture is still simple
+### 1. The checkout flow works
 
-The project is not overengineered.
+The full local payment path has been tested successfully with Stripe test mode and Stripe CLI.
 
-You have managed to keep:
+### 2. Server-side price authority is in place
 
-- simple data flow
-- understandable page structure
-- isolated client components where needed
-- server-only Stripe/Supabase logic where needed
+The checkout route reloads products from Supabase and recalculates the subtotal before creating the Stripe session.
 
-That is a major strength.
+### 3. Orders are created from Stripe-confirmed events
 
-### 2. Price authority is on the server
+Orders are not created just because the customer clicks checkout.
 
-This was the most important payment-safety fix before going further.
+They are created only after Stripe sends `checkout.session.completed`.
 
-The checkout route no longer trusts local cart price values.
+### 4. Webhook writes now use the service role client
 
-### 3. Orders are now persisted from Stripe-confirmed events
+The webhook no longer depends on the public anon key for order persistence.
 
-This means you now have a reliable backend record of completed purchases.
+This is the right direction for production security.
 
-### 4. The schema is practical for MVP
+### 5. The app is still simple
 
-The project already has a good catalog schema and a lean order schema.
-
-The order system stores snapshots so later product changes do not corrupt historical purchase records.
-
-### 5. The product is already testable as a real flow
-
-You can now test:
-
-shop -> product -> cart -> checkout -> Stripe -> webhook -> persisted order
-
-That is a serious milestone.
+The codebase is still understandable and not overengineered.
 
 ---
 
-## What Still Needs Work
+## Remaining Risks and Gaps
 
-These are the important next gaps, in priority order.
+### 1. Stock validation is not implemented
 
-### 1. Real success-page state
+Products have `stock_quantity`, but checkout does not currently check whether enough stock is available.
 
-The biggest remaining UX/business gap is the post-payment user experience.
+### 2. Inventory is not updated after payment
 
-Right now, the project can persist confirmed orders, but the frontend success flow still needs to catch up.
+Paid orders do not currently reduce product stock.
 
-The `/checkout/success` page should stop being just a return page and start reading real order/session state.
+### 3. Success page needs polish
 
-It should be able to distinguish between:
+The success page works, but the customer-facing copy and order details should be improved.
 
-- confirmed order found
-- payment/confirmation still processing
-- invalid or missing session
+It should eventually show clearer confirmation details and purchased items.
 
-### 2. Clear the local cart only after confirmed success
+### 4. Product image mismatch exists in seed data
 
-The cart should not be cleared just because the user lands on the success URL.
+`supabase/seed.sql` references `*-02.jpg` product images, but the local `public/images/products` folder currently appears to contain only `*-01.jpg` product images.
 
-It should be cleared only after the app can confidently tie that session to a real persisted order.
+This can cause broken secondary product images if the seed data is used as-is.
 
-### 3. End-to-end webhook testing
+### 5. RLS and order privacy should still be checked
 
-The webhook logic is implemented, but the most valuable immediate next step is testing the whole path fully.
+The webhook now uses the service role client, which is good.
 
-That means confirming:
+Before public deployment, Supabase Row Level Security should still be reviewed so public users cannot read or write private order data directly.
 
-- Stripe sends the event correctly
-- the webhook route receives it
-- the order is persisted once
-- order items are persisted correctly
-- retries do not create duplicates
+### 6. Shipping and tax are not actually calculated yet
 
-### 4. Slightly stronger duplicate/race handling later
+The current Stripe Checkout Session charges item subtotal only.
 
-The current combination of:
-
-- application-level existing-order check
-- database unique constraint on `stripe_session_id`
-
-is good for MVP.
-
-Later, race conditions and retry handling may need tightening, but this is not the next immediate problem.
+Any copy that says shipping or tax is calculated at checkout should be reviewed.
 
 ---
 
-## What Does **Not** Need To Be Done Next
+## What Does Not Need To Be Done Next
 
-These are not the best next moves right now:
+These are not urgent right now:
 
-- authentication first
-- admin dashboard first
-- order history UI first
-- more homepage redesign work
-- complex shipping/tax/coupon systems
-- more Stripe event types immediately
+- full admin dashboard
+- customer accounts
+- order history UI
+- complex discount system
+- custom checkout UI
+- advanced fulfillment workflow
 
-Those can all come later.
+Those can come later.
 
-The project already has enough surface area. The next step should close the confirmation loop, not widen the system.
-
----
-
-## Recommended Next Step
-
-### Build a real `/checkout/success` flow that reads confirmed order/session state
-
-This is the highest-value next feature.
-
-It should:
-
-- read the `session_id` from the success URL
-- check whether a real persisted order exists for that Stripe session
-- show a real confirmation state when found
-- show a processing state when webhook confirmation has not landed yet
-- avoid claiming final confirmation too early
-
-After that, the cart can be cleared only when confirmation is real.
+The next work should keep tightening the existing MVP path.
 
 ---
 
-## Recommended Sequence From Here
+## Recommended Next Steps
 
-1. Test the webhook flow end-to-end
-2. Update `/checkout/success` to reflect real order/session state
-3. Clear local cart only after confirmed success
-4. Then consider:
-   - minimal order confirmation details
-   - customer order lookup/history
-   - admin order visibility
-   - email/fulfillment logic
-
----
-
-## Biggest Risks Right Now
-
-The project is in a good state, but these are the current risk areas:
-
-### 1. Frontend trust gap after payment
-
-The backend can now confirm orders, but the user-facing confirmation experience is not yet fully aligned with that reality.
-
-### 2. Sensitive payment code is now involved
-
-Future AI-generated changes in the Stripe/order area should be kept small and reviewed carefully.
-
-### 3. The project is becoming real enough that consistency matters more
-
-From here on, maintainability and correctness matter more than adding lots of new features quickly.
+1. Add stock validation to checkout.
+2. Add inventory update after successful payment.
+3. Polish `/checkout/success` copy and show clearer order confirmation details.
+4. Fix the seed image mismatch.
+5. Review Supabase RLS policies for order privacy before public deployment.
 
 ---
 
 ## Overall Verdict
 
-Sombre has crossed the line from portfolio-style storefront into real ecommerce MVP territory.
+Sombre is usable as a local ecommerce MVP.
 
-The project now has:
+The most important flow now works:
 
-- real catalog data
-- real cart flow
-- real checkout handoff
-- real Stripe payment path
-- real webhook verification
-- real persisted orders
+`browse -> cart -> checkout -> Stripe payment -> webhook -> persisted order -> success page`
 
-That is a strong position.
+The next phase should focus on reliability and production readiness, not adding large new systems.
 
-The next goal is not to add lots of new systems.
-
-The next goal is to make the post-payment experience feel as trustworthy and complete as the backend now is.
-
----
-
-## One-Sentence Recommendation
-
-Finish the post-payment confirmation flow before adding broader product features.
-
-
-
-1. Critical Issues (must fix now)
-
-No critical checkout blocker is showing now that you have tested the full Stripe flow successfully.
-
-The main “must fix before public launch” issue is Supabase security. The app uses the public anon Supabase key even in server code. If RLS is disabled or too permissive, someone could potentially read or write tables directly with the public key. This matters most for orders and order_items because they contain customer personal/order data.
-
-Before any public deployment, confirm:
-
-RLS is enabled on orders and order_items.
-Public users cannot read all orders.
-Public users cannot insert fake orders directly.
-Webhook/order writes still work through a safe server-only path.
-2. Important Improvements (should fix soon)
-
-Add a server-only Supabase service role client for webhook/order persistence. Keep the anon client for public catalog reads, but use service role only in backend routes that must write trusted data.
-Fix the seed image mismatch. supabase/seed.sql references *-02.jpg product images, but public/images/products only contains *-01.jpg files. Product detail pages may show broken secondary images if the seed data is used as-is.
-Add stock validation at checkout. Products have stock_quantity, but checkout does not check whether quantity requested is available.
-Add inventory update after successful payment, or at least decide that stock is not enforced yet. Right now paid orders do not reduce stock.
-Align checkout copy with actual pricing. The cart says taxes and shipping are calculated at checkout, but the Stripe session currently only charges item subtotal.
-Make success page wording more customer-ready. It currently says a “formal confirmation experience can be added next,” which sounds like internal project text.
-Use a fixed production app URL for Stripe success/cancel URLs instead of trusting the request origin in production.
-Update PROJECT_STATUS_SUMMARY.md; it still says the success page needs work that has partly already been done and that webhook testing is pending, but you have now tested it.
-3. Nice-to-have Improvements (can wait)
-
-Show purchased items on the success page.
-Add a basic order confirmation email later.
-Add simple filtering or category links on /shop.
-Add a friendly 404/not-found page for missing products.
-Add basic rate limiting to checkout session creation.
-Add an order lookup page later, but not before the current purchase flow is polished.
-Remove Cloudinary from the README unless you actually plan to use it soon.
-4. Overall Project Readiness
-
-For local MVP development, the project is usable. The core purchase path works:
-
-product -> cart -> checkout -> Stripe -> webhook -> Supabase order -> success page
-
-For a public MVP, it is close but not ready until Supabase security is tightened. The payment flow works, but order data privacy and trusted database writes need to be made safer first.
-
-5. Recommended Next 3 Steps
-
-Lock down Supabase order data.
-Enable/check RLS for orders and order_items, then use a server-only service role client for webhook inserts.
-
-Fix the product image seed mismatch.
-Either add the missing *-02.jpg files or remove those image rows from supabase/seed.sql.
-
-Clean up the post-payment UX.
-Make /checkout/success customer-facing, show clear confirmation details, and remove internal wording.
