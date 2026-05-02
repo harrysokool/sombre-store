@@ -276,3 +276,55 @@ The next goal is to make the post-payment experience feel as trustworthy and com
 ## One-Sentence Recommendation
 
 Finish the post-payment confirmation flow before adding broader product features.
+
+
+
+1. Critical Issues (must fix now)
+
+No critical checkout blocker is showing now that you have tested the full Stripe flow successfully.
+
+The main “must fix before public launch” issue is Supabase security. The app uses the public anon Supabase key even in server code. If RLS is disabled or too permissive, someone could potentially read or write tables directly with the public key. This matters most for orders and order_items because they contain customer personal/order data.
+
+Before any public deployment, confirm:
+
+RLS is enabled on orders and order_items.
+Public users cannot read all orders.
+Public users cannot insert fake orders directly.
+Webhook/order writes still work through a safe server-only path.
+2. Important Improvements (should fix soon)
+
+Add a server-only Supabase service role client for webhook/order persistence. Keep the anon client for public catalog reads, but use service role only in backend routes that must write trusted data.
+Fix the seed image mismatch. supabase/seed.sql references *-02.jpg product images, but public/images/products only contains *-01.jpg files. Product detail pages may show broken secondary images if the seed data is used as-is.
+Add stock validation at checkout. Products have stock_quantity, but checkout does not check whether quantity requested is available.
+Add inventory update after successful payment, or at least decide that stock is not enforced yet. Right now paid orders do not reduce stock.
+Align checkout copy with actual pricing. The cart says taxes and shipping are calculated at checkout, but the Stripe session currently only charges item subtotal.
+Make success page wording more customer-ready. It currently says a “formal confirmation experience can be added next,” which sounds like internal project text.
+Use a fixed production app URL for Stripe success/cancel URLs instead of trusting the request origin in production.
+Update PROJECT_STATUS_SUMMARY.md; it still says the success page needs work that has partly already been done and that webhook testing is pending, but you have now tested it.
+3. Nice-to-have Improvements (can wait)
+
+Show purchased items on the success page.
+Add a basic order confirmation email later.
+Add simple filtering or category links on /shop.
+Add a friendly 404/not-found page for missing products.
+Add basic rate limiting to checkout session creation.
+Add an order lookup page later, but not before the current purchase flow is polished.
+Remove Cloudinary from the README unless you actually plan to use it soon.
+4. Overall Project Readiness
+
+For local MVP development, the project is usable. The core purchase path works:
+
+product -> cart -> checkout -> Stripe -> webhook -> Supabase order -> success page
+
+For a public MVP, it is close but not ready until Supabase security is tightened. The payment flow works, but order data privacy and trusted database writes need to be made safer first.
+
+5. Recommended Next 3 Steps
+
+Lock down Supabase order data.
+Enable/check RLS for orders and order_items, then use a server-only service role client for webhook inserts.
+
+Fix the product image seed mismatch.
+Either add the missing *-02.jpg files or remove those image rows from supabase/seed.sql.
+
+Clean up the post-payment UX.
+Make /checkout/success customer-facing, show clear confirmation details, and remove internal wording.
