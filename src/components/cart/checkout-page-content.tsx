@@ -111,7 +111,8 @@ export function CheckoutPageContent() {
               Checkout
             </h1>
             <p className="text-base leading-8 text-stone-400">
-              A final review before payment and order confirmation are added.
+              Enter your details, review your order, and complete payment
+              securely through Stripe.
             </p>
           </div>
         </div>
@@ -122,7 +123,7 @@ export function CheckoutPageContent() {
               Loading checkout
             </h2>
             <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-stone-400">
-              Retrieving the items currently saved in your cart.
+              Loading the products saved in your cart.
             </p>
           </div>
         ) : resolvedCartItems.length > 0 ? (
@@ -133,7 +134,7 @@ export function CheckoutPageContent() {
                   Customer Information
                 </p>
                 <h2 className="text-2xl font-medium text-stone-100">
-                  Delivery details
+                  Shipping details
                 </h2>
               </div>
 
@@ -255,7 +256,7 @@ export function CheckoutPageContent() {
                       Order Summary
                     </p>
                     <h2 className="text-2xl font-medium text-stone-100">
-                      Final review
+                      Secure checkout
                     </h2>
                   </div>
 
@@ -333,7 +334,9 @@ export function CheckoutPageContent() {
                       disabled={isSubmitting}
                       className="w-full rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm uppercase tracking-[0.22em] text-stone-100 transition-colors hover:border-white/20 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {isSubmitting ? "Redirecting to Stripe..." : "Proceed to Payment"}
+                      {isSubmitting
+                        ? "Opening Stripe..."
+                        : "Continue to Secure Payment"}
                     </button>
 
                     {errorMessage ? (
@@ -343,19 +346,19 @@ export function CheckoutPageContent() {
                     ) : null}
 
                     <p className="text-center text-xs leading-6 text-stone-500">
-                      You will be redirected to Stripe Checkout to complete
-                      payment securely.
+                      You will be redirected to Stripe Checkout to enter your
+                      payment details securely.
                     </p>
+
+                    <Link
+                      href="/cart"
+                      className="inline-flex w-full items-center justify-center text-xs uppercase tracking-[0.22em] text-stone-500 transition-colors hover:text-stone-200"
+                    >
+                      Return to Cart
+                    </Link>
                   </div>
                 </div>
               </div>
-
-              <Link
-                href="/cart"
-                className="inline-flex items-center text-sm uppercase tracking-[0.22em] text-stone-400 transition-colors hover:text-stone-100"
-              >
-                Return to Cart
-              </Link>
             </div>
           </div>
         ) : (

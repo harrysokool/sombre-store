@@ -63,7 +63,8 @@ export function CartPageContent() {
               Cart
             </h1>
             <p className="text-base leading-8 text-stone-400">
-              A quiet review of the items currently saved in your cart.
+              Review your selected products before continuing to secure
+              checkout.
             </p>
           </div>
         </div>
@@ -74,7 +75,7 @@ export function CartPageContent() {
               Loading cart
             </h2>
             <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-stone-400">
-              Retrieving the items currently saved in your cart.
+              Loading the products saved in your cart.
             </p>
           </div>
         ) : resolvedCartItems.length > 0 ? (
@@ -187,7 +188,7 @@ export function CartPageContent() {
                     Summary
                   </p>
                   <h2 className="text-2xl font-medium text-stone-100">
-                    Ready for checkout
+                    Secure checkout
                   </h2>
                 </div>
 
@@ -214,7 +215,7 @@ export function CartPageContent() {
                     href="/checkout"
                     className="inline-flex w-full items-center justify-center rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm uppercase tracking-[0.22em] text-stone-100 transition-colors hover:border-white/20 hover:bg-white/10"
                   >
-                    Proceed to Checkout
+                    Secure Checkout
                   </Link>
 
                   <Link
@@ -225,7 +226,8 @@ export function CartPageContent() {
                   </Link>
 
                   <p className="text-center text-xs leading-6 text-stone-500">
-                    Taxes and shipping calculated at checkout.
+                    Payment is completed securely through Stripe. Your card
+                    details are not stored by Sombre.
                   </p>
                 </div>
               </div>

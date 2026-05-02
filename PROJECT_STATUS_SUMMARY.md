@@ -252,3 +252,76 @@ The most important flow now works:
 
 The next phase should focus on reliability and production readiness, not adding large new systems.
 
+
+lastes audit on the project.
+I audited the current codebase read-only. npm run lint and npx tsc --noEmit both pass.
+
+1. Critical Issues (must fix before launch)
+
+Order privacy / RLS is not proven safe yet.
+The webhook now uses the Supabase service role client, which is good. But the success page still reads orders using the anon Supabase client. If RLS is disabled or too open, private order data could be exposed. If RLS is strict, the success page may stop working. Before launch, define clear RLS policies or move the success-page order lookup to a safe server-only path that returns only the needed order confirmation data.
+
+Stock is not validated or updated.
+Products have stock_quantity, but checkout does not check stock and the webhook does not reduce inventory. Real users could buy more units than available.
+
+Seed data references missing product images.
+supabase/seed.sql includes *-02.jpg image paths, but public/images/products only has *-01.jpg files. If seeded as-is, product detail pages can show broken images.
+
+2. Important Improvements (should fix soon)
+
+Use a fixed production site URL for Stripe success/cancel URLs.
+/api/checkout/session currently builds URLs from the request origin. For production, use an env var like NEXT_PUBLIC_SITE_URL or APP_URL to avoid bad redirect behavior.
+
+Polish the success page copy.
+It currently includes internal wording: “A formal confirmation experience can be added next…” That reduces customer trust.
+
+Fix cart/checkout wording around shipping and tax.
+The cart says “Taxes and shipping calculated at checkout,” but Stripe currently charges item subtotal only.
+
+Add a better invalid/long-waiting success state.
+/checkout/success refreshes while waiting for an order, but does not clearly handle an invalid session_id or a webhook failure after a long delay.
+
+Add light API protection later.
+/api/checkout/session is public. It is okay for MVP, but basic rate limiting would reduce abuse/spam session creation.
+
+3. Nice-to-have Improvements (can wait)
+
+Show purchased line items on the success page.
+Add confirmation email later.
+Make Search and Account buttons less confusing while those features are not built.
+Remove or update placeholder /admin, /login, and /brands pages before exposing them.
+Update README: it mentions Cloudinary, but the current app uses local images.
+Add category filtering on /shop.
+4. Security Status
+
+Not fully public-launch safe yet.
+
+Good:
+
+Stripe secret key is backend-only.
+Stripe webhook secret is backend-only.
+Supabase service role key is not NEXT_PUBLIC_.
+Webhook order writes use the service role client.
+.env* files are ignored except .env.example.
+Needs review before launch:
+
+Supabase RLS policies are not present in the migrations.
+orders and order_items contain customer data and must not be publicly readable.
+Success page order lookup needs to work without opening broad anon access to orders.
+Service role key must be set only in server deployment env vars.
+5. Overall Project Readiness
+
+Local MVP: yes, usable.
+
+Public deployment with real users: close, but not ready until order privacy/RLS and stock handling are addressed. The purchase flow works, but the database security and inventory consistency need tightening first.
+
+6. Recommended Next 3 Steps
+
+Fix Supabase order privacy.
+Decide the RLS policy and adjust the success-page order lookup so users cannot read other orders.
+
+Add stock validation and inventory decrement.
+Check stock before creating Stripe Checkout and reduce stock after confirmed payment.
+
+Fix launch-facing trust issues.
+Remove missing *-02.jpg seed image references or add the files, update success-page copy, and correct shipping/tax wording.

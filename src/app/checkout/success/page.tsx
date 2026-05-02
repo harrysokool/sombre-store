@@ -61,8 +61,8 @@ export default async function CheckoutSuccessPage({
           </h1>
           <p className="mx-auto max-w-2xl text-base leading-8 text-stone-400">
             {isOrderConfirmed
-              ? "Your payment has been recorded and your order is now saved with Sombre. A formal confirmation experience can be added next without changing the purchase flow again."
-              : "Stripe has redirected you back to Sombre. We are still waiting for the confirmed order record to finish syncing and will check again automatically."}
+              ? "Thank you. Your payment was successful and your order has been received. We will use the email below for order updates and support."
+              : "Your payment was completed in Stripe. We are confirming your order details now, and this page will update automatically."}
           </p>
         </div>
 
@@ -76,7 +76,7 @@ export default async function CheckoutSuccessPage({
             </div>
             <div className="space-y-1">
               <p className="text-xs uppercase tracking-[0.24em] text-stone-500">
-                Payment status
+                Payment
               </p>
               <p className="text-sm capitalize text-stone-200">
                 {order.payment_status}
@@ -84,13 +84,13 @@ export default async function CheckoutSuccessPage({
             </div>
             <div className="space-y-1">
               <p className="text-xs uppercase tracking-[0.24em] text-stone-500">
-                Email
+                Confirmation email
               </p>
               <p className="text-sm text-stone-200">{order.customer_email}</p>
             </div>
             <div className="space-y-1">
               <p className="text-xs uppercase tracking-[0.24em] text-stone-500">
-                Received
+                Order date
               </p>
               <p className="text-sm text-stone-200">
                 {new Date(order.created_at).toLocaleString("en-US", {
@@ -110,7 +110,7 @@ export default async function CheckoutSuccessPage({
             href="/shop"
             className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm uppercase tracking-[0.22em] text-stone-100 transition-colors hover:border-white/20 hover:bg-white/10"
           >
-            Continue to Shop
+            Continue Shopping
           </Link>
           {isOrderConfirmed ? null : (
             <Link
