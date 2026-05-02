@@ -32,12 +32,14 @@ function isValidCartItem(value: unknown): value is CartItem {
   }
 
   const item = value as Record<string, unknown>;
+  const quantity = item.quantity;
 
   return (
     isNonEmptyString(item.id) &&
     isNonEmptyString(item.slug) &&
-    Number.isInteger(item.quantity) &&
-    item.quantity > 0 &&
+    typeof quantity === "number" &&
+    Number.isInteger(quantity) &&
+    quantity > 0 &&
     isOptionalString(item.size_label) &&
     isOptionalString(item.image_url)
   );
@@ -157,6 +159,7 @@ export async function POST(request: Request) {
         name: product.name,
         price: product.price,
         size_label: product.size_label,
+        image_url: null,
         quantity: item.quantity,
       };
     });

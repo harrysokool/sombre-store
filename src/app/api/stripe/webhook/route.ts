@@ -32,6 +32,16 @@ function getOrderSubtotal(
   );
 }
 
+function getExpandedStripeProduct(
+  product: string | Stripe.Product | Stripe.DeletedProduct | null | undefined,
+) {
+  if (!product || typeof product === "string" || product.deleted) {
+    return null;
+  }
+
+  return product;
+}
+
 async function findExistingOrder(stripeSessionId: string) {
   const supabase = createSupabaseServiceRoleClient();
   const { data, error } = await supabase
@@ -52,6 +62,7 @@ async function insertOrderFromSession(
   lineItems: Stripe.ApiList<Stripe.LineItem>,
 ) {
   const supabase = createSupabaseServiceRoleClient();
+  const metadata: Stripe.Metadata = session.metadata ?? {};
 
   const { data, error } = await supabase
     .from("orders")
@@ -60,13 +71,13 @@ async function insertOrderFromSession(
       stripe_payment_intent_id: getPaymentIntentId(session),
       customer_email:
         session.customer_details?.email ?? session.customer_email ?? "",
-      customer_name: session.metadata.customer_name ?? "",
-      customer_phone: session.metadata.customer_phone ?? null,
-      address_line_1: session.metadata.address_line_1 ?? "",
-      address_line_2: session.metadata.address_line_2 ?? null,
-      city: session.metadata.city ?? "",
-      postal_code: session.metadata.postal_code ?? "",
-      country: session.metadata.country ?? "",
+      customer_name: metadata.customer_name ?? "",
+      customer_phone: metadata.customer_phone ?? null,
+      address_line_1: metadata.address_line_1 ?? "",
+      address_line_2: metadata.address_line_2 ?? null,
+      city: metadata.city ?? "",
+      postal_code: metadata.postal_code ?? "",
+      country: metadata.country ?? "",
       subtotal: getOrderSubtotal(session, lineItems),
       currency: (session.currency ?? "usd").toLowerCase(),
       payment_status: session.payment_status,
@@ -88,16 +99,14 @@ async function insertOrderItems(
   const supabase = createSupabaseServiceRoleClient();
 
   const items = lineItems.data.map((lineItem) => {
-    const stripeProduct =
-      lineItem.price?.product && typeof lineItem.price.product !== "string"
-        ? lineItem.price.product
-        : null;
+    const stripeProduct = getExpandedStripeProduct(lineItem.price?.product);
     const quantity = lineItem.quantity ?? 1;
 
     return {
       order_id: orderId,
       product_id: stripeProduct?.metadata.product_id || null,
-      product_name: lineItem.description,
+      product_name:
+        lineItem.description ?? stripeProduct?.name ?? "Unknown product",
       unit_price: (lineItem.amount_subtotal ?? 0) / quantity / 100,
       quantity,
       size_label: stripeProduct?.description ?? null,
