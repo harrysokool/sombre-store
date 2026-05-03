@@ -6,9 +6,17 @@ import { useState } from "react";
 import { NavbarCartIndicator } from "@/components/cart/navbar-cart-indicator";
 
 const navigationItems = [
-    { label: "Shop", href: "/shop" },
     { label: "About", href: "/about" },
     { label: "Contact", href: "/contact" },
+];
+
+const shopNavigationItems = [
+    { label: "Best Sellers", href: "/shop?collection=best-sellers" },
+    { label: "New Arrivals", href: "/shop?collection=new-arrivals" },
+    { label: "Perfume", href: "/shop?category=perfume" },
+    { label: "Body Care", href: "/shop?category=body-care" },
+    { label: "Home Fragrance", href: "/shop?category=home-fragrance" },
+    { label: "All Products", href: "/shop" },
 ];
 
 function MenuIcon() {
@@ -47,6 +55,21 @@ function CloseIcon() {
 
 export function Navbar() {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const [activeMenu, setActiveMenu] = useState<"main" | "shop">("main");
+
+    function closeMenu() {
+        setIsMenuOpen(false);
+        setActiveMenu("main");
+    }
+
+    function toggleMenu() {
+        if (isMenuOpen) {
+            closeMenu();
+            return;
+        }
+
+        setIsMenuOpen(true);
+    }
 
     return (
         <>
@@ -63,7 +86,7 @@ export function Navbar() {
                                         ? "Close navigation menu"
                                         : "Open navigation menu"
                                 }
-                                onClick={() => setIsMenuOpen((open) => !open)}
+                                onClick={toggleMenu}
                                 className="inline-flex h-10 w-10 items-center justify-center text-stone-300 transition-colors hover:text-stone-100"
                             >
                                 <MenuIcon />
@@ -73,7 +96,7 @@ export function Navbar() {
                         <div className="absolute inset-x-0 top-1/2 z-20 flex -translate-y-1/2 justify-center pointer-events-none">
                             <Link
                                 href="/"
-                                onClick={() => setIsMenuOpen(false)}
+                                onClick={closeMenu}
                                 aria-label="Sombre home"
                                 className="pointer-events-auto font-serif text-[1.35rem] font-medium tracking-[0.18em] text-stone-100 sm:text-[2.0rem]"
                             >
@@ -99,7 +122,7 @@ export function Navbar() {
                 <button
                     type="button"
                     aria-label="Close navigation menu"
-                    onClick={() => setIsMenuOpen(false)}
+                    onClick={closeMenu}
                     className="absolute inset-0 bg-black/60 backdrop-blur-sm"
                 />
             </div>
@@ -115,7 +138,7 @@ export function Navbar() {
                     <div className="flex justify-end border-b border-white/10 pb-6">
                         <button
                             type="button"
-                            onClick={() => setIsMenuOpen(false)}
+                            onClick={closeMenu}
                             aria-label="Close navigation menu"
                             className="inline-flex h-10 w-10 items-center justify-center text-stone-300 transition-colors hover:text-stone-100"
                         >
@@ -123,19 +146,55 @@ export function Navbar() {
                         </button>
                     </div>
 
-                    <nav aria-label="Primary" className="flex-1">
-                        <div className="space-y-5 pt-8">
-                            {navigationItems.map((item) => (
-                                <Link
-                                    key={item.label}
-                                    href={item.href}
-                                    onClick={() => setIsMenuOpen(false)}
-                                    className="block text-3xl font-medium tracking-[0.08em] text-stone-100 transition-colors hover:text-white"
+                    <nav
+                        aria-label={activeMenu === "shop" ? "Shop" : "Primary"}
+                        className="flex-1"
+                    >
+                        {activeMenu === "main" ? (
+                            <div className="space-y-5 pt-8">
+                                <button
+                                    type="button"
+                                    onClick={() => setActiveMenu("shop")}
+                                    className="block text-left text-3xl font-medium tracking-[0.08em] text-stone-100 transition-colors hover:text-white"
                                 >
-                                    {item.label}
-                                </Link>
-                            ))}
-                        </div>
+                                    Shop
+                                </button>
+
+                                {navigationItems.map((item) => (
+                                    <Link
+                                        key={item.label}
+                                        href={item.href}
+                                        onClick={closeMenu}
+                                        className="block text-3xl font-medium tracking-[0.08em] text-stone-100 transition-colors hover:text-white"
+                                    >
+                                        {item.label}
+                                    </Link>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="pt-8">
+                                <button
+                                    type="button"
+                                    onClick={() => setActiveMenu("main")}
+                                    className="mb-8 text-xs uppercase tracking-[0.3em] text-stone-500 transition-colors hover:text-stone-100"
+                                >
+                                    Back
+                                </button>
+
+                                <div className="space-y-5">
+                                    {shopNavigationItems.map((item) => (
+                                        <Link
+                                            key={item.label}
+                                            href={item.href}
+                                            onClick={closeMenu}
+                                            className="block text-2xl font-medium tracking-[0.08em] text-stone-100 transition-colors hover:text-white sm:text-3xl"
+                                        >
+                                            {item.label}
+                                        </Link>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </nav>
                 </div>
             </aside>
