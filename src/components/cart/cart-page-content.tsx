@@ -1,39 +1,21 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useState } from "react";
 
+import { CartProductImage } from "@/components/cart/cart-product-image";
+import { OrderSummary } from "@/components/cart/order-summary";
+import { useCartItems } from "@/hooks/use-cart-items";
 import {
-  CART_UPDATED_EVENT,
   decrementCartItemQuantity,
   getCartItemCount,
-  getCartItems,
   incrementCartItemQuantity,
   removeCartItem,
-  type CartItem,
 } from "@/lib/cart/cart";
 import { getCartLineTotal, getCartSubtotal } from "@/lib/cart/math";
 import { formatPrice } from "@/lib/storefront/format-price";
 
 export function CartPageContent() {
-  const [cartItems, setCartItems] = useState<CartItem[] | null>(null);
-
-  useEffect(() => {
-    function syncCartItems() {
-      setCartItems(getCartItems());
-    }
-
-    syncCartItems();
-
-    window.addEventListener(CART_UPDATED_EVENT, syncCartItems);
-    window.addEventListener("storage", syncCartItems);
-
-    return () => {
-      window.removeEventListener(CART_UPDATED_EVENT, syncCartItems);
-      window.removeEventListener("storage", syncCartItems);
-    };
-  }, []);
+  const { cartItems, setCartItems } = useCartItems();
 
   const resolvedCartItems = cartItems ?? [];
   const subtotal = getCartSubtotal(resolvedCartItems);
@@ -86,23 +68,11 @@ export function CartPageContent() {
                   key={item.id}
                   className="grid gap-5 rounded-3xl border border-white/10 bg-white/[0.02] p-5 sm:grid-cols-[160px_1fr] sm:p-6"
                 >
-                  <div className="overflow-hidden rounded-2xl border border-white/10 bg-stone-900/80">
-                    {item.image_url ? (
-                      <Image
-                        src={item.image_url}
-                        alt={`${item.name} cart image`}
-                        width={640}
-                        height={800}
-                        className="aspect-[4/5] w-full object-cover"
-                      />
-                    ) : (
-                      <div className="flex aspect-[4/5] items-center justify-center bg-white/[0.02]">
-                        <p className="text-xs uppercase tracking-[0.24em] text-stone-500">
-                          No image
-                        </p>
-                      </div>
-                    )}
-                  </div>
+                  <CartProductImage
+                    imageUrl={item.image_url}
+                    name={item.name}
+                    variant="cart"
+                  />
 
                   <div className="flex flex-col justify-between gap-6">
                     <div className="space-y-3">
@@ -181,57 +151,34 @@ export function CartPageContent() {
               ))}
             </div>
 
-            <div className="h-fit rounded-[2rem] border border-white/10 bg-white/[0.02] p-6 sm:p-8">
-              <div className="space-y-8">
-                <div className="space-y-2">
-                  <p className="text-xs uppercase tracking-[0.24em] text-stone-500">
-                    Summary
-                  </p>
-                  <h2 className="text-2xl font-medium text-stone-100">
-                    Secure checkout
-                  </h2>
-                </div>
+            <OrderSummary
+              eyebrow="Summary"
+              title="Secure checkout"
+              itemCount={itemCount}
+              subtotal={subtotal}
+              className="h-fit rounded-[2rem] border border-white/10 bg-white/[0.02] p-6 sm:p-8"
+            >
+              <div className="space-y-4">
+                <Link
+                  href="/checkout"
+                  className="inline-flex w-full items-center justify-center rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm uppercase tracking-[0.22em] text-stone-100 transition-colors hover:border-white/20 hover:bg-white/10"
+                >
+                  Secure Checkout
+                </Link>
 
-                <div className="space-y-4 border-t border-white/10 pt-6">
-                  <div className="flex items-end justify-between gap-4">
-                    <p className="text-sm uppercase tracking-[0.18em] text-stone-400">
-                      Items
-                    </p>
-                    <p className="text-base text-stone-300">{itemCount}</p>
-                  </div>
+                <Link
+                  href="/shop"
+                  className="inline-flex w-full items-center justify-center text-sm uppercase tracking-[0.22em] text-stone-400 transition-colors hover:text-stone-100"
+                >
+                  Continue Shopping
+                </Link>
 
-                  <div className="flex items-end justify-between gap-4">
-                    <p className="text-sm uppercase tracking-[0.18em] text-stone-400">
-                      Subtotal
-                    </p>
-                    <p className="text-2xl font-medium text-stone-100">
-                      {formatPrice(subtotal)}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <Link
-                    href="/checkout"
-                    className="inline-flex w-full items-center justify-center rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm uppercase tracking-[0.22em] text-stone-100 transition-colors hover:border-white/20 hover:bg-white/10"
-                  >
-                    Secure Checkout
-                  </Link>
-
-                  <Link
-                    href="/shop"
-                    className="inline-flex w-full items-center justify-center text-sm uppercase tracking-[0.22em] text-stone-400 transition-colors hover:text-stone-100"
-                  >
-                    Continue Shopping
-                  </Link>
-
-                  <p className="text-center text-xs leading-6 text-stone-500">
-                    Payment is completed securely through Stripe. Your card
-                    details are not stored by Sombre.
-                  </p>
-                </div>
+                <p className="text-center text-xs leading-6 text-stone-500">
+                  Payment is completed securely through Stripe. Your card
+                  details are not stored by Sombre.
+                </p>
               </div>
-            </div>
+            </OrderSummary>
           </div>
         ) : (
           <div className="rounded-3xl border border-white/10 bg-white/[0.02] px-6 py-16 text-center">

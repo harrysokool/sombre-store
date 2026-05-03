@@ -1,41 +1,21 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, useRef, useState } from "react";
 
-import {
-  CART_UPDATED_EVENT,
-  getCartItemCount,
-  getCartItems,
-  saveCheckoutCartSnapshot,
-  type CartItem,
-} from "@/lib/cart/cart";
+import { CartProductImage } from "@/components/cart/cart-product-image";
+import { OrderSummary } from "@/components/cart/order-summary";
+import { useCartItems } from "@/hooks/use-cart-items";
+import { getCartItemCount, saveCheckoutCartSnapshot } from "@/lib/cart/cart";
 import type { CheckoutSessionPayload } from "@/lib/checkout/payload";
 import { getCartLineTotal, getCartSubtotal } from "@/lib/cart/math";
 import { formatPrice } from "@/lib/storefront/format-price";
 
 export function CheckoutPageContent() {
   const formRef = useRef<HTMLFormElement>(null);
-  const [cartItems, setCartItems] = useState<CartItem[] | null>(null);
+  const { cartItems } = useCartItems();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  useEffect(() => {
-    function syncCartItems() {
-      setCartItems(getCartItems());
-    }
-
-    syncCartItems();
-
-    window.addEventListener(CART_UPDATED_EVENT, syncCartItems);
-    window.addEventListener("storage", syncCartItems);
-
-    return () => {
-      window.removeEventListener(CART_UPDATED_EVENT, syncCartItems);
-      window.removeEventListener("storage", syncCartItems);
-    };
-  }, []);
 
   const resolvedCartItems = cartItems ?? [];
   const itemCount = getCartItemCount(resolvedCartItems);
@@ -249,40 +229,25 @@ export function CheckoutPageContent() {
             </div>
 
             <div className="space-y-6">
-              <div className="rounded-[2rem] border border-white/10 bg-white/[0.02] p-6 sm:p-8">
-                <div className="space-y-6">
-                  <div className="space-y-2">
-                    <p className="text-xs uppercase tracking-[0.24em] text-stone-500">
-                      Order Summary
-                    </p>
-                    <h2 className="text-2xl font-medium text-stone-100">
-                      Secure checkout
-                    </h2>
-                  </div>
-
+              <OrderSummary
+                eyebrow="Order Summary"
+                title="Secure checkout"
+                itemCount={itemCount}
+                subtotal={subtotal}
+                className="rounded-[2rem] border border-white/10 bg-white/[0.02] p-6 sm:p-8"
+                contentClassName="space-y-6"
+                lineItems={
                   <div className="space-y-4 border-t border-white/10 pt-6">
                     {resolvedCartItems.map((item) => (
                       <div
                         key={item.id}
                         className="flex items-center gap-4 border-b border-white/5 pb-4 last:border-b-0 last:pb-0"
                       >
-                        <div className="overflow-hidden rounded-2xl bg-white/[0.02]">
-                          {item.image_url ? (
-                            <Image
-                              src={item.image_url}
-                              alt={`${item.name} checkout image`}
-                              width={120}
-                              height={150}
-                              className="h-20 w-16 object-cover"
-                            />
-                          ) : (
-                            <div className="flex h-20 w-16 items-center justify-center bg-white/[0.02]">
-                              <p className="text-[10px] uppercase tracking-[0.2em] text-stone-500">
-                                No image
-                              </p>
-                            </div>
-                          )}
-                        </div>
+                        <CartProductImage
+                          imageUrl={item.image_url}
+                          name={item.name}
+                          variant="checkout"
+                        />
 
                         <div className="flex flex-1 items-start justify-between gap-4">
                           <div className="space-y-1">
@@ -308,57 +273,39 @@ export function CheckoutPageContent() {
                       </div>
                     ))}
                   </div>
+                }
+              >
+                <div className="space-y-4 pt-2">
+                  <button
+                    type="submit"
+                    form="checkout-form"
+                    disabled={isSubmitting}
+                    className="w-full rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm uppercase tracking-[0.22em] text-stone-100 transition-colors hover:border-white/20 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isSubmitting
+                      ? "Opening Stripe..."
+                      : "Continue to Secure Payment"}
+                  </button>
 
-                  <div className="space-y-4 border-t border-white/10 pt-6">
-                    <div className="flex items-end justify-between gap-4">
-                      <p className="text-sm uppercase tracking-[0.18em] text-stone-400">
-                        Items
-                      </p>
-                      <p className="text-base text-stone-300">{itemCount}</p>
-                    </div>
-
-                    <div className="flex items-end justify-between gap-4">
-                      <p className="text-sm uppercase tracking-[0.18em] text-stone-400">
-                        Subtotal
-                      </p>
-                      <p className="text-2xl font-medium text-stone-100">
-                        {formatPrice(subtotal)}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-4 pt-2">
-                    <button
-                      type="submit"
-                      form="checkout-form"
-                      disabled={isSubmitting}
-                      className="w-full rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm uppercase tracking-[0.22em] text-stone-100 transition-colors hover:border-white/20 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {isSubmitting
-                        ? "Opening Stripe..."
-                        : "Continue to Secure Payment"}
-                    </button>
-
-                    {errorMessage ? (
-                      <p className="text-center text-xs leading-6 text-red-300">
-                        {errorMessage}
-                      </p>
-                    ) : null}
-
-                    <p className="text-center text-xs leading-6 text-stone-500">
-                      You will be redirected to Stripe Checkout to enter your
-                      payment details securely.
+                  {errorMessage ? (
+                    <p className="text-center text-xs leading-6 text-red-300">
+                      {errorMessage}
                     </p>
+                  ) : null}
 
-                    <Link
-                      href="/cart"
-                      className="inline-flex w-full items-center justify-center text-xs uppercase tracking-[0.22em] text-stone-500 transition-colors hover:text-stone-200"
-                    >
-                      Return to Cart
-                    </Link>
-                  </div>
+                  <p className="text-center text-xs leading-6 text-stone-500">
+                    You will be redirected to Stripe Checkout to enter your
+                    payment details securely.
+                  </p>
+
+                  <Link
+                    href="/cart"
+                    className="inline-flex w-full items-center justify-center text-xs uppercase tracking-[0.22em] text-stone-500 transition-colors hover:text-stone-200"
+                  >
+                    Return to Cart
+                  </Link>
                 </div>
-              </div>
+              </OrderSummary>
             </div>
           </div>
         ) : (
