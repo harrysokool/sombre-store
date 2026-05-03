@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useRef, useState } from "react";
 
+import { CheckoutFormField } from "@/components/cart/checkout-form-field";
 import { CartProductImage } from "@/components/cart/cart-product-image";
 import { OrderSummary } from "@/components/cart/order-summary";
 import { useCartItems } from "@/hooks/use-cart-items";
@@ -124,107 +125,71 @@ export function CheckoutPageContent() {
                 onSubmit={handleSubmit}
                 className="grid gap-5 sm:grid-cols-2"
               >
-                <label className="space-y-2 sm:col-span-2">
-                  <span className="text-xs uppercase tracking-[0.24em] text-stone-500">
-                    Full name
-                  </span>
-                  <input
-                    type="text"
-                    name="fullName"
-                    required
-                    className="w-full rounded-2xl border border-white/10 bg-transparent px-4 py-3 text-stone-100 outline-none transition-colors placeholder:text-stone-600 focus:border-white/20"
-                    placeholder="Your full name"
-                  />
-                </label>
+                <CheckoutFormField
+                  label="Full name"
+                  name="fullName"
+                  type="text"
+                  placeholder="Your full name"
+                  required
+                  className="space-y-2 sm:col-span-2"
+                />
 
-                <label className="space-y-2">
-                  <span className="text-xs uppercase tracking-[0.24em] text-stone-500">
-                    Email
-                  </span>
-                  <input
-                    type="email"
-                    name="email"
-                    required
-                    className="w-full rounded-2xl border border-white/10 bg-transparent px-4 py-3 text-stone-100 outline-none transition-colors placeholder:text-stone-600 focus:border-white/20"
-                    placeholder="you@example.com"
-                  />
-                </label>
+                <CheckoutFormField
+                  label="Email"
+                  name="email"
+                  type="email"
+                  placeholder="you@example.com"
+                  required
+                />
 
-                <label className="space-y-2">
-                  <span className="text-xs uppercase tracking-[0.24em] text-stone-500">
-                    Phone
-                  </span>
-                  <input
-                    type="tel"
-                    name="phone"
-                    className="w-full rounded-2xl border border-white/10 bg-transparent px-4 py-3 text-stone-100 outline-none transition-colors placeholder:text-stone-600 focus:border-white/20"
-                    placeholder="Optional"
-                  />
-                </label>
+                <CheckoutFormField
+                  label="Phone"
+                  name="phone"
+                  type="tel"
+                  placeholder="Optional"
+                />
 
-                <label className="space-y-2 sm:col-span-2">
-                  <span className="text-xs uppercase tracking-[0.24em] text-stone-500">
-                    Address line 1
-                  </span>
-                  <input
-                    type="text"
-                    name="addressLine1"
-                    required
-                    className="w-full rounded-2xl border border-white/10 bg-transparent px-4 py-3 text-stone-100 outline-none transition-colors placeholder:text-stone-600 focus:border-white/20"
-                    placeholder="Street address"
-                  />
-                </label>
+                <CheckoutFormField
+                  label="Address line 1"
+                  name="addressLine1"
+                  type="text"
+                  placeholder="Street address"
+                  required
+                  className="space-y-2 sm:col-span-2"
+                />
 
-                <label className="space-y-2 sm:col-span-2">
-                  <span className="text-xs uppercase tracking-[0.24em] text-stone-500">
-                    Address line 2
-                  </span>
-                  <input
-                    type="text"
-                    name="addressLine2"
-                    className="w-full rounded-2xl border border-white/10 bg-transparent px-4 py-3 text-stone-100 outline-none transition-colors placeholder:text-stone-600 focus:border-white/20"
-                    placeholder="Apartment, suite, or floor"
-                  />
-                </label>
+                <CheckoutFormField
+                  label="Address line 2"
+                  name="addressLine2"
+                  type="text"
+                  placeholder="Apartment, suite, or floor"
+                  className="space-y-2 sm:col-span-2"
+                />
 
-                <label className="space-y-2">
-                  <span className="text-xs uppercase tracking-[0.24em] text-stone-500">
-                    City
-                  </span>
-                  <input
-                    type="text"
-                    name="city"
-                    required
-                    className="w-full rounded-2xl border border-white/10 bg-transparent px-4 py-3 text-stone-100 outline-none transition-colors placeholder:text-stone-600 focus:border-white/20"
-                    placeholder="City"
-                  />
-                </label>
+                <CheckoutFormField
+                  label="City"
+                  name="city"
+                  type="text"
+                  placeholder="City"
+                  required
+                />
 
-                <label className="space-y-2">
-                  <span className="text-xs uppercase tracking-[0.24em] text-stone-500">
-                    Postal code
-                  </span>
-                  <input
-                    type="text"
-                    name="postalCode"
-                    required
-                    className="w-full rounded-2xl border border-white/10 bg-transparent px-4 py-3 text-stone-100 outline-none transition-colors placeholder:text-stone-600 focus:border-white/20"
-                    placeholder="Postal code"
-                  />
-                </label>
+                <CheckoutFormField
+                  label="Postal code"
+                  name="postalCode"
+                  type="text"
+                  placeholder="Postal code"
+                  required
+                />
 
-                <label className="space-y-2 sm:col-span-2">
-                  <span className="text-xs uppercase tracking-[0.24em] text-stone-500">
-                    Country
-                  </span>
-                  <input
-                    type="text"
-                    name="country"
-                    required
-                    className="w-full rounded-2xl border border-white/10 bg-transparent px-4 py-3 text-stone-100 outline-none transition-colors placeholder:text-stone-600 focus:border-white/20"
-                    placeholder="Country"
-                  />
-                </label>
+                <CheckoutFormField
+                  label="Country"
+                  name="country"
+                  type="text"
+                  placeholder="Country"
+                  required
+                  className="space-y-2 sm:col-span-2"
+                />
               </form>
             </div>
 
