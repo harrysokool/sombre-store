@@ -3,22 +3,22 @@ import Link from "next/link";
 
 const featuredProducts = [
     {
-        name: "Velvet Ember",
-        slug: "velvet-ember",
-        type: "Perfume extrait",
-        image: "/images/products/velvet-ember-01.jpg",
+        name: "Replica Lazy Sunday Morning",
+        slug: "maison-margiela-replica-lazy-sunday-morning",
+        type: "Maison Margiela Replica perfume",
+        image: "/images/products/maison-margiela/replica-lazy-sunday-morning-01.jpg",
     },
     {
-        name: "Quiet Flame Candle",
-        slug: "quiet-flame-candle",
-        type: "Home fragrance",
-        image: "/images/products/quiet-flame-candle-01.jpg",
+        name: "Replica By the Fireplace",
+        slug: "maison-margiela-replica-by-the-fireplace",
+        type: "Maison Margiela Replica perfume",
+        image: "/images/products/maison-margiela/replica-by-the-fireplace-01.jpg",
     },
     {
-        name: "Silken Resin Body Lotion",
-        slug: "silken-resin-body-lotion",
-        type: "Body care",
-        image: "/images/products/silken-resin-body-lotion-01.jpg",
+        name: "Replica Jazz Club",
+        slug: "maison-margiela-replica-jazz-club",
+        type: "Maison Margiela Replica perfume",
+        image: "/images/products/maison-margiela/replica-jazz-club-01.jpg",
     },
 ];
 
@@ -81,8 +81,8 @@ export default function Home() {
 
                     <div className="relative min-h-[28rem] overflow-hidden rounded-[2rem] bg-stone-900 sm:min-h-[34rem]">
                         <Image
-                            src="/images/products/velvet-ember-01.jpg"
-                            alt="Velvet Ember fragrance bottle"
+                            src="/images/products/maison-margiela/replica-lazy-sunday-morning-01.jpg"
+                            alt="Maison Margiela Replica Lazy Sunday Morning perfume"
                             fill
                             priority
                             className="object-cover"
@@ -93,7 +93,7 @@ export default function Home() {
                                 Featured fragrance
                             </p>
                             <h2 className="mt-2 text-2xl font-medium tracking-[0.08em] text-stone-100">
-                                Velvet Ember
+                                Maison Margiela Replica
                             </h2>
                         </div>
                     </div>

@@ -2,36 +2,61 @@
 
 ## Current State
 
-Sombre is now a working early-stage ecommerce MVP.
+Sombre is a working early-stage ecommerce MVP for a curated fragrance store.
 
-The core purchase flow has been tested locally and is working:
+The core local purchase flow has been tested and is working:
 
 `product -> cart -> checkout -> Stripe Checkout -> Stripe webhook -> Supabase order -> success page`
 
 Confirmed working locally:
 
 - users can add products to the cart
-- users can open the checkout page
+- users can open checkout
 - users can complete a Stripe test payment
 - Stripe CLI receives `checkout.session.completed`
 - the webhook returns `200`
 - the webhook creates an `orders` row in Supabase
 - the webhook creates related `order_items` rows in Supabase
-- the checkout success page works after payment
+- the success page works after payment
 
-The project is no longer just a storefront prototype. It has a real working checkout and order persistence path.
+## Current Catalog
 
----
+The active real catalog now includes Maison Margiela Replica perfume products.
+
+Maison Margiela product images are stored locally under:
+
+`public/images/products/maison-margiela/`
+
+The homepage now uses real Maison Margiela Replica products and image paths instead of the older placeholder products.
 
 ## What Is Built
 
 ### Storefront
 
 - Shared app shell with navbar and footer
-- Homepage redesigned to feel more like a fragrance ecommerce site
+- Homepage focused on real Maison Margiela Replica products
 - `/shop` page backed by Supabase product data
+- `/shop` supports all products, category views, brand browsing, and simple collection views
 - `/products/[slug]` page backed by Supabase product details
-- Product images rendered from local project image paths
+- Product images render from local project image paths
+
+### Shop Flow
+
+The shop page supports:
+
+- `/shop` for all products
+- `/shop?category=perfume` for a category landing page with brand choices
+- `/shop?category=perfume&view=all` for all products in that category
+- `/shop?category=perfume&brand=maison-margiela` for brand-filtered category products
+- `/shop?collection=new-arrivals` for newest products first
+- `/shop?collection=best-sellers` as a simple MVP collection view
+
+Important shop logic lives in:
+
+- `src/app/shop/page.tsx` for page composition and data loading
+- `src/lib/storefront/shop.ts` for shop view, query param, copy, and filtering helpers
+- `src/lib/storefront/products.ts` for shared product relation and image helpers
+- `src/components/shop/category-brand-selection.tsx` for the category brand selection UI
 
 ### Cart
 
@@ -45,22 +70,22 @@ It supports:
 - remove item
 - subtotal calculation
 - navbar cart count
-- checkout cart snapshot for post-payment reconciliation
+- checkout cart snapshot for post-payment cart reconciliation
+
+Cart and checkout now share reusable code:
+
+- `src/hooks/use-cart-items.ts`
+- `src/components/cart/cart-product-image.tsx`
+- `src/components/cart/order-summary.tsx`
+- `src/lib/cart/math.ts`
 
 ### Checkout
 
-The `/checkout` page collects:
+The `/checkout` page collects customer and shipping details, then sends the cart to:
 
-- full name
-- email
-- phone
-- address line 1
-- address line 2
-- city
-- postal code
-- country
+`/api/checkout/session`
 
-The checkout page sends the cart and customer details to `/api/checkout/session`.
+The checkout page explains that payment is completed securely through Stripe.
 
 ### Stripe Checkout
 
@@ -70,66 +95,74 @@ The `/api/checkout/session` route:
 
 - validates the checkout payload
 - fetches current product data from Supabase
-- rebuilds pricing on the server
-- compares server subtotal against the client subtotal
+- rebuilds prices on the server
+- compares the server subtotal against the client subtotal
 - creates a Stripe Checkout Session
 - redirects the customer to Stripe-hosted checkout
 
-This means product prices are not trusted from the browser.
+Product prices are not trusted from the browser.
 
 ### Stripe Webhook and Orders
 
-The Stripe webhook route is implemented and tested locally.
+The `/api/stripe/webhook` route is implemented and tested locally.
 
-The `/api/stripe/webhook` route:
+It:
 
-- verifies the Stripe signature using the raw request body
+- verifies the Stripe webhook signature
 - handles `checkout.session.completed`
-- checks whether the Stripe session was already persisted
+- checks if the Stripe session was already persisted
 - fetches Stripe line items
 - creates an `orders` row
 - creates related `order_items` rows
 - avoids duplicate order creation through `stripe_session_id`
 
-Order persistence now uses a Supabase service role client for trusted backend writes.
+Order writes now use the Supabase service role client:
 
-This is safer than using the public anon key for webhook order inserts.
+`src/lib/supabase/service-role.ts`
 
----
+This is safer because webhook order inserts use a trusted server-only key instead of the public anon key.
 
 ## Supabase Usage
 
-The project currently uses Supabase for:
+Supabase is used for:
 
-- products
 - brands
 - categories
+- products
 - product images
 - orders
 - order items
 
-There are two Supabase client paths:
+Client paths:
 
-- the existing anon client for public catalog reads
-- the service role client for trusted backend order persistence in the Stripe webhook
+- `src/lib/supabase/client.ts` creates the browser anon client
+- `src/lib/supabase/server.ts` creates the server anon client for public reads
+- `src/lib/supabase/service-role.ts` creates the server-only service role client for trusted backend writes
 
-The service role key is server-only and should never be exposed as a `NEXT_PUBLIC_` environment variable.
-
----
+The service role key must never be exposed to frontend code and must not use a `NEXT_PUBLIC_` prefix.
 
 ## Important Files
 
 - `src/app/page.tsx`  
-  Homepage.
+  Homepage using real Maison Margiela Replica products.
 
 - `src/app/shop/page.tsx`  
-  Loads active products from Supabase.
+  Loads active products from Supabase and composes the shop page.
+
+- `src/lib/storefront/shop.ts`  
+  Shop view, filtering, category, brand, collection, and page copy helpers.
+
+- `src/lib/storefront/products.ts`  
+  Shared product relation and product image helper functions.
 
 - `src/app/products/[slug]/page.tsx`  
   Loads one product, its brand, category, and images from Supabase.
 
 - `src/lib/cart/cart.ts`  
   Browser cart helpers and checkout cart snapshot logic.
+
+- `src/components/cart/cart-page-content.tsx`  
+  Cart page UI.
 
 - `src/components/cart/checkout-page-content.tsx`  
   Checkout form and Stripe redirect trigger.
@@ -149,179 +182,99 @@ The service role key is server-only and should never be exposed as a `NEXT_PUBLI
 - `supabase/migrations/20260406000000_add_orders_schema.sql`  
   Order and order item schema.
 
----
+- `supabase/manual/insert_maison_margiela_replica_products.sql`  
+  Manual additive SQL for Maison Margiela Replica products.
 
-## What Is Good Right Now
+- `supabase/manual/insert_maison_margiela_replica_product_images.sql`  
+  Manual additive SQL for Maison Margiela Replica product image paths.
 
-### 1. The checkout flow works
+## Required Environment Variables
 
-The full local payment path has been tested successfully with Stripe test mode and Stripe CLI.
+- `NEXT_PUBLIC_SUPABASE_URL`  
+  Supabase project URL. Used by frontend and backend Supabase clients.
 
-### 2. Server-side price authority is in place
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`  
+  Supabase anon key. Used for public catalog reads.
 
-The checkout route reloads products from Supabase and recalculates the subtotal before creating the Stripe session.
+- `SUPABASE_SERVICE_ROLE_KEY`  
+  Supabase service role key. Server-only. Used by the Stripe webhook for trusted order writes.
 
-### 3. Orders are created from Stripe-confirmed events
+- `STRIPE_SECRET_KEY`  
+  Stripe secret key. Server-only. Used to create Checkout Sessions and read Stripe line items.
 
-Orders are not created just because the customer clicks checkout.
+- `STRIPE_WEBHOOK_SECRET`  
+  Stripe webhook signing secret. Server-only. Used to verify webhook events.
 
-They are created only after Stripe sends `checkout.session.completed`.
+No Stripe publishable key is currently required because the app redirects to a server-created Stripe Checkout Session.
 
-### 4. Webhook writes now use the service role client
+## Local Checkout Testing
 
-The webhook no longer depends on the public anon key for order persistence.
+1. Add the required values to `.env.local`.
+2. Start the Next.js dev server:
 
-This is the right direction for production security.
+   ```bash
+   npm run dev
+   ```
 
-### 5. The app is still simple
+3. In another terminal, start Stripe CLI webhook forwarding:
 
-The codebase is still understandable and not overengineered.
+   ```bash
+   stripe listen --forward-to localhost:3000/api/stripe/webhook
+   ```
 
----
+4. Copy the webhook signing secret from Stripe CLI into `STRIPE_WEBHOOK_SECRET`.
+5. Restart the dev server after changing env vars.
+6. Open the site locally.
+7. Add a product to cart.
+8. Go to checkout.
+9. Complete Stripe Checkout with a Stripe test card.
+10. Confirm:
+    - Stripe CLI receives `checkout.session.completed`
+    - the webhook returns `200`
+    - Supabase receives one `orders` row
+    - Supabase receives related `order_items` rows
+    - the success page confirms the order
 
 ## Remaining Risks and Gaps
 
-### 1. Stock validation is not implemented
+### Stock validation is not implemented
 
 Products have `stock_quantity`, but checkout does not currently check whether enough stock is available.
 
-### 2. Inventory is not updated after payment
+### Inventory is not updated after payment
 
 Paid orders do not currently reduce product stock.
 
-### 3. Success page needs polish
+### Order privacy and RLS need review before public launch
 
-The success page works, but the customer-facing copy and order details should be improved.
-
-It should eventually show clearer confirmation details and purchased items.
-
-### 4. Product image mismatch exists in seed data
-
-`supabase/seed.sql` references `*-02.jpg` product images, but the local `public/images/products` folder currently appears to contain only `*-01.jpg` product images.
-
-This can cause broken secondary product images if the seed data is used as-is.
-
-### 5. RLS and order privacy should still be checked
-
-The webhook now uses the service role client, which is good.
+Webhook writes use the service role client, which is good.
 
 Before public deployment, Supabase Row Level Security should still be reviewed so public users cannot read or write private order data directly.
 
-### 6. Shipping and tax are not actually calculated yet
+### Success page can be improved later
+
+The success page works, but it does not yet show purchased line items.
+
+### Legacy seed data needs review
+
+The current real Maison Margiela product data is in manual SQL files.
+
+`supabase/seed.sql` still contains older sample catalog data and should be reviewed before using it to reset or seed a fresh database.
+
+### Shipping and tax are not calculated
 
 The current Stripe Checkout Session charges item subtotal only.
 
-Any copy that says shipping or tax is calculated at checkout should be reviewed.
-
----
-
-## What Does Not Need To Be Done Next
-
-These are not urgent right now:
-
-- full admin dashboard
-- customer accounts
-- order history UI
-- complex discount system
-- custom checkout UI
-- advanced fulfillment workflow
-
-Those can come later.
-
-The next work should keep tightening the existing MVP path.
-
----
-
 ## Recommended Next Steps
 
-1. Add stock validation to checkout.
-2. Add inventory update after successful payment.
-3. Polish `/checkout/success` copy and show clearer order confirmation details.
-4. Fix the seed image mismatch.
-5. Review Supabase RLS policies for order privacy before public deployment.
-
----
+1. Review Supabase RLS and order privacy before public deployment.
+2. Add stock validation to checkout.
+3. Add inventory update after successful payment.
+4. Review or replace the older `supabase/seed.sql` sample data.
+5. Keep future cleanup small and focused.
 
 ## Overall Verdict
 
 Sombre is usable as a local ecommerce MVP.
 
-The most important flow now works:
-
-`browse -> cart -> checkout -> Stripe payment -> webhook -> persisted order -> success page`
-
-The next phase should focus on reliability and production readiness, not adding large new systems.
-
-
-lastes audit on the project.
-I audited the current codebase read-only. npm run lint and npx tsc --noEmit both pass.
-
-1. Critical Issues (must fix before launch)
-
-Order privacy / RLS is not proven safe yet.
-The webhook now uses the Supabase service role client, which is good. But the success page still reads orders using the anon Supabase client. If RLS is disabled or too open, private order data could be exposed. If RLS is strict, the success page may stop working. Before launch, define clear RLS policies or move the success-page order lookup to a safe server-only path that returns only the needed order confirmation data.
-
-Stock is not validated or updated.
-Products have stock_quantity, but checkout does not check stock and the webhook does not reduce inventory. Real users could buy more units than available.
-
-Seed data references missing product images.
-supabase/seed.sql includes *-02.jpg image paths, but public/images/products only has *-01.jpg files. If seeded as-is, product detail pages can show broken images.
-
-2. Important Improvements (should fix soon)
-
-Use a fixed production site URL for Stripe success/cancel URLs.
-/api/checkout/session currently builds URLs from the request origin. For production, use an env var like NEXT_PUBLIC_SITE_URL or APP_URL to avoid bad redirect behavior.
-
-Polish the success page copy.
-It currently includes internal wording: “A formal confirmation experience can be added next…” That reduces customer trust.
-
-Fix cart/checkout wording around shipping and tax.
-The cart says “Taxes and shipping calculated at checkout,” but Stripe currently charges item subtotal only.
-
-Add a better invalid/long-waiting success state.
-/checkout/success refreshes while waiting for an order, but does not clearly handle an invalid session_id or a webhook failure after a long delay.
-
-Add light API protection later.
-/api/checkout/session is public. It is okay for MVP, but basic rate limiting would reduce abuse/spam session creation.
-
-3. Nice-to-have Improvements (can wait)
-
-Show purchased line items on the success page.
-Add confirmation email later.
-Make Search and Account buttons less confusing while those features are not built.
-Remove or update placeholder /admin, /login, and /brands pages before exposing them.
-Update README: it mentions Cloudinary, but the current app uses local images.
-Add category filtering on /shop.
-4. Security Status
-
-Not fully public-launch safe yet.
-
-Good:
-
-Stripe secret key is backend-only.
-Stripe webhook secret is backend-only.
-Supabase service role key is not NEXT_PUBLIC_.
-Webhook order writes use the service role client.
-.env* files are ignored except .env.example.
-Needs review before launch:
-
-Supabase RLS policies are not present in the migrations.
-orders and order_items contain customer data and must not be publicly readable.
-Success page order lookup needs to work without opening broad anon access to orders.
-Service role key must be set only in server deployment env vars.
-5. Overall Project Readiness
-
-Local MVP: yes, usable.
-
-Public deployment with real users: close, but not ready until order privacy/RLS and stock handling are addressed. The purchase flow works, but the database security and inventory consistency need tightening first.
-
-6. Recommended Next 3 Steps
-
-Fix Supabase order privacy.
-Decide the RLS policy and adjust the success-page order lookup so users cannot read other orders.
-
-Add stock validation and inventory decrement.
-Check stock before creating Stripe Checkout and reduce stock after confirmed payment.
-
-Fix launch-facing trust issues.
-Remove missing *-02.jpg seed image references or add the files, update success-page copy, and correct shipping/tax wording.
+The main purchase flow works, the current catalog is real enough for continued frontend and MVP work, and the codebase is still simple enough to build on safely.
