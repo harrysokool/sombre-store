@@ -15,7 +15,8 @@ export function Footer() {
             Sombre
           </p>
           <p className="max-w-sm leading-6">
-            A minimal foundation for elevated fragrance and lifestyle retail.
+            A curated store for perfume, body care, and home fragrance from
+            luxury and independent brands.
           </p>
         </div>
 

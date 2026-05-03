@@ -25,23 +25,23 @@ const featuredProducts = [
 const categories = [
     {
         name: "Perfume",
-        description: "Personal scents with amber, woods, smoke, and soft musk.",
+        description: "A restrained edit of distinctive personal scents.",
     },
     {
         name: "Body Care",
         description:
-            "Daily cleansing and care products with refined fragrance.",
+            "Daily care selected for texture, scent, and simplicity.",
     },
     {
         name: "Home Fragrance",
-        description: "Candles and room scents for calm, intimate spaces.",
+        description: "Candles and room scents from considered fragrance brands.",
     },
 ];
 
 const promises = [
-    "Carefully selected scents",
-    "Minimal luxury design",
-    "Made for daily rituals",
+    "Carefully selected brands",
+    "Independent and luxury fragrance",
+    "Chosen for daily rituals",
 ];
 
 export default function Home() {
@@ -52,14 +52,14 @@ export default function Home() {
                     <div className="space-y-8">
                         <div className="space-y-5">
                             <p className="text-xs uppercase tracking-[0.34em] text-stone-500">
-                                Sombre Fragrance House
+                                Curated Fragrance Store
                             </p>
                             <h1 className="max-w-3xl text-4xl font-medium leading-tight tracking-[0.08em] text-stone-100 sm:text-5xl lg:text-6xl">
                                 Luxury fragrance for quiet moments
                             </h1>
                             <p className="max-w-xl text-base leading-8 text-stone-400">
                                 Discover perfume, body care, and home fragrance
-                                made for calm daily rituals and refined spaces.
+                                selected from luxury and independent brands.
                             </p>
                         </div>
 
@@ -190,8 +190,7 @@ export default function Home() {
                             Our Promise
                         </p>
                         <h2 className="max-w-xl text-3xl font-medium leading-tight tracking-[0.08em] text-stone-100 sm:text-4xl">
-                            Fragrance that feels considered, simple, and
-                            lasting.
+                            A considered edit of scent, care, and atmosphere.
                         </h2>
                     </div>
 
@@ -216,7 +215,8 @@ export default function Home() {
                         Sombre Collection
                     </p>
                     <h2 className="max-w-3xl text-3xl font-medium leading-tight tracking-[0.08em] text-stone-100 sm:text-4xl">
-                        Choose a scent for the moments you return to every day.
+                        Choose a scent selected for the moments you return to
+                        every day.
                     </h2>
                     <Link
                         href="/shop"

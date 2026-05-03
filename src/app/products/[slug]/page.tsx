@@ -164,18 +164,6 @@ export default async function ProductDetailPage({
                                         className="aspect-[4/5] w-full object-cover"
                                     />
                                 </div>
-                                {image.is_primary ? (
-                                    <div>
-                                        <span className="text-[11px] uppercase tracking-[0.24em] text-stone-500">
-                                            Primary
-                                        </span>
-                                    </div>
-                                ) : null}
-                                {image.alt_text ? (
-                                    <p className="text-sm leading-6 text-stone-500">
-                                        {image.alt_text}
-                                    </p>
-                                ) : null}
                             </div>
                         ))
                     ) : (
@@ -256,11 +244,11 @@ export default async function ProductDetailPage({
 
                     <div className="space-y-4">
                         <p className="text-xs uppercase tracking-[0.34em] text-stone-500">
-                            Description
+                            Product Details
                         </p>
                         <p className="max-w-2xl text-base leading-8 text-stone-400">
                             {product.description ??
-                                "Product description coming soon."}
+                                "Details for this selection are coming soon."}
                         </p>
                     </div>
                 </div>

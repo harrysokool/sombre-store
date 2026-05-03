@@ -75,7 +75,7 @@ export function ProductCard({
           <div className="flex items-end justify-between gap-4 pt-2">
             <p className="text-base font-medium text-stone-100">{formattedPrice}</p>
             <p className="text-sm uppercase tracking-[0.22em] text-stone-500 transition-colors group-hover:text-stone-300">
-              Discover
+              View Product
             </p>
           </div>
         </div>

@@ -45,44 +45,6 @@ function CloseIcon() {
     );
 }
 
-function SearchIcon() {
-    return (
-        <svg
-            aria-hidden="true"
-            viewBox="0 0 24 24"
-            className="h-5 w-5"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-        >
-            <path
-                d="m21 21-4.35-4.35m1.85-5.15a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-            />
-        </svg>
-    );
-}
-
-function UserIcon() {
-    return (
-        <svg
-            aria-hidden="true"
-            viewBox="0 0 24 24"
-            className="h-5 w-5"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-        >
-            <path
-                d="M15.75 6.75a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Zm-11.25 13.5a7.5 7.5 0 0 1 15 0"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-            />
-        </svg>
-    );
-}
-
 export function Navbar() {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -119,23 +81,7 @@ export function Navbar() {
                             </Link>
                         </div>
 
-                        <div className="z-10 flex items-center justify-end gap-1 sm:gap-2">
-                            <button
-                                type="button"
-                                aria-label="Search coming soon"
-                                className="inline-flex h-10 w-10 items-center justify-center text-stone-300 transition-colors hover:text-stone-100"
-                            >
-                                <SearchIcon />
-                            </button>
-
-                            <button
-                                type="button"
-                                aria-label="Account features coming soon"
-                                className="inline-flex h-10 w-10 items-center justify-center text-stone-300 transition-colors hover:text-stone-100"
-                            >
-                                <UserIcon />
-                            </button>
-
+                        <div className="z-10 flex items-center justify-end">
                             <NavbarCartIndicator />
                         </div>
                     </div>
@@ -166,17 +112,7 @@ export function Navbar() {
                 }`}
             >
                 <div className="flex h-full flex-col">
-                    <div className="flex items-start justify-between gap-6 border-b border-white/10 pb-6">
-                        <div className="space-y-3">
-                            <p className="text-xs uppercase tracking-[0.34em] text-stone-500">
-                                Navigation
-                            </p>
-                            <p className="max-w-xs text-sm leading-7 text-stone-400">
-                                Enter the collection through the house, the
-                                shop, or customer correspondence.
-                            </p>
-                        </div>
-
+                    <div className="flex justify-end border-b border-white/10 pb-6">
                         <button
                             type="button"
                             onClick={() => setIsMenuOpen(false)}
@@ -187,10 +123,7 @@ export function Navbar() {
                         </button>
                     </div>
 
-                    <nav
-                        aria-label="Primary"
-                        className="flex flex-1 flex-col justify-between"
-                    >
+                    <nav aria-label="Primary" className="flex-1">
                         <div className="space-y-5 pt-8">
                             {navigationItems.map((item) => (
                                 <Link
@@ -202,16 +135,6 @@ export function Navbar() {
                                     {item.label}
                                 </Link>
                             ))}
-                        </div>
-
-                        <div className="border-t border-white/10 pt-6">
-                            <Link
-                                href="/shop"
-                                onClick={() => setIsMenuOpen(false)}
-                                className="text-xs uppercase tracking-[0.3em] text-stone-500 transition-colors hover:text-stone-100"
-                            >
-                                Explore the Collection
-                            </Link>
                         </div>
                     </nav>
                 </div>

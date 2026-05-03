@@ -1,133 +1,88 @@
 import Link from "next/link";
 
+const philosophyLines = [
+  "Quiet scents with depth, warmth, and restraint.",
+  "Objects chosen for daily rituals, not passing trends.",
+  "A focused edit from luxury and independent fragrance brands.",
+];
+
 export default function AboutPage() {
   return (
     <div className="overflow-hidden">
-      <section className="relative px-6 pb-20 pt-24 sm:px-10 sm:pb-24 sm:pt-32 lg:px-12">
-        <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,rgba(168,162,158,0.08),transparent_26%),linear-gradient(180deg,rgba(20,18,17,0.08)_0%,rgba(20,18,17,0)_42%,rgba(20,18,17,0.62)_100%)]" />
-
-        <div className="mx-auto grid w-full max-w-7xl gap-14 lg:grid-cols-[0.9fr_1.1fr] lg:items-end">
-          <div className="space-y-5">
-            <p className="text-xs uppercase tracking-[0.4em] text-stone-500">
-              About Sombre
-            </p>
-            <h1 className="max-w-3xl text-4xl font-medium leading-tight tracking-[0.12em] text-stone-100 sm:text-6xl">
-              A quieter approach to fragrance.
-            </h1>
-          </div>
-
+      <section className="px-6 py-20 sm:px-10 sm:py-28 lg:px-12">
+        <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
+          <p className="text-xs uppercase tracking-[0.34em] text-stone-500">
+            About Sombre
+          </p>
+          <h1 className="max-w-4xl text-4xl font-medium leading-tight tracking-[0.08em] text-stone-100 sm:text-5xl">
+            A curated view of modern fragrance.
+          </h1>
           <p className="max-w-2xl text-base leading-8 text-stone-400">
-            Sombre is a modern fragrance house shaped by restraint, atmosphere,
-            and the pleasure of beautifully considered objects. The collection
-            brings perfume, body care, and interior rituals into one calm,
-            refined world.
+            Sombre is an online store selecting perfume, body care, and home
+            scent from brands with a quiet point of view.
           </p>
         </div>
       </section>
 
-      <section className="px-6 py-20 sm:px-10 sm:py-24 lg:px-12">
-        <div className="mx-auto grid w-full max-w-7xl gap-12 lg:grid-cols-[0.85fr_1.15fr]">
-          <div className="space-y-4">
+      <section className="px-6 py-14 sm:px-10 sm:py-18 lg:px-12">
+        <div className="mx-auto grid w-full max-w-5xl gap-10 border-y border-white/10 py-12 lg:grid-cols-[0.8fr_1.2fr]">
+          <div className="space-y-3">
             <p className="text-xs uppercase tracking-[0.34em] text-stone-500">
               Brand Story
             </p>
-            <h2 className="max-w-lg text-3xl font-medium leading-tight tracking-[0.1em] text-stone-100 sm:text-4xl">
-              Built around mood, restraint, and modern luxury.
+            <h2 className="text-2xl font-medium tracking-[0.08em] text-stone-100 sm:text-3xl">
+              Chosen with restraint.
             </h2>
           </div>
 
-          <div className="grid gap-8 border-t border-white/10 pt-8 text-base leading-8 text-stone-400 sm:grid-cols-2 lg:border-t-0 lg:pt-0">
-            <p>
-              Sombre began with a simple idea: fragrance should not feel loud or
-              decorative. It should shape a room, settle on the skin, and remain
-              memorable through detail rather than excess.
-            </p>
-            <p>
-              The brand is designed for people who value calm composition,
-              tactile presentation, and a slower, more deliberate relationship
-              with scent and ritual.
-            </p>
-          </div>
+          <p className="max-w-2xl text-base leading-8 text-stone-400">
+            The collection is shaped by atmosphere, texture, and simplicity.
+            Each product is selected to feel refined, useful, and easy to return
+            to every day.
+          </p>
         </div>
       </section>
 
-      <section className="px-6 py-20 sm:px-10 sm:py-24 lg:px-12">
-        <div className="mx-auto grid w-full max-w-7xl gap-12 lg:grid-cols-[1fr_1fr]">
-          <div className="rounded-[2.5rem] bg-[linear-gradient(155deg,rgba(39,36,33,0.88),rgba(24,24,29,0.5),rgba(20,18,17,0.96))] p-8 sm:p-10">
-            <div className="space-y-5">
-              <p className="text-xs uppercase tracking-[0.34em] text-stone-500">
-                Fragrance Philosophy
-              </p>
-              <h2 className="max-w-lg text-3xl font-medium leading-tight tracking-[0.1em] text-stone-100 sm:text-4xl">
-                Texture, atmosphere, and curation over noise.
-              </h2>
-              <p className="max-w-xl text-base leading-8 text-stone-400">
-                Every selection is guided by tone and composition. Notes, finish,
-                packaging, and presentation are considered together so the
-                experience feels complete from the first impression to the final
-                trace.
-              </p>
-            </div>
-          </div>
-
-          <div className="grid gap-8 border-t border-white/10 pt-8 text-base leading-8 text-stone-400 lg:border-t-0 lg:pt-0">
-            <p>
-              Sombre values precision in the same way a well-made interior or a
-              carefully cut garment does. Nothing is included for effect alone.
-              Each element should contribute to the mood with clarity and
-              purpose.
-            </p>
-            <p>
-              The result is a fragrance perspective that feels intimate rather
-              than performative: softened woods, mineral warmth, smoke, stone,
-              fabric, skin, and light held in balance.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <section className="px-6 py-20 sm:px-10 sm:py-24 lg:px-12">
-        <div className="mx-auto grid w-full max-w-7xl gap-12 lg:grid-cols-[0.9fr_1.1fr]">
-          <div className="space-y-4">
-            <p className="text-xs uppercase tracking-[0.34em] text-stone-500">
-              Quality & Curation
-            </p>
-            <h2 className="max-w-lg text-3xl font-medium leading-tight tracking-[0.1em] text-stone-100 sm:text-4xl">
-              Thoughtful selection, elevated presentation, and lasting appeal.
-            </h2>
-          </div>
-
-          <div className="grid gap-8 border-t border-white/10 pt-8 text-base leading-8 text-stone-400 sm:grid-cols-2 lg:border-t-0 lg:pt-0">
-            <p>
-              The assortment is intentionally concise. Products are chosen for
-              coherence, character, and the ability to sit comfortably within
-              the wider world of the house.
-            </p>
-            <p>
-              That same care extends to presentation. From imagery to packaging
-              and page design, Sombre aims to make discovery feel considered,
-              calm, and quietly luxurious.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <section className="px-6 pb-24 pt-10 sm:px-10 sm:pb-32 lg:px-12">
-        <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 border-t border-white/10 pt-10 sm:flex-row sm:items-end sm:justify-between">
+      <section className="px-6 py-14 sm:px-10 sm:py-18 lg:px-12">
+        <div className="mx-auto grid w-full max-w-5xl gap-10 lg:grid-cols-[0.8fr_1.2fr]">
           <div className="space-y-3">
             <p className="text-xs uppercase tracking-[0.34em] text-stone-500">
-              Explore
+              Curatorial Philosophy
             </p>
-            <h2 className="max-w-2xl text-3xl font-medium leading-tight tracking-[0.1em] text-stone-100 sm:text-4xl">
-              Discover the collection and the rituals that shape it.
+            <h2 className="text-2xl font-medium tracking-[0.08em] text-stone-100 sm:text-3xl">
+              Soft presence. Lasting detail.
+            </h2>
+          </div>
+
+          <div className="space-y-4">
+            {philosophyLines.map((line) => (
+              <p
+                key={line}
+                className="border-b border-white/10 pb-4 text-base leading-8 text-stone-400 last:border-b-0 last:pb-0"
+              >
+                {line}
+              </p>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="px-6 pb-24 pt-14 sm:px-10 sm:pb-32 sm:pt-18 lg:px-12">
+        <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 border-t border-white/10 pt-10 sm:flex-row sm:items-end sm:justify-between">
+          <div className="space-y-3">
+            <p className="text-xs uppercase tracking-[0.34em] text-stone-500">
+              Collection
+            </p>
+            <h2 className="max-w-2xl text-2xl font-medium leading-tight tracking-[0.08em] text-stone-100 sm:text-3xl">
+              Discover scents selected for the moments you return to daily.
             </h2>
           </div>
 
           <Link
             href="/shop"
-            className="border-b border-white/30 pb-1 text-sm uppercase tracking-[0.28em] text-stone-100 transition-colors hover:border-white/60 hover:text-white"
+            className="border-b border-white/30 pb-1 text-sm uppercase tracking-[0.24em] text-stone-100 transition-colors hover:border-white/60 hover:text-white"
           >
-            Visit the Shop
+            Explore the Collection
           </Link>
         </div>
       </section>

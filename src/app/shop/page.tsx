@@ -106,10 +106,10 @@ export default async function ShopPage() {
         <div className="grid gap-8 lg:grid-cols-[0.85fr_1.15fr] lg:items-end">
           <div className="space-y-5">
             <p className="text-xs uppercase tracking-[0.38em] text-stone-500">
-              Collection
+              Curated Edit
             </p>
             <h1 className="text-4xl font-medium tracking-[0.12em] text-stone-100 sm:text-6xl">
-              Sombre
+              Shop Fragrance
             </h1>
           </div>
 
@@ -118,8 +118,8 @@ export default async function ShopPage() {
               Sombre
             </p>
             <p className="text-base leading-8 text-stone-400">
-              A quieter edit of fragrance and ritual objects, arranged with the
-              pacing of a house collection rather than a utility catalog.
+              A focused selection of perfume, body care, and home fragrance
+              from luxury and independent brands.
             </p>
           </div>
         </div>
@@ -147,8 +147,8 @@ export default async function ShopPage() {
             </h2>
             <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-stone-400">
               {hasError
-                ? "The shop could not load products from Supabase. Check your environment variables and database connection."
-                : "Add active products in Supabase and they will appear here automatically."}
+                ? "We could not load the collection right now. Please try again soon."
+                : "New selections will appear here soon."}
             </p>
           </div>
         )}
