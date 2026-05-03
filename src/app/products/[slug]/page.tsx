@@ -4,6 +4,13 @@ import { notFound } from "next/navigation";
 import { AddToCartButton } from "@/components/cart/add-to-cart-button";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formatPrice } from "@/lib/storefront/format-price";
+import {
+    getPrimaryProductImage,
+    getSortedProductImages,
+    normalizeProductRelation,
+    type ProductImage,
+    type ProductRelation,
+} from "@/lib/storefront/products";
 
 type ProductDetailPageProps = {
     params: Promise<{
@@ -13,13 +20,6 @@ type ProductDetailPageProps = {
 
 export const dynamic = "force-dynamic";
 
-type ProductImage = {
-    image_url: string;
-    alt_text: string | null;
-    sort_order: number;
-    is_primary: boolean;
-};
-
 type ProductDetail = {
     id: string;
     name: string;
@@ -28,17 +28,9 @@ type ProductDetail = {
     price: number | string;
     size_label: string | null;
     is_featured: boolean;
-    brand: {
-        name: string;
-    } | null;
-    category: {
-        name: string;
-    } | null;
+    brand: ProductRelation | null;
+    category: ProductRelation | null;
     product_images: ProductImage[] | null;
-};
-
-type RelationName = {
-    name: string;
 };
 
 type ProductDetailRow = {
@@ -49,20 +41,10 @@ type ProductDetailRow = {
     price: number | string;
     size_label: string | null;
     is_featured: boolean;
-    brand: RelationName | RelationName[] | null;
-    category: RelationName | RelationName[] | null;
+    brand: ProductRelation | ProductRelation[] | null;
+    category: ProductRelation | ProductRelation[] | null;
     product_images: ProductImage[] | null;
 };
-
-function normalizeRelation(
-    relation: RelationName | RelationName[] | null,
-): RelationName | null {
-    if (!relation) {
-        return null;
-    }
-
-    return Array.isArray(relation) ? (relation[0] ?? null) : relation;
-}
 
 function normalizeProductDetail(row: ProductDetailRow): ProductDetail {
     return {
@@ -73,22 +55,10 @@ function normalizeProductDetail(row: ProductDetailRow): ProductDetail {
         price: row.price,
         size_label: row.size_label,
         is_featured: row.is_featured,
-        brand: normalizeRelation(row.brand),
-        category: normalizeRelation(row.category),
-        product_images: row.product_images
-            ? [...row.product_images].sort(
-                  (left, right) => left.sort_order - right.sort_order,
-              )
-            : null,
+        brand: normalizeProductRelation(row.brand),
+        category: normalizeProductRelation(row.category),
+        product_images: getSortedProductImages(row.product_images),
     };
-}
-
-function getPrimaryImage(images: ProductImage[] | null) {
-    const sortedImages = [...(images ?? [])].sort(
-        (left, right) => left.sort_order - right.sort_order,
-    );
-
-    return sortedImages.find((image) => image.is_primary) ?? sortedImages[0] ?? null;
 }
 
 async function getProductBySlug(slug: string) {
@@ -139,7 +109,7 @@ export default async function ProductDetailPage({
         notFound();
     }
 
-    const primaryImage = getPrimaryImage(product.product_images);
+    const primaryImage = getPrimaryProductImage(product.product_images);
 
     return (
         <section className="px-6 py-24 sm:px-10 sm:py-32 lg:px-12">

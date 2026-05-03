@@ -1,14 +1,11 @@
-export type ProductImage = {
-  image_url: string;
-  alt_text: string | null;
-  sort_order: number;
-  is_primary: boolean;
-};
+import {
+  getPrimaryProductImage,
+  normalizeProductRelation,
+  type ProductImage,
+  type ProductRelationWithSlug,
+} from "@/lib/storefront/products";
 
-export type RelationName = {
-  name: string;
-  slug: string;
-};
+export type RelationName = ProductRelationWithSlug;
 
 export type ProductListItemRow = {
   id: string;
@@ -126,24 +123,6 @@ const collectionViews: Record<string, ShopView & { type: "collection" }> = {
   },
 };
 
-function getPrimaryImage(images: ProductImage[] | null) {
-  const sortedImages = [...(images ?? [])].sort(
-    (left, right) => left.sort_order - right.sort_order,
-  );
-
-  return sortedImages.find((image) => image.is_primary) ?? sortedImages[0] ?? null;
-}
-
-function normalizeRelation(
-  relation: RelationName | RelationName[] | null,
-): RelationName | null {
-  if (!relation) {
-    return null;
-  }
-
-  return Array.isArray(relation) ? (relation[0] ?? null) : relation;
-}
-
 export function normalizeProductListItem(
   row: ProductListItemRow,
 ): ProductListItem {
@@ -156,9 +135,9 @@ export function normalizeProductListItem(
     size_label: row.size_label,
     is_featured: row.is_featured,
     created_at: row.created_at,
-    brand: normalizeRelation(row.brand),
-    category: normalizeRelation(row.category),
-    primaryImage: getPrimaryImage(row.product_images),
+    brand: normalizeProductRelation(row.brand),
+    category: normalizeProductRelation(row.category),
+    primaryImage: getPrimaryProductImage(row.product_images),
   };
 }
 
