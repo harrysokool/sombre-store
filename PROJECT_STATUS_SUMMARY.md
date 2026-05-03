@@ -38,6 +38,7 @@ The homepage now uses real Maison Margiela Replica products and image paths inst
 - `/shop` page backed by Supabase product data
 - `/shop` supports all products, category views, brand browsing, and simple collection views
 - `/products/[slug]` page backed by Supabase product details
+- Product detail rendering is split into `ProductGallery` and `ProductInfo`
 - Product images render from local project image paths
 
 ### Shop Flow
@@ -58,6 +59,14 @@ Important shop logic lives in:
 - `src/lib/storefront/products.ts` for shared product relation and image helpers
 - `src/components/shop/category-brand-selection.tsx` for the category brand selection UI
 
+### Product Detail Flow
+
+The product detail route keeps data loading in the page file and moves display sections into smaller components:
+
+- `src/app/products/[slug]/page.tsx` loads one product from Supabase
+- `src/components/product/product-gallery.tsx` renders product images and the no-image state
+- `src/components/product/product-info.tsx` renders brand, category, name, price, size, description, and add-to-cart
+
 ### Cart
 
 The cart is browser-based and stored in `localStorage`.
@@ -76,6 +85,7 @@ Cart and checkout now share reusable code:
 
 - `src/hooks/use-cart-items.ts`
 - `src/components/cart/cart-product-image.tsx`
+- `src/components/cart/checkout-form-field.tsx`
 - `src/components/cart/order-summary.tsx`
 - `src/lib/cart/math.ts`
 
@@ -158,6 +168,12 @@ The service role key must never be exposed to frontend code and must not use a `
 - `src/app/products/[slug]/page.tsx`  
   Loads one product, its brand, category, and images from Supabase.
 
+- `src/components/product/product-gallery.tsx`  
+  Product detail image gallery.
+
+- `src/components/product/product-info.tsx`  
+  Product detail information and add-to-cart section.
+
 - `src/lib/cart/cart.ts`  
   Browser cart helpers and checkout cart snapshot logic.
 
@@ -166,6 +182,9 @@ The service role key must never be exposed to frontend code and must not use a `
 
 - `src/components/cart/checkout-page-content.tsx`  
   Checkout form and Stripe redirect trigger.
+
+- `src/components/cart/checkout-form-field.tsx`  
+  Shared checkout form input component.
 
 - `src/app/api/checkout/session/route.ts`  
   Creates Stripe Checkout Sessions and validates prices on the server.

@@ -27,6 +27,7 @@ Working locally:
 - storefront pages
 - shop category and brand browsing
 - product detail pages
+- product detail gallery/info components
 - localStorage cart
 - checkout page
 - Stripe Checkout redirect
@@ -54,7 +55,13 @@ The full local checkout path has been tested:
   Shared product relation and image helper functions.
 
 - `src/app/products/[slug]/page.tsx`  
-  Product detail page.
+  Product detail page data loading and layout.
+
+- `src/components/product/product-gallery.tsx`  
+  Product detail image gallery.
+
+- `src/components/product/product-info.tsx`  
+  Product detail information, price, description, and add-to-cart section.
 
 - `src/lib/cart/cart.ts`  
   Browser cart storage and checkout snapshot helpers.
@@ -64,6 +71,9 @@ The full local checkout path has been tested:
 
 - `src/components/cart/cart-product-image.tsx`  
   Shared cart/checkout product image component.
+
+- `src/components/cart/checkout-form-field.tsx`  
+  Shared checkout form field component.
 
 - `src/components/cart/order-summary.tsx`  
   Shared cart/checkout summary component.
