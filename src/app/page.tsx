@@ -1,6 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
 
+import { formatPrice } from "@/lib/storefront/format-price";
+
 const maisonMargielaShopHref = "/shop?category=perfume&brand=maison-margiela";
 
 const featuredProducts = [
@@ -8,7 +10,7 @@ const featuredProducts = [
     name: "Replica Lazy Sunday Morning",
     slug: "maison-margiela-replica-lazy-sunday-morning",
     size: "100 mL",
-    price: "$165.00",
+    price: formatPrice(165),
     image: "/images/products/maison-margiela/replica-lazy-sunday-morning-01.jpg",
     alt: "Maison Margiela Replica Lazy Sunday Morning perfume bottle",
   },
@@ -16,7 +18,7 @@ const featuredProducts = [
     name: "Replica By the Fireplace",
     slug: "maison-margiela-replica-by-the-fireplace",
     size: "100 mL",
-    price: "$165.00",
+    price: formatPrice(165),
     image: "/images/products/maison-margiela/replica-by-the-fireplace-01.jpg",
     alt: "Maison Margiela Replica By the Fireplace perfume bottle",
   },
@@ -24,7 +26,7 @@ const featuredProducts = [
     name: "Replica Jazz Club",
     slug: "maison-margiela-replica-jazz-club",
     size: "100 mL",
-    price: "$165.00",
+    price: formatPrice(165),
     image: "/images/products/maison-margiela/replica-jazz-club-01.jpg",
     alt: "Maison Margiela Replica Jazz Club perfume bottle",
   },

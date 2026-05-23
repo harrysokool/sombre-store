@@ -79,7 +79,7 @@ async function insertOrderFromSession(
       postal_code: metadata.postal_code ?? "",
       country: metadata.country ?? "",
       subtotal: getOrderSubtotal(session, lineItems),
-      currency: (session.currency ?? "usd").toLowerCase(),
+      currency: (session.currency ?? "hkd").toLowerCase(),
       payment_status: session.payment_status,
     })
     .select("id")

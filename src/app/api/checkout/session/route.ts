@@ -194,7 +194,7 @@ export async function POST(request: Request) {
       line_items: validatedCartItems.map((item) => ({
         quantity: item.quantity,
         price_data: {
-          currency: "usd",
+          currency: "hkd",
           unit_amount: Math.round(item.price * 100),
           product_data: {
             name: item.name,

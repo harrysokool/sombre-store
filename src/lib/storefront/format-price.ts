@@ -1,3 +1,3 @@
 export function formatPrice(price: number | string) {
-  return `$${Number(price).toFixed(2)}`;
+  return `HK$${Number(price).toFixed(2)}`;
 }
