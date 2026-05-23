@@ -1,6 +1,12 @@
 import { AddToCartButton } from "@/components/cart/add-to-cart-button";
 import { formatPrice } from "@/lib/storefront/format-price";
 
+const purchaseTrustItems = [
+  "Secure checkout with Stripe",
+  "Ships from Sombre",
+  "Support available after purchase",
+];
+
 type ProductInfoProps = {
   id: string;
   slug: string;
@@ -79,7 +85,7 @@ export function ProductInfo({
         ) : null}
       </div>
 
-      <div className="pt-1">
+      <div className="space-y-5 pt-1">
         <AddToCartButton
           product={{
             id,
@@ -90,6 +96,19 @@ export function ProductInfo({
             image_url: imageUrl,
           }}
         />
+
+        <div className="max-w-md space-y-3 border-y border-white/10 py-5">
+          <p className="text-xs uppercase tracking-[0.28em] text-stone-500">
+            Shop with confidence
+          </p>
+          <ul className="space-y-2">
+            {purchaseTrustItems.map((item) => (
+              <li key={item} className="text-sm leading-6 text-stone-300">
+                {item}
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
 
       <div className="space-y-4">
@@ -98,6 +117,17 @@ export function ProductInfo({
         </p>
         <p className="max-w-2xl text-base leading-8 text-stone-400">
           {description ?? "Details for this selection are coming soon."}
+        </p>
+      </div>
+
+      <div className="space-y-4 border-t border-white/10 pt-8">
+        <p className="text-xs uppercase tracking-[0.34em] text-stone-500">
+          Shipping and Returns
+        </p>
+        <p className="max-w-2xl text-sm leading-7 text-stone-400">
+          Orders are packed by Sombre after checkout confirmation. If something
+          is not right with your order, contact support and we will help with
+          the next step.
         </p>
       </div>
     </div>
