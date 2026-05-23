@@ -111,8 +111,8 @@ export function Navbar() {
             <header
                 className={`sticky top-0 z-30 border-b border-white/10 bg-stone-950/90 backdrop-blur-md transition-all duration-300 ease-out ${
                     shouldShowNavbar
-                        ? "translate-y-0 opacity-100"
-                        : "-translate-y-full opacity-0"
+                        ? "pointer-events-auto translate-y-0 opacity-100 blur-0"
+                        : "pointer-events-none -translate-y-2 opacity-0 blur-sm"
                 }`}
             >
                 <div className="relative w-full py-5 pl-4 pr-2 sm:pl-5 sm:pr-3 lg:pl-6 lg:pr-3">
