@@ -53,8 +53,28 @@ function CloseIcon() {
     );
 }
 
+function SearchIcon() {
+    return (
+        <svg
+            aria-hidden="true"
+            viewBox="0 0 24 24"
+            className="h-5 w-5"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+        >
+            <path
+                d="m21 21-4.35-4.35m1.35-5.4a6.75 6.75 0 1 1-13.5 0 6.75 6.75 0 0 1 13.5 0Z"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+            />
+        </svg>
+    );
+}
+
 export function Navbar() {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const [isSearchOpen, setIsSearchOpen] = useState(false);
     const [activeMenu, setActiveMenu] = useState<"main" | "shop">("main");
     const [isNavbarVisible, setIsNavbarVisible] = useState(true);
     const previousScrollYRef = useRef(0);
@@ -90,11 +110,20 @@ export function Navbar() {
         return () => window.removeEventListener("scroll", handleScroll);
     }, []);
 
-    const shouldShowNavbar = isMenuOpen || isNavbarVisible;
+    const shouldShowNavbar = isMenuOpen || isSearchOpen || isNavbarVisible;
 
     function closeMenu() {
         setIsMenuOpen(false);
         setActiveMenu("main");
+    }
+
+    function closeSearch() {
+        setIsSearchOpen(false);
+    }
+
+    function openSearch() {
+        closeMenu();
+        setIsSearchOpen(true);
     }
 
     function toggleMenu() {
@@ -103,6 +132,7 @@ export function Navbar() {
             return;
         }
 
+        closeSearch();
         setIsMenuOpen(true);
     }
 
@@ -116,7 +146,7 @@ export function Navbar() {
                 }`}
             >
                 <div className="relative w-full py-5 pl-4 pr-2 sm:pl-5 sm:pr-3 lg:pl-6 lg:pr-3">
-                    <div className="grid grid-cols-[5.5rem_auto_5rem] items-center sm:grid-cols-[7.5rem_auto_6.75rem]">
+                    <div className="grid grid-cols-[5.5rem_auto_5.5rem] items-center sm:grid-cols-[7.5rem_auto_6.75rem]">
                         <div className="z-10 flex items-center justify-start">
                             <button
                                 type="button"
@@ -145,7 +175,17 @@ export function Navbar() {
                             </Link>
                         </div>
 
-                        <div className="z-10 flex items-center justify-end">
+                        <div className="z-10 flex items-center justify-end gap-1">
+                            <button
+                                type="button"
+                                aria-label="Open search"
+                                aria-expanded={isSearchOpen}
+                                aria-controls="site-search"
+                                onClick={openSearch}
+                                className="inline-flex h-10 w-10 items-center justify-center text-stone-200 transition-colors hover:text-stone-100"
+                            >
+                                <SearchIcon />
+                            </button>
                             <NavbarCartIndicator />
                         </div>
                     </div>
@@ -239,6 +279,53 @@ export function Navbar() {
                     </nav>
                 </div>
             </aside>
+
+            {isSearchOpen ? (
+                <>
+                    <div className="fixed inset-0 z-40">
+                        <button
+                            type="button"
+                            aria-label="Close search"
+                            onClick={closeSearch}
+                            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+                        />
+                    </div>
+
+                    <section
+                        id="site-search"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-label="Search"
+                        className="fixed left-1/2 top-24 z-50 w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 rounded-[1.5rem] border border-white/10 bg-stone-950 p-5 shadow-2xl shadow-black/40 sm:p-6"
+                    >
+                        <div className="flex items-center justify-between gap-4 border-b border-white/10 pb-4">
+                            <p className="text-xs uppercase tracking-[0.28em] text-stone-500">
+                                Search
+                            </p>
+                            <button
+                                type="button"
+                                onClick={closeSearch}
+                                aria-label="Close search"
+                                className="inline-flex h-10 w-10 items-center justify-center text-stone-300 transition-colors hover:text-stone-100"
+                            >
+                                <CloseIcon />
+                            </button>
+                        </div>
+
+                        <div className="pt-5">
+                            <label htmlFor="site-search-input" className="sr-only">
+                                Search fragrance
+                            </label>
+                            <input
+                                id="site-search-input"
+                                type="search"
+                                placeholder="Search fragrance"
+                                className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4 text-base text-stone-100 outline-none transition-colors placeholder:text-stone-600 focus:border-white/25"
+                            />
+                        </div>
+                    </section>
+                </>
+            ) : null}
         </>
     );
 }
