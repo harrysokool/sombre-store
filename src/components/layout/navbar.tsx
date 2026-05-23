@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 import { NavbarCartIndicator } from "@/components/cart/navbar-cart-indicator";
+import { ProductSearchPanel } from "@/components/search/product-search-panel";
 
 const navigationItems = [
     { label: "About", href: "/about" },
@@ -280,52 +281,7 @@ export function Navbar() {
                 </div>
             </aside>
 
-            {isSearchOpen ? (
-                <>
-                    <div className="fixed inset-0 z-40">
-                        <button
-                            type="button"
-                            aria-label="Close search"
-                            onClick={closeSearch}
-                            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-                        />
-                    </div>
-
-                    <section
-                        id="site-search"
-                        role="dialog"
-                        aria-modal="true"
-                        aria-label="Search"
-                        className="fixed left-1/2 top-24 z-50 w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 rounded-[1.5rem] border border-white/10 bg-stone-950 p-5 shadow-2xl shadow-black/40 sm:p-6"
-                    >
-                        <div className="flex items-center justify-between gap-4 border-b border-white/10 pb-4">
-                            <p className="text-xs uppercase tracking-[0.28em] text-stone-500">
-                                Search
-                            </p>
-                            <button
-                                type="button"
-                                onClick={closeSearch}
-                                aria-label="Close search"
-                                className="inline-flex h-10 w-10 items-center justify-center text-stone-300 transition-colors hover:text-stone-100"
-                            >
-                                <CloseIcon />
-                            </button>
-                        </div>
-
-                        <div className="pt-5">
-                            <label htmlFor="site-search-input" className="sr-only">
-                                Search fragrance
-                            </label>
-                            <input
-                                id="site-search-input"
-                                type="search"
-                                placeholder="Search fragrance"
-                                className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4 text-base text-stone-100 outline-none transition-colors placeholder:text-stone-600 focus:border-white/25"
-                            />
-                        </div>
-                    </section>
-                </>
-            ) : null}
+            <ProductSearchPanel isOpen={isSearchOpen} onClose={closeSearch} />
         </>
     );
 }
