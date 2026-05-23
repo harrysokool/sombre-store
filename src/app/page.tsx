@@ -13,18 +13,14 @@ const maisonMargielaShopHref = "/shop?category=perfume&brand=maison-margiela";
 
 export const dynamic = "force-dynamic";
 
-const trustPoints = [
+const heroImages = [
   {
-    title: "Curated selection",
-    text: "A focused edit of Maison Margiela Replica fragrances.",
+    src: "/images/products/maison-margiela/replica-model-1.jpg",
+    alt: "Maison Margiela Replica fragrance styled with a model",
   },
   {
-    title: "Secure checkout",
-    text: "Payment is handled through Stripe-hosted checkout.",
-  },
-  {
-    title: "Simple fragrance shopping",
-    text: "Clear product pages, direct pricing, and a small considered catalog.",
+    src: "/images/products/maison-margiela/replica-model-2.jpg",
+    alt: "Maison Margiela Replica fragrance lifestyle scene",
   },
 ];
 
@@ -90,24 +86,47 @@ function getHomepageFeaturedProducts(products: ProductListItem[]) {
 export default async function Home() {
   const maisonMargielaProducts = await getMaisonMargielaProducts();
   const featuredProducts = getHomepageFeaturedProducts(maisonMargielaProducts);
-  const heroProduct = featuredProducts[0] ?? maisonMargielaProducts[0] ?? null;
-  const heroImage = heroProduct?.primaryImage ?? null;
 
   return (
     <div className="overflow-hidden">
-      <section className="px-6 py-14 sm:px-10 sm:py-20 lg:px-12">
-        <div className="mx-auto grid w-full max-w-7xl gap-10 lg:grid-cols-[1fr_0.9fr] lg:items-center">
-          <div className="max-w-2xl space-y-8">
+      <section className="relative min-h-[calc(100svh-5.5rem)] overflow-hidden border-b border-white/10 bg-stone-950">
+        <div className="absolute inset-0 grid grid-rows-[1fr_13rem] sm:grid-cols-[minmax(0,1.15fr)_minmax(18rem,0.85fr)] sm:grid-rows-1">
+          <div className="relative">
+            <Image
+              src={heroImages[0].src}
+              alt={heroImages[0].alt}
+              fill
+              priority
+              sizes="(min-width: 640px) 58vw, 100vw"
+              className="object-cover"
+            />
+          </div>
+
+          <div className="relative border-t border-white/10 sm:border-l sm:border-t-0">
+            <Image
+              src={heroImages[1].src}
+              alt={heroImages[1].alt}
+              fill
+              sizes="(min-width: 640px) 42vw, 100vw"
+              className="object-cover"
+            />
+          </div>
+        </div>
+
+        <div className="absolute inset-0 bg-gradient-to-t from-stone-950 via-stone-950/45 to-transparent sm:bg-gradient-to-r sm:from-stone-950/95 sm:via-stone-950/35 sm:to-transparent" />
+
+        <div className="relative z-10 mx-auto flex min-h-[calc(100svh-5.5rem)] w-full max-w-7xl items-end px-6 pb-10 pt-24 sm:px-10 sm:pb-16 lg:px-12">
+          <div className="max-w-xl space-y-7">
             <div className="space-y-5">
-              <p className="text-xs uppercase tracking-[0.28em] text-stone-500">
+              <p className="text-xs uppercase tracking-[0.28em] text-stone-300">
                 Sombre Fragrance
               </p>
               <h1 className="text-4xl font-medium leading-tight text-stone-100 sm:text-5xl">
                 Curated fragrance, quietly chosen.
               </h1>
-              <p className="max-w-xl text-base leading-8 text-stone-400">
-                A focused edit of Maison Margiela Replica scents, selected for
-                everyday ritual and personal atmosphere.
+              <p className="max-w-lg text-base leading-8 text-stone-300">
+                A focused Maison Margiela Replica edit, selected for everyday
+                ritual and personal atmosphere.
               </p>
             </div>
 
@@ -126,63 +145,23 @@ export default async function Home() {
               </Link>
             </div>
           </div>
-
-          {heroProduct ? (
-            <Link href={`/products/${heroProduct.slug}`} className="group block">
-              <div className="overflow-hidden rounded-lg border border-white/10 bg-stone-900">
-                {heroImage ? (
-                  <Image
-                    src={heroImage.image_url}
-                    alt={heroImage.alt_text ?? `${heroProduct.name} bottle`}
-                    width={1000}
-                    height={1250}
-                    priority
-                    className="aspect-[4/5] w-full object-cover transition-transform duration-500 group-hover:scale-[1.02]"
-                  />
-                ) : (
-                  <div className="flex aspect-[4/5] items-center justify-center bg-white/[0.02]">
-                    <p className="text-xs uppercase tracking-[0.24em] text-stone-500">
-                      Image coming soon
-                    </p>
-                  </div>
-                )}
-              </div>
-              <div className="mt-4 flex items-end justify-between gap-4">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.24em] text-stone-500">
-                    Featured scent
-                  </p>
-                  <p className="mt-1 text-lg font-medium text-stone-100">
-                    {heroProduct.name}
-                  </p>
-                </div>
-                <p className="text-sm uppercase tracking-[0.2em] text-stone-400 transition-colors group-hover:text-stone-100">
-                  View product
-                </p>
-              </div>
-            </Link>
-          ) : (
-            <div className="overflow-hidden rounded-lg border border-white/10 bg-stone-900">
-              <div className="flex aspect-[4/5] items-center justify-center bg-white/[0.02] px-8 text-center">
-                <p className="text-sm leading-7 text-stone-500">
-                  The Maison Margiela edit is being prepared.
-                </p>
-              </div>
-            </div>
-          )}
         </div>
       </section>
 
-      <section className="px-6 py-14 sm:px-10 sm:py-18 lg:px-12">
-        <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 border-t border-white/10 pt-12">
+      <section className="px-6 py-16 sm:px-10 sm:py-20 lg:px-12">
+        <div className="mx-auto flex w-full max-w-7xl flex-col gap-8">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-            <div className="space-y-3">
+            <div className="max-w-2xl space-y-3">
               <p className="text-xs uppercase tracking-[0.28em] text-stone-500">
-                Featured products
+                Replica edit
               </p>
               <h2 className="text-3xl font-medium text-stone-100">
                 Maison Margiela Replica
               </h2>
+              <p className="text-sm leading-7 text-stone-400">
+                A compact selection of quiet, wearable scents for daily ritual
+                and personal atmosphere.
+              </p>
             </div>
             <Link
               href={maisonMargielaShopHref}
@@ -257,35 +236,6 @@ export default async function Home() {
               </p>
             </div>
           )}
-        </div>
-      </section>
-
-      <section className="px-6 py-14 sm:px-10 sm:py-18 lg:px-12">
-        <div className="mx-auto grid w-full max-w-7xl gap-6 border-y border-white/10 py-10 md:grid-cols-3">
-          {trustPoints.map((point) => (
-            <div key={point.title} className="space-y-3">
-              <h2 className="text-base font-medium text-stone-100">
-                {point.title}
-              </h2>
-              <p className="max-w-sm text-sm leading-7 text-stone-400">
-                {point.text}
-              </p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="px-6 pb-24 pt-10 sm:px-10 sm:pb-32 lg:px-12">
-        <div className="mx-auto flex w-full max-w-4xl flex-col items-center gap-6 text-center">
-          <p className="max-w-2xl text-2xl font-medium leading-snug text-stone-100 sm:text-3xl">
-            Explore the Maison Margiela Replica edit.
-          </p>
-          <Link
-            href={maisonMargielaShopHref}
-            className="inline-flex items-center justify-center rounded-full bg-white/5 px-6 py-3 text-sm uppercase tracking-[0.18em] text-stone-100 transition-colors hover:bg-white/10"
-          >
-            Shop fragrance
-          </Link>
         </div>
       </section>
     </div>
