@@ -90,45 +90,45 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
   );
 
   return (
-    <section className="px-6 py-24 sm:px-10 sm:py-32 lg:px-12">
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-16">
-        <div className="grid gap-8 lg:grid-cols-[0.85fr_1.15fr] lg:items-end">
-          <div className="space-y-5">
-            <p className="text-xs uppercase tracking-[0.38em] text-stone-500">
+    <section className="px-6 py-16 sm:px-10 sm:py-24 lg:px-12">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-12">
+        <div className="max-w-3xl space-y-5">
+          <div className="space-y-4">
+            <p className="text-xs uppercase tracking-[0.28em] text-stone-500">
               {pageCopy.eyebrow}
             </p>
-            <h1 className="text-4xl font-medium tracking-[0.12em] text-stone-100 sm:text-6xl">
+            <h1 className="text-4xl font-medium leading-tight text-stone-100 sm:text-5xl">
               {pageCopy.title}
             </h1>
           </div>
-
-          <div className="space-y-4 border-t border-white/10 pt-6 lg:border-t-0 lg:pt-0">
-            <p className="text-xs uppercase tracking-[0.34em] text-stone-500">
-              Sombre
-            </p>
-            <p className="text-base leading-8 text-stone-400">
-              {pageCopy.description}
-            </p>
-          </div>
+          <p className="max-w-2xl text-base leading-8 text-stone-400">
+            {pageCopy.description}
+          </p>
         </div>
 
         {shouldShowBrandSelection && shopView.type === "category" ? (
           <CategoryBrandSelection view={shopView} brands={categoryBrands} />
         ) : visibleProducts.length > 0 ? (
-          <div className="grid gap-x-8 gap-y-14 md:grid-cols-2 xl:grid-cols-3">
-            {visibleProducts.map((product) => (
-              <ProductCard
-                key={product.id}
-                name={product.name}
-                slug={product.slug}
-                shortDescription={product.short_description}
-                formattedPrice={formatPrice(product.price)}
-                sizeLabel={product.size_label}
-                isFeatured={product.is_featured}
-                imageUrl={product.primaryImage?.image_url ?? null}
-                imageAlt={product.primaryImage?.alt_text ?? null}
-              />
-            ))}
+          <div className="space-y-6 border-t border-white/10 pt-8">
+            <p className="text-sm text-stone-500">
+              {visibleProducts.length}{" "}
+              {visibleProducts.length === 1 ? "product" : "products"}
+            </p>
+
+            <div className="grid gap-x-6 gap-y-12 sm:grid-cols-2 xl:grid-cols-3">
+              {visibleProducts.map((product) => (
+                <ProductCard
+                  key={product.id}
+                  name={product.name}
+                  slug={product.slug}
+                  brandName={product.brand?.name ?? null}
+                  formattedPrice={formatPrice(product.price)}
+                  sizeLabel={product.size_label}
+                  imageUrl={product.primaryImage?.image_url ?? null}
+                  imageAlt={product.primaryImage?.alt_text ?? null}
+                />
+              ))}
+            </div>
           </div>
         ) : (
           <div className="border-t border-white/10 px-6 py-14 text-center">
