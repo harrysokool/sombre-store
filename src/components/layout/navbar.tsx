@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { NavbarCartIndicator } from "@/components/cart/navbar-cart-indicator";
 
@@ -56,6 +56,41 @@ function CloseIcon() {
 export function Navbar() {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [activeMenu, setActiveMenu] = useState<"main" | "shop">("main");
+    const [isNavbarVisible, setIsNavbarVisible] = useState(true);
+    const previousScrollYRef = useRef(0);
+
+    useEffect(() => {
+        const topThreshold = 64;
+        const directionThreshold = 8;
+
+        function handleScroll() {
+            const currentScrollY = window.scrollY;
+            const previousScrollY = previousScrollYRef.current;
+
+            if (currentScrollY <= topThreshold) {
+                setIsNavbarVisible(true);
+                previousScrollYRef.current = currentScrollY;
+                return;
+            }
+
+            if (currentScrollY > previousScrollY + directionThreshold) {
+                setIsNavbarVisible(false);
+            }
+
+            if (currentScrollY < previousScrollY - directionThreshold) {
+                setIsNavbarVisible(true);
+            }
+
+            previousScrollYRef.current = currentScrollY;
+        }
+
+        previousScrollYRef.current = window.scrollY;
+        window.addEventListener("scroll", handleScroll, { passive: true });
+
+        return () => window.removeEventListener("scroll", handleScroll);
+    }, []);
+
+    const shouldShowNavbar = isMenuOpen || isNavbarVisible;
 
     function closeMenu() {
         setIsMenuOpen(false);
@@ -73,7 +108,13 @@ export function Navbar() {
 
     return (
         <>
-            <header className="sticky top-0 z-30 border-b border-white/10 bg-stone-950/90 backdrop-blur-md">
+            <header
+                className={`sticky top-0 z-30 border-b border-white/10 bg-stone-950/90 backdrop-blur-md transition-all duration-300 ease-out ${
+                    shouldShowNavbar
+                        ? "translate-y-0 opacity-100"
+                        : "-translate-y-full opacity-0"
+                }`}
+            >
                 <div className="relative w-full py-5 pl-4 pr-2 sm:pl-5 sm:pr-3 lg:pl-6 lg:pr-3">
                     <div className="grid grid-cols-[5.5rem_auto_5rem] items-center sm:grid-cols-[7.5rem_auto_6.75rem]">
                         <div className="z-10 flex items-center justify-start">
