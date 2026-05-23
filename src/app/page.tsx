@@ -1,36 +1,17 @@
 import Image from "next/image";
 import Link from "next/link";
 
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formatPrice } from "@/lib/storefront/format-price";
+import {
+  normalizeProductListItem,
+  type ProductListItem,
+  type ProductListItemRow,
+} from "@/lib/storefront/shop";
 
 const maisonMargielaShopHref = "/shop?category=perfume&brand=maison-margiela";
 
-const featuredProducts = [
-  {
-    name: "Replica Lazy Sunday Morning",
-    slug: "maison-margiela-replica-lazy-sunday-morning",
-    size: "100 mL",
-    price: formatPrice(165),
-    image: "/images/products/maison-margiela/replica-lazy-sunday-morning-01.jpg",
-    alt: "Maison Margiela Replica Lazy Sunday Morning perfume bottle",
-  },
-  {
-    name: "Replica By the Fireplace",
-    slug: "maison-margiela-replica-by-the-fireplace",
-    size: "100 mL",
-    price: formatPrice(165),
-    image: "/images/products/maison-margiela/replica-by-the-fireplace-01.jpg",
-    alt: "Maison Margiela Replica By the Fireplace perfume bottle",
-  },
-  {
-    name: "Replica Jazz Club",
-    slug: "maison-margiela-replica-jazz-club",
-    size: "100 mL",
-    price: formatPrice(165),
-    image: "/images/products/maison-margiela/replica-jazz-club-01.jpg",
-    alt: "Maison Margiela Replica Jazz Club perfume bottle",
-  },
-];
+export const dynamic = "force-dynamic";
 
 const trustPoints = [
   {
@@ -47,7 +28,71 @@ const trustPoints = [
   },
 ];
 
-export default function Home() {
+async function getMaisonMargielaProducts() {
+  try {
+    const supabase = createSupabaseServerClient();
+    const { data, error } = await supabase
+      .from("products")
+      .select(
+        `
+          id,
+          name,
+          slug,
+          short_description,
+          price,
+          size_label,
+          is_featured,
+          created_at,
+          brand:brands (
+            name,
+            slug
+          ),
+          category:categories (
+            name,
+            slug
+          ),
+          product_images (
+            image_url,
+            alt_text,
+            sort_order,
+            is_primary
+          )
+        `,
+      )
+      .eq("is_active", true)
+      .returns<ProductListItemRow[]>();
+
+    if (error) {
+      throw error;
+    }
+
+    return (data ?? [])
+      .map(normalizeProductListItem)
+      .filter((product) => product.brand?.slug === "maison-margiela")
+      .filter((product) => product.name.startsWith("Replica "));
+  } catch (error) {
+    console.error("Failed to load Maison Margiela products for /:", error);
+
+    return [] as ProductListItem[];
+  }
+}
+
+function getHomepageFeaturedProducts(products: ProductListItem[]) {
+  const featuredProducts = products.filter((product) => product.is_featured);
+
+  if (featuredProducts.length >= 3) {
+    return featuredProducts.slice(0, 3);
+  }
+
+  return products.slice(0, 3);
+}
+
+export default async function Home() {
+  const maisonMargielaProducts = await getMaisonMargielaProducts();
+  const featuredProducts = getHomepageFeaturedProducts(maisonMargielaProducts);
+  const heroProduct = featuredProducts[0] ?? maisonMargielaProducts[0] ?? null;
+  const heroImage = heroProduct?.primaryImage ?? null;
+
   return (
     <div className="overflow-hidden">
       <section className="px-6 py-14 sm:px-10 sm:py-20 lg:px-12">
@@ -82,34 +127,49 @@ export default function Home() {
             </div>
           </div>
 
-          <Link
-            href="/products/maison-margiela-replica-lazy-sunday-morning"
-            className="group block"
-          >
-            <div className="overflow-hidden rounded-lg border border-white/10 bg-stone-900">
-              <Image
-                src="/images/products/maison-margiela/replica-lazy-sunday-morning-01.jpg"
-                alt="Maison Margiela Replica Lazy Sunday Morning perfume bottle"
-                width={1000}
-                height={1250}
-                priority
-                className="aspect-[4/5] w-full object-cover transition-transform duration-500 group-hover:scale-[1.02]"
-              />
-            </div>
-            <div className="mt-4 flex items-end justify-between gap-4">
-              <div>
-                <p className="text-xs uppercase tracking-[0.24em] text-stone-500">
-                  Featured scent
-                </p>
-                <p className="mt-1 text-lg font-medium text-stone-100">
-                  Replica Lazy Sunday Morning
+          {heroProduct ? (
+            <Link href={`/products/${heroProduct.slug}`} className="group block">
+              <div className="overflow-hidden rounded-lg border border-white/10 bg-stone-900">
+                {heroImage ? (
+                  <Image
+                    src={heroImage.image_url}
+                    alt={heroImage.alt_text ?? `${heroProduct.name} bottle`}
+                    width={1000}
+                    height={1250}
+                    priority
+                    className="aspect-[4/5] w-full object-cover transition-transform duration-500 group-hover:scale-[1.02]"
+                  />
+                ) : (
+                  <div className="flex aspect-[4/5] items-center justify-center bg-white/[0.02]">
+                    <p className="text-xs uppercase tracking-[0.24em] text-stone-500">
+                      Image coming soon
+                    </p>
+                  </div>
+                )}
+              </div>
+              <div className="mt-4 flex items-end justify-between gap-4">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.24em] text-stone-500">
+                    Featured scent
+                  </p>
+                  <p className="mt-1 text-lg font-medium text-stone-100">
+                    {heroProduct.name}
+                  </p>
+                </div>
+                <p className="text-sm uppercase tracking-[0.2em] text-stone-400 transition-colors group-hover:text-stone-100">
+                  View product
                 </p>
               </div>
-              <p className="text-sm uppercase tracking-[0.2em] text-stone-400 transition-colors group-hover:text-stone-100">
-                View product
-              </p>
+            </Link>
+          ) : (
+            <div className="overflow-hidden rounded-lg border border-white/10 bg-stone-900">
+              <div className="flex aspect-[4/5] items-center justify-center bg-white/[0.02] px-8 text-center">
+                <p className="text-sm leading-7 text-stone-500">
+                  The Maison Margiela edit is being prepared.
+                </p>
+              </div>
             </div>
-          </Link>
+          )}
         </div>
       </section>
 
@@ -132,46 +192,71 @@ export default function Home() {
             </Link>
           </div>
 
-          <div className="grid gap-8 md:grid-cols-3">
-            {featuredProducts.map((product) => (
-              <Link
-                key={product.slug}
-                href={`/products/${product.slug}`}
-                className="group block"
-              >
-                <article className="space-y-4">
-                  <div className="overflow-hidden rounded-lg border border-white/10 bg-stone-900">
-                    <Image
-                      src={product.image}
-                      alt={product.alt}
-                      width={720}
-                      height={900}
-                      className="aspect-[4/5] w-full object-cover transition-transform duration-500 group-hover:scale-[1.02]"
-                    />
-                  </div>
-                  <div className="space-y-3">
-                    <div className="space-y-1">
-                      <p className="text-xs uppercase tracking-[0.22em] text-stone-500">
-                        Maison Margiela Replica
-                      </p>
-                      <h3 className="text-xl font-medium text-stone-100">
-                        {product.name}
-                      </h3>
+          {featuredProducts.length > 0 ? (
+            <div className="grid gap-8 md:grid-cols-3">
+              {featuredProducts.map((product) => (
+                <Link
+                  key={product.slug}
+                  href={`/products/${product.slug}`}
+                  className="group block"
+                >
+                  <article className="space-y-4">
+                    <div className="overflow-hidden rounded-lg border border-white/10 bg-stone-900">
+                      {product.primaryImage ? (
+                        <Image
+                          src={product.primaryImage.image_url}
+                          alt={
+                            product.primaryImage.alt_text ??
+                            `${product.name} product image`
+                          }
+                          width={720}
+                          height={900}
+                          className="aspect-[4/5] w-full object-cover transition-transform duration-500 group-hover:scale-[1.02]"
+                        />
+                      ) : (
+                        <div className="flex aspect-[4/5] items-center justify-center bg-white/[0.02]">
+                          <p className="text-xs uppercase tracking-[0.24em] text-stone-500">
+                            Image coming soon
+                          </p>
+                        </div>
+                      )}
                     </div>
-                    <div className="flex items-center justify-between gap-4 border-t border-white/10 pt-3">
-                      <p className="text-sm text-stone-400">{product.size}</p>
-                      <p className="text-sm font-medium text-stone-100">
-                        {product.price}
+                    <div className="space-y-3">
+                      <div className="space-y-1">
+                        <p className="text-xs uppercase tracking-[0.22em] text-stone-500">
+                          {product.brand?.name ?? "Maison Margiela"}
+                        </p>
+                        <h3 className="text-xl font-medium text-stone-100">
+                          {product.name}
+                        </h3>
+                      </div>
+                      <div className="flex items-center justify-between gap-4 border-t border-white/10 pt-3">
+                        <p className="text-sm text-stone-400">
+                          {product.size_label ?? "Fragrance"}
+                        </p>
+                        <p className="text-sm font-medium text-stone-100">
+                          {formatPrice(product.price)}
+                        </p>
+                      </div>
+                      <p className="text-sm uppercase tracking-[0.2em] text-stone-500 transition-colors group-hover:text-stone-200">
+                        View product
                       </p>
                     </div>
-                    <p className="text-sm uppercase tracking-[0.2em] text-stone-500 transition-colors group-hover:text-stone-200">
-                      View product
-                    </p>
-                  </div>
-                </article>
-              </Link>
-            ))}
-          </div>
+                  </article>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <div className="border-t border-white/10 px-6 py-12 text-center">
+              <h3 className="text-xl font-medium text-stone-100">
+                Products coming soon
+              </h3>
+              <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-stone-400">
+                The Maison Margiela Replica edit will appear here once products
+                are active in the catalog.
+              </p>
+            </div>
+          )}
         </div>
       </section>
 
