@@ -92,7 +92,7 @@ export function ProductSearchPanel({
   const [hasError, setHasError] = useState(false);
 
   useEffect(() => {
-    if (!isOpen || hasLoaded || isLoading) {
+    if (!isOpen || hasLoaded) {
       return;
     }
 
@@ -128,7 +128,7 @@ export function ProductSearchPanel({
     return () => {
       isActive = false;
     };
-  }, [hasLoaded, isLoading, isOpen]);
+  }, [hasLoaded, isOpen]);
 
   useEffect(() => {
     if (!isOpen) {
