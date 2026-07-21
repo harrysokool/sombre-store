@@ -60,8 +60,8 @@ Key correctness patterns in the webhook worth preserving when touching this code
 
 ### Directory layout
 
-- `src/app/*` — App Router pages/routes (storefront pages, `api/checkout/session`, `api/stripe/webhook`). Several routes (`about`, `admin`, `brands`, `contact`, `login`) are currently unbuilt placeholders (`PagePlaceholder` component).
+- `src/app/*` — App Router pages/routes (storefront pages, `api/checkout/session`, `api/stripe/webhook`). `about` and `contact` are implemented pages. `admin`, `login`, and `brands` are currently unbuilt placeholders (`PagePlaceholder` component).
 - `src/components/{cart,product,shop,layout,search,shared}` — presentational components grouped by feature area; page files own data loading, components own rendering.
 - `src/hooks/use-cart-items.ts` — shared cart state hook used by both cart and checkout pages.
 - `src/lib/{cart,checkout,storefront,stripe,supabase}` — non-UI logic: cart storage/math, checkout payload/shipping/receipt logic, product/shop query helpers, Stripe/Supabase client setup.
-- `supabase/migrations/` — schema history (append-only; check the latest migrations before assuming a schema/risk described in the docs is still unaddressed). `supabase/manual/` holds one-off additive SQL for the Maison Margiela catalog. `supabase/seed.sql` is legacy sample data — review before running it against a fresh database.
+- `supabase/migrations/` — schema history through `20260721030000_enable_row_level_security.sql` (append-only; check the latest migrations before assuming a schema/risk described in the docs is still unaddressed). Always confirm actual remote migration status with `npx supabase migration list` rather than assuming the local migrations directory reflects what's applied. `supabase/manual/` holds one-off additive SQL for the Maison Margiela catalog. `supabase/seed.sql` is legacy sample data — review before running it against a fresh database.
