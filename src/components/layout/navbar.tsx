@@ -146,7 +146,7 @@ export function Navbar() {
                         : "pointer-events-none -translate-y-2 opacity-0 blur-sm"
                 }`}
             >
-                <div className="relative w-full py-5 pl-4 pr-2 sm:pl-5 sm:pr-3 lg:pl-6 lg:pr-3">
+                <div className="relative w-full py-5 pl-4 pr-1 sm:pl-5 sm:pr-1.5 lg:pl-6 lg:pr-2">
                     <div className="grid grid-cols-[5.5rem_auto_5.5rem] items-center sm:grid-cols-[7.5rem_auto_6.75rem]">
                         <div className="z-10 flex items-center justify-start">
                             <button
