@@ -20,6 +20,9 @@ type PersistedOrder = {
   postal_code: string;
   country: string;
   payment_status: string;
+  order_status: string;
+  refund_id: string | null;
+  refund_status: string | null;
   subtotal: number | string;
   shipping_fee: number | string;
   total: number | string;
@@ -42,7 +45,7 @@ async function findOrderByStripeSessionId(stripeSessionId: string) {
   const { data, error } = await supabase
     .from("orders")
     .select(
-      "id, created_at, customer_email, customer_name, customer_phone, address_line_1, address_line_2, city, postal_code, country, payment_status, subtotal, shipping_fee, total",
+      "id, created_at, customer_email, customer_name, customer_phone, address_line_1, address_line_2, city, postal_code, country, payment_status, order_status, refund_id, refund_status, subtotal, shipping_fee, total",
     )
     .eq("stripe_session_id", stripeSessionId)
     .maybeSingle<PersistedOrder>();
@@ -84,14 +87,50 @@ export default async function CheckoutSuccessPage({
   const isPaymentConfirmed = order
     ? isConfirmedPaymentStatus(order.payment_status)
     : false;
+  const isOrderConfirmed =
+    isPaymentConfirmed && order?.order_status === "confirmed";
+  const isRefundPending = order?.order_status === "refund_pending";
+  const isRefunded = order?.order_status === "refunded";
+  const isRefundFailed = order?.order_status === "refund_failed";
+  const isUnfulfillable = order?.order_status === "unfulfillable";
+  const shouldRefresh =
+    !order || order.order_status === "pending" || isRefundPending;
   const orderItems =
-    isPaymentConfirmed && order ? await findOrderItems(order.id) : [];
+    isOrderConfirmed && order ? await findOrderItems(order.id) : [];
+
+  const heading = isOrderConfirmed
+    ? "Order received"
+    : isRefunded
+      ? "Order refunded"
+      : isRefundPending
+        ? "Refund processing"
+        : isRefundFailed
+          ? "Refund needs attention"
+          : isUnfulfillable
+            ? "Order unavailable"
+            : stripeSessionId
+              ? "Payment not confirmed"
+              : "Order status unavailable";
+  const message = isOrderConfirmed
+    ? "Thank you. Your payment was successful and your order has been received. We will use the email below for order updates and support."
+    : isRefunded
+      ? "Your payment was confirmed, but the order could not be fulfilled because an item was no longer in stock. A full refund has been issued. Your bank may take additional time to show it."
+      : isRefundPending
+        ? "Your payment was confirmed, but the order could not be fulfilled because an item was no longer in stock. We are processing a full refund and will update this page when Stripe confirms it."
+        : isRefundFailed
+          ? "Your payment was confirmed, but the order could not be fulfilled and the automatic refund needs attention. Please contact us and include the order number below."
+          : isUnfulfillable
+            ? "This order could not be fulfilled because an item was no longer in stock. Stripe did not collect a payment, so no refund is required."
+            : stripeSessionId
+              ? "Your order is not confirmed yet. We are waiting for Stripe payment confirmation and will update this page automatically. Your cart has not been changed."
+              : "No Stripe Checkout Session was provided, so we cannot confirm a payment or order.";
 
   return (
     <section className="px-6 py-24 sm:px-10 sm:py-32 lg:px-12">
       {stripeSessionId ? (
         <CheckoutSuccessStateManager
-          isPaymentConfirmed={isPaymentConfirmed}
+          shouldCleanupCart={isOrderConfirmed}
+          shouldRefresh={shouldRefresh}
           sessionId={stripeSessionId}
         />
       ) : null}
@@ -102,22 +141,14 @@ export default async function CheckoutSuccessPage({
             Sombre
           </p>
           <h1 className="text-4xl font-medium tracking-[0.14em] text-stone-100 sm:text-5xl">
-            {isPaymentConfirmed
-              ? "Order received"
-              : stripeSessionId
-                ? "Payment not confirmed"
-                : "Order status unavailable"}
+            {heading}
           </h1>
           <p className="mx-auto max-w-2xl text-base leading-8 text-stone-400">
-            {isPaymentConfirmed
-              ? "Thank you. Your payment was successful and your order has been received. We will use the email below for order updates and support."
-              : stripeSessionId
-                ? "Your order is not confirmed yet. We are waiting for Stripe payment confirmation and will update this page automatically. Your cart has not been changed."
-                : "No Stripe Checkout Session was provided, so we cannot confirm a payment or order."}
+            {message}
           </p>
         </div>
 
-        {isPaymentConfirmed && order ? (
+        {isOrderConfirmed && order ? (
           <div className="space-y-8 rounded-3xl border border-white/10 bg-black/20 px-5 py-6 text-left sm:px-6">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1">
@@ -227,6 +258,31 @@ export default async function CheckoutSuccessPage({
           </div>
         ) : null}
 
+        {(isRefundPending || isRefunded || isRefundFailed || isUnfulfillable) &&
+        order ? (
+          <div className="grid gap-4 rounded-3xl border border-white/10 bg-black/20 px-5 py-6 text-left sm:grid-cols-2 sm:px-6">
+            <div className="space-y-1">
+              <p className="text-xs uppercase tracking-[0.24em] text-stone-500">
+                Order number
+              </p>
+              <p className="break-all text-sm text-stone-200">{order.id}</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs uppercase tracking-[0.24em] text-stone-500">
+                Refund status
+              </p>
+              <p className="text-sm capitalize text-stone-200">
+                {(order.refund_status ?? "pending").replaceAll("_", " ")}
+              </p>
+              {order.refund_id ? (
+                <p className="break-all text-xs text-stone-500">
+                  Reference {order.refund_id}
+                </p>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+
         <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
           <Link
             href="/shop"
@@ -234,7 +290,7 @@ export default async function CheckoutSuccessPage({
           >
             Continue Shopping
           </Link>
-          {isPaymentConfirmed ? null : (
+          {isOrderConfirmed ? null : (
             <Link
               href="/cart"
               className="inline-flex items-center justify-center text-sm uppercase tracking-[0.22em] text-stone-400 transition-colors hover:text-stone-100"

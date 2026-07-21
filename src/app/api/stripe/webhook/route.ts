@@ -9,6 +9,10 @@ export const runtime = "nodejs";
 type PersistedOrder = {
   id: string;
   payment_status: string;
+  order_status: string;
+  refund_id: string | null;
+  refund_status: string | null;
+  stripe_payment_intent_id: string | null;
 };
 
 type PersistedOrderItemReference = {
@@ -78,9 +82,28 @@ async function findExistingOrder(stripeSessionId: string) {
   const supabase = createSupabaseServiceRoleClient();
   const { data, error } = await supabase
     .from("orders")
-    .select("id, payment_status")
+    .select(
+      "id, payment_status, order_status, refund_id, refund_status, stripe_payment_intent_id",
+    )
     .eq("stripe_session_id", stripeSessionId)
     .maybeSingle<PersistedOrder>();
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+async function findOrderById(orderId: string) {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from("orders")
+    .select(
+      "id, payment_status, order_status, refund_id, refund_status, stripe_payment_intent_id",
+    )
+    .eq("id", orderId)
+    .single<PersistedOrder>();
 
   if (error) {
     throw error;
@@ -118,7 +141,9 @@ async function insertPendingOrderFromSession(
       // A webhook retry can safely resume this pending row if a later write fails.
       payment_status: "unpaid",
     })
-    .select("id, payment_status")
+    .select(
+      "id, payment_status, order_status, refund_id, refund_status, stripe_payment_intent_id",
+    )
     .single<PersistedOrder>();
 
   if (error) {
@@ -126,6 +151,192 @@ async function insertPendingOrderFromSession(
   }
 
   return data;
+}
+
+function normalizeRefundStatus(refundStatus: string | null) {
+  switch (refundStatus) {
+    case "pending":
+    case "requires_action":
+    case "succeeded":
+    case "failed":
+    case "canceled":
+      return refundStatus;
+    default:
+      return "pending";
+  }
+}
+
+async function saveRefundState(orderId: string, refund: Stripe.Refund) {
+  const supabase = createSupabaseServiceRoleClient();
+  const refundStatus = normalizeRefundStatus(refund.status);
+  const orderStatus =
+    refundStatus === "succeeded"
+      ? "refunded"
+      : refundStatus === "failed" || refundStatus === "canceled"
+        ? "refund_failed"
+        : "refund_pending";
+  const values: {
+    order_status: string;
+    refund_id: string;
+    refund_status: string;
+    refunded_at?: string;
+  } = {
+    order_status: orderStatus,
+    refund_id: refund.id,
+    refund_status: refundStatus,
+  };
+
+  if (refundStatus === "succeeded") {
+    values.refunded_at = new Date().toISOString();
+  }
+
+  let updateQuery = supabase
+    .from("orders")
+    .update(values)
+    .eq("id", orderId);
+
+  // A delayed event or concurrent refund response must not move a terminal
+  // refund back to an earlier state.
+  if (refundStatus !== "succeeded") {
+    updateQuery = updateQuery.neq("order_status", "refunded");
+  }
+
+  if (refundStatus === "pending" || refundStatus === "requires_action") {
+    updateQuery = updateQuery.neq("order_status", "refund_failed");
+  }
+
+  const { error } = await updateQuery;
+
+  if (error) {
+    throw error;
+  }
+}
+
+async function saveNoPaymentRequiredOversell(orderId: string) {
+  const supabase = createSupabaseServiceRoleClient();
+  const { error } = await supabase
+    .from("orders")
+    .update({
+      order_status: "unfulfillable",
+      refund_status: "not_required",
+    })
+    .eq("id", orderId)
+    .eq("order_status", "refund_pending");
+
+  if (error) {
+    throw error;
+  }
+}
+
+async function saveRefundFailure(orderId: string) {
+  const supabase = createSupabaseServiceRoleClient();
+  const { error } = await supabase
+    .from("orders")
+    .update({
+      order_status: "refund_failed",
+      refund_status: "failed",
+    })
+    .eq("id", orderId)
+    .eq("order_status", "refund_pending");
+
+  if (error) {
+    throw error;
+  }
+}
+
+async function handlePaidOversellRefund(
+  order: PersistedOrder,
+  session: Stripe.Checkout.Session,
+) {
+  if (order.order_status !== "refund_pending") {
+    return;
+  }
+
+  if (session.payment_status === "no_payment_required") {
+    await saveNoPaymentRequiredOversell(order.id);
+    return;
+  }
+
+  const paymentIntentId =
+    order.stripe_payment_intent_id ?? getPaymentIntentId(session);
+
+  try {
+    if (order.refund_id) {
+      const currentRefund = await stripe.refunds.retrieve(order.refund_id);
+      await saveRefundState(order.id, currentRefund);
+      return;
+    }
+
+    if (!paymentIntentId) {
+      await saveRefundFailure(order.id);
+      console.error(
+        `Paid oversold order ${order.id} does not have a Stripe PaymentIntent.`,
+      );
+      return;
+    }
+
+    // Recover a refund created by an earlier delivery whose database update
+    // did not finish. Concurrent deliveries are additionally protected by the
+    // stable idempotency key on the create call below.
+    const existingRefunds = await stripe.refunds.list({
+      payment_intent: paymentIntentId,
+      limit: 100,
+    });
+    const existingRefund = existingRefunds.data.find(
+      (refund) => refund.metadata?.order_id === order.id,
+    );
+
+    if (existingRefund) {
+      await saveRefundState(order.id, existingRefund);
+      return;
+    }
+
+    const refund = await stripe.refunds.create(
+      {
+        payment_intent: paymentIntentId,
+        metadata: {
+          order_id: order.id,
+          stripe_session_id: session.id,
+          reason: "insufficient_stock",
+        },
+      },
+      { idempotencyKey: `sombre-paid-oversell-${order.id}` },
+    );
+
+    await saveRefundState(order.id, refund);
+  } catch (error) {
+    // Invalid Stripe parameters will not become valid on a webhook retry.
+    // Record the manual-attention state and acknowledge the delivery instead
+    // of retrying the same deterministic failure indefinitely.
+    if (error instanceof Stripe.errors.StripeInvalidRequestError) {
+      await saveRefundFailure(order.id);
+      console.error("Stripe rejected an oversold order refund request", {
+        orderId: order.id,
+        paymentIntentId,
+        error,
+      });
+      return;
+    }
+
+    throw error;
+  }
+}
+
+async function handleRefundUpdate(refund: Stripe.Refund) {
+  const orderId = refund.metadata?.order_id;
+
+  if (!orderId) {
+    console.info("Ignoring Stripe refund without a Sombre order ID", {
+      refundId: refund.id,
+      refundStatus: refund.status,
+    });
+    return;
+  }
+
+  // Stripe does not guarantee webhook event ordering, so retrieve the current
+  // object rather than allowing an older event payload to regress the status.
+  const currentRefund = await stripe.refunds.retrieve(refund.id);
+  await saveRefundState(orderId, currentRefund);
 }
 
 async function getPersistedOrderItemReferences(orderId: string) {
@@ -262,6 +473,9 @@ async function handleConfirmedCheckoutSession(session: Stripe.Checkout.Session) 
     order.id,
     session.payment_status,
   );
+  const processedOrder = await findOrderById(order.id);
+
+  await handlePaidOversellRefund(processedOrder, session);
 
   console.info("Stripe Checkout Session payment confirmed and persisted", {
     sessionId: session.id,
@@ -269,6 +483,7 @@ async function handleConfirmedCheckoutSession(session: Stripe.Checkout.Session) 
     itemCount: lineItems.data.length,
     paymentStatus: session.payment_status,
     didReduceStock,
+    orderStatus: processedOrder.order_status,
   });
 }
 
@@ -316,6 +531,11 @@ export async function POST(request: Request) {
         });
         break;
       }
+      case "refund.created":
+      case "refund.updated":
+      case "refund.failed":
+        await handleRefundUpdate(event.data.object as Stripe.Refund);
+        break;
       default:
         console.info(`Unhandled Stripe webhook event: ${event.type}`);
     }

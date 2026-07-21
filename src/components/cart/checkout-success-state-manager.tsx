@@ -6,12 +6,14 @@ import { useRouter } from "next/navigation";
 import { reconcileCartWithCheckoutSession } from "@/lib/cart/cart";
 
 type CheckoutSuccessStateManagerProps = {
-  isPaymentConfirmed: boolean;
+  shouldCleanupCart: boolean;
+  shouldRefresh: boolean;
   sessionId: string;
 };
 
 export function CheckoutSuccessStateManager({
-  isPaymentConfirmed,
+  shouldCleanupCart,
+  shouldRefresh,
   sessionId,
 }: CheckoutSuccessStateManagerProps) {
   const router = useRouter();
@@ -21,8 +23,12 @@ export function CheckoutSuccessStateManager({
       return;
     }
 
-    if (isPaymentConfirmed) {
+    if (shouldCleanupCart) {
       reconcileCartWithCheckoutSession(sessionId);
+      return;
+    }
+
+    if (!shouldRefresh) {
       return;
     }
 
@@ -31,7 +37,7 @@ export function CheckoutSuccessStateManager({
     }, 3000);
 
     return () => window.clearTimeout(timeoutId);
-  }, [isPaymentConfirmed, router, sessionId]);
+  }, [router, sessionId, shouldCleanupCart, shouldRefresh]);
 
   return null;
 }
