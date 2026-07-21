@@ -17,10 +17,21 @@ import {
   SHIPPING_FEE_HKD,
   SHIPPING_FEE_HKD_CENTS,
 } from "@/lib/checkout/shipping";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { stripe } from "@/lib/stripe/server";
 
 const DEVELOPMENT_SITE_URL = "http://localhost:3000";
+
+// Anonymous guest checkout is the only path here, so the client IP is the only
+// identity available to throttle on. Ten attempts per minute leaves room for
+// genuine retries (cart edits, a declined card, a reloaded page) while blocking
+// scripted abuse of Stripe session creation.
+const CHECKOUT_RATE_LIMIT = { limit: 10, windowMs: 60_000 };
+
+// A valid cart payload is a few kilobytes at most. Reject anything larger
+// before parsing it as JSON.
+const MAX_CHECKOUT_BODY_BYTES = 16 * 1024;
 
 function getTrustedSiteOrigin() {
   const configuredSiteUrl = process.env.SITE_URL?.trim();
@@ -195,8 +206,58 @@ function parseCheckoutPayload(body: unknown): CheckoutSessionPayload | null {
 }
 
 export async function POST(request: Request) {
+  const clientIp = getClientIp(request) ?? "unknown";
+  const rateLimit = checkRateLimit(
+    `checkout-session:${clientIp}`,
+    CHECKOUT_RATE_LIMIT,
+  );
+
+  if (!rateLimit.isAllowed) {
+    return NextResponse.json(
+      {
+        error:
+          "Too many checkout attempts. Please wait a moment and try again.",
+      },
+      {
+        status: 429,
+        headers: { "Retry-After": String(rateLimit.retryAfterSeconds) },
+      },
+    );
+  }
+
   try {
-    const body = await request.json();
+    const declaredBodySize = Number(request.headers.get("content-length"));
+
+    if (
+      Number.isFinite(declaredBodySize) &&
+      declaredBodySize > MAX_CHECKOUT_BODY_BYTES
+    ) {
+      return NextResponse.json(
+        { error: "Checkout request is too large." },
+        { status: 413 },
+      );
+    }
+
+    const rawBody = await request.text();
+
+    if (new TextEncoder().encode(rawBody).length > MAX_CHECKOUT_BODY_BYTES) {
+      return NextResponse.json(
+        { error: "Checkout request is too large." },
+        { status: 413 },
+      );
+    }
+
+    let body: unknown;
+
+    try {
+      body = JSON.parse(rawBody);
+    } catch {
+      return NextResponse.json(
+        { error: "Invalid checkout payload." },
+        { status: 400 },
+      );
+    }
+
     const payload = parseCheckoutPayload(body);
 
     if (!payload) {
