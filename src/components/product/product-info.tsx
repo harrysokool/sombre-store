@@ -13,6 +13,7 @@ type ProductInfoProps = {
   name: string;
   price: number | string;
   sizeLabel: string | null;
+  stockQuantity: number;
   shortDescription: string | null;
   description: string | null;
   isFeatured: boolean;
@@ -27,6 +28,7 @@ export function ProductInfo({
   name,
   price,
   sizeLabel,
+  stockQuantity,
   shortDescription,
   description,
   isFeatured,
@@ -83,6 +85,15 @@ export function ProductInfo({
             </p>
           </div>
         ) : null}
+
+        <div className="space-y-2">
+          <p className="text-xs uppercase tracking-[0.24em] text-stone-500">
+            Availability
+          </p>
+          <p className="text-sm uppercase tracking-[0.18em] text-stone-300">
+            {stockQuantity > 0 ? "In stock" : "Sold out"}
+          </p>
+        </div>
       </div>
 
       <div className="space-y-5 pt-1">
@@ -94,6 +105,7 @@ export function ProductInfo({
             price,
             size_label: sizeLabel,
             image_url: imageUrl,
+            stock_quantity: stockQuantity,
           }}
         />
 

@@ -7,6 +7,7 @@ type ProductCardProps = {
   brandName: string | null;
   formattedPrice: string;
   sizeLabel: string | null;
+  stockQuantity: number;
   imageUrl: string | null;
   imageAlt: string | null;
 };
@@ -17,13 +18,19 @@ export function ProductCard({
   brandName,
   formattedPrice,
   sizeLabel,
+  stockQuantity,
   imageUrl,
   imageAlt,
 }: ProductCardProps) {
   return (
     <Link href={`/products/${slug}`} className="group block h-full">
       <article className="flex h-full flex-col">
-        <div className="overflow-hidden rounded-lg border border-white/10 bg-stone-100">
+        <div className="relative overflow-hidden rounded-lg border border-white/10 bg-white">
+          {stockQuantity <= 0 ? (
+            <span className="absolute left-3 top-3 z-10 rounded-full bg-stone-950 px-3 py-1 text-[10px] uppercase tracking-[0.2em] text-stone-100">
+              Sold out
+            </span>
+          ) : null}
           {imageUrl ? (
             <Image
               src={imageUrl}
@@ -33,7 +40,7 @@ export function ProductCard({
               className="aspect-[4/5] w-full object-contain p-4 transition-transform duration-500 group-hover:scale-[1.02]"
             />
           ) : (
-            <div className="flex aspect-[4/5] items-center justify-center bg-white/[0.02]">
+            <div className="flex aspect-[4/5] items-center justify-center bg-white">
               <p className="text-xs uppercase tracking-[0.24em] text-stone-500">
                 No image
               </p>
@@ -63,7 +70,7 @@ export function ProductCard({
               </p>
             </div>
             <p className="text-sm uppercase tracking-[0.2em] text-stone-500 transition-colors group-hover:text-stone-200">
-              View Product
+              {stockQuantity > 0 ? "View Product" : "Sold out"}
             </p>
           </div>
         </div>

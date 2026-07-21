@@ -34,6 +34,7 @@ async function getActiveProducts() {
           short_description,
           price,
           size_label,
+          stock_quantity,
           is_featured,
           created_at,
           brand:brands (
@@ -124,6 +125,7 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
                   brandName={product.brand?.name ?? null}
                   formattedPrice={formatPrice(product.price)}
                   sizeLabel={product.size_label}
+                  stockQuantity={product.stock_quantity}
                   imageUrl={product.primaryImage?.image_url ?? null}
                   imageAlt={product.primaryImage?.alt_text ?? null}
                 />

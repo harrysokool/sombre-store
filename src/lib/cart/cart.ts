@@ -1,5 +1,6 @@
 export const CART_STORAGE_KEY = "sombre-cart";
 export const CART_UPDATED_EVENT = "sombre-cart-updated";
+export const MAX_CART_ITEM_QUANTITY = 10;
 const CHECKOUT_SNAPSHOT_KEY_PREFIX = "sombre-checkout-session";
 
 export type CartItem = {
@@ -9,6 +10,7 @@ export type CartItem = {
   price: number;
   size_label: string | null;
   image_url: string | null;
+  stock_quantity?: number;
   quantity: number;
 };
 
@@ -26,7 +28,23 @@ function isCartItem(value: unknown): value is CartItem {
     typeof item.price === "number" &&
     (typeof item.size_label === "string" || item.size_label === null) &&
     (typeof item.image_url === "string" || item.image_url === null) &&
-    typeof item.quantity === "number"
+    (item.stock_quantity === undefined ||
+      (typeof item.stock_quantity === "number" &&
+        Number.isInteger(item.stock_quantity) &&
+        item.stock_quantity >= 0)) &&
+    typeof item.quantity === "number" &&
+    Number.isInteger(item.quantity) &&
+    item.quantity > 0 &&
+    item.quantity <= MAX_CART_ITEM_QUANTITY
+  );
+}
+
+export function getCartItemQuantityLimit(
+  item: Pick<CartItem, "stock_quantity">,
+) {
+  return Math.min(
+    MAX_CART_ITEM_QUANTITY,
+    item.stock_quantity ?? MAX_CART_ITEM_QUANTITY,
   );
 }
 
@@ -76,6 +94,12 @@ function updateCartItems(updater: (items: CartItem[]) => CartItem[]) {
 
 export function addItemToCart(item: Omit<CartItem, "quantity">) {
   return updateCartItems((currentItems) => {
+    const quantityLimit = getCartItemQuantityLimit(item);
+
+    if (quantityLimit < 1) {
+      return currentItems;
+    }
+
     const existingItem = currentItems.find(
       (currentItem) => currentItem.id === item.id,
     );
@@ -83,7 +107,14 @@ export function addItemToCart(item: Omit<CartItem, "quantity">) {
     if (existingItem) {
       return currentItems.map((currentItem) =>
         currentItem.id === item.id
-          ? { ...currentItem, quantity: currentItem.quantity + 1 }
+          ? {
+              ...currentItem,
+              ...item,
+              quantity:
+                currentItem.quantity < quantityLimit
+                  ? currentItem.quantity + 1
+                  : currentItem.quantity,
+            }
           : currentItem,
       );
     }
@@ -96,7 +127,13 @@ export function incrementCartItemQuantity(itemId: string) {
   return updateCartItems((currentItems) =>
     currentItems.map((currentItem) =>
       currentItem.id === itemId
-        ? { ...currentItem, quantity: currentItem.quantity + 1 }
+        ? {
+            ...currentItem,
+            quantity:
+              currentItem.quantity < getCartItemQuantityLimit(currentItem)
+                ? currentItem.quantity + 1
+                : currentItem.quantity,
+          }
         : currentItem,
     ),
   );

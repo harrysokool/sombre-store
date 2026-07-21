@@ -16,7 +16,7 @@ export function ProductGallery({ images, productName }: ProductGalleryProps) {
                         key={`${image.image_url}-${image.sort_order}`}
                         className="space-y-4"
                     >
-                        <div className="overflow-hidden rounded-[2rem] bg-white/[0.02]">
+                        <div className="overflow-hidden rounded-[2rem] border border-white/10 bg-white">
                             <Image
                                 src={image.image_url}
                                 alt={
@@ -25,14 +25,14 @@ export function ProductGallery({ images, productName }: ProductGalleryProps) {
                                 }
                                 width={960}
                                 height={1200}
-                                className="aspect-[4/5] w-full object-cover"
+                                className="aspect-[4/5] w-full object-contain p-6 sm:p-8"
                             />
                         </div>
                     </div>
                 ))
             ) : (
                 <div className="sm:col-span-2">
-                    <div className="flex aspect-[16/10] items-center justify-center rounded-[2rem] bg-white/[0.02]">
+                    <div className="flex aspect-[16/10] items-center justify-center rounded-[2rem] border border-white/10 bg-white">
                         <p className="text-sm uppercase tracking-[0.24em] text-stone-500">
                             No product images
                         </p>

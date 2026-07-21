@@ -26,6 +26,7 @@ type ProductDetail = {
     short_description: string | null;
     price: number | string;
     size_label: string | null;
+    stock_quantity: number;
     is_featured: boolean;
     brand: ProductRelation | null;
     category: ProductRelation | null;
@@ -39,6 +40,7 @@ type ProductDetailRow = {
     short_description: string | null;
     price: number | string;
     size_label: string | null;
+    stock_quantity: number;
     is_featured: boolean;
     brand: ProductRelation | ProductRelation[] | null;
     category: ProductRelation | ProductRelation[] | null;
@@ -53,6 +55,7 @@ function normalizeProductDetail(row: ProductDetailRow): ProductDetail {
         short_description: row.short_description,
         price: row.price,
         size_label: row.size_label,
+        stock_quantity: row.stock_quantity,
         is_featured: row.is_featured,
         brand: normalizeProductRelation(row.brand),
         category: normalizeProductRelation(row.category),
@@ -72,6 +75,7 @@ async function getProductBySlug(slug: string) {
         short_description,
         price,
         size_label,
+        stock_quantity,
         is_featured,
         brand:brands ( name ),
         category:categories ( name ),
@@ -124,6 +128,7 @@ export default async function ProductDetailPage({
                     name={product.name}
                     price={product.price}
                     sizeLabel={product.size_label}
+                    stockQuantity={product.stock_quantity}
                     shortDescription={product.short_description}
                     description={product.description}
                     isFeatured={product.is_featured}

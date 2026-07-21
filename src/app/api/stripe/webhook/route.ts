@@ -8,7 +8,20 @@ export const runtime = "nodejs";
 
 type PersistedOrder = {
   id: string;
+  payment_status: string;
 };
+
+type CheckoutPaymentStatus = Stripe.Checkout.Session["payment_status"];
+type ConfirmedPaymentStatus = Extract<
+  CheckoutPaymentStatus,
+  "paid" | "no_payment_required"
+>;
+
+function isConfirmedPaymentStatus(
+  paymentStatus: CheckoutPaymentStatus,
+): paymentStatus is ConfirmedPaymentStatus {
+  return paymentStatus === "paid" || paymentStatus === "no_payment_required";
+}
 
 function getPaymentIntentId(session: Stripe.Checkout.Session) {
   return typeof session.payment_intent === "string"
@@ -46,7 +59,7 @@ async function findExistingOrder(stripeSessionId: string) {
   const supabase = createSupabaseServiceRoleClient();
   const { data, error } = await supabase
     .from("orders")
-    .select("id")
+    .select("id, payment_status")
     .eq("stripe_session_id", stripeSessionId)
     .maybeSingle<PersistedOrder>();
 
@@ -57,7 +70,7 @@ async function findExistingOrder(stripeSessionId: string) {
   return data;
 }
 
-async function insertOrderFromSession(
+async function insertPendingOrderFromSession(
   session: Stripe.Checkout.Session,
   lineItems: Stripe.ApiList<Stripe.LineItem>,
 ) {
@@ -80,9 +93,11 @@ async function insertOrderFromSession(
       country: metadata.country ?? "",
       subtotal: getOrderSubtotal(session, lineItems),
       currency: (session.currency ?? "hkd").toLowerCase(),
-      payment_status: session.payment_status,
+      // Keep the order unconfirmed until all of its line items are persisted.
+      // A webhook retry can safely resume this pending row if a later write fails.
+      payment_status: "unpaid",
     })
-    .select("id")
+    .select("id, payment_status")
     .single<PersistedOrder>();
 
   if (error) {
@@ -90,6 +105,40 @@ async function insertOrderFromSession(
   }
 
   return data;
+}
+
+async function getPersistedOrderItemCount(orderId: string) {
+  const supabase = createSupabaseServiceRoleClient();
+  const { count, error } = await supabase
+    .from("order_items")
+    .select("id", { count: "exact", head: true })
+    .eq("order_id", orderId);
+
+  if (error) {
+    throw error;
+  }
+
+  return count ?? 0;
+}
+
+async function confirmOrderPaymentAndReduceStock(
+  orderId: string,
+  paymentStatus: ConfirmedPaymentStatus,
+) {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase.rpc(
+    "confirm_paid_order_and_reduce_stock",
+    {
+      p_order_id: orderId,
+      p_payment_status: paymentStatus,
+    },
+  );
+
+  if (error) {
+    throw error;
+  }
+
+  return data === true;
 }
 
 async function insertOrderItems(
@@ -121,38 +170,43 @@ async function insertOrderItems(
   }
 }
 
-async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) {
-  const existingOrder = await findExistingOrder(session.id);
-
-  if (existingOrder) {
-    console.info("Stripe checkout.session.completed already persisted", {
+async function handleConfirmedCheckoutSession(session: Stripe.Checkout.Session) {
+  if (!isConfirmedPaymentStatus(session.payment_status)) {
+    console.info("Stripe Checkout Session is awaiting payment confirmation", {
       sessionId: session.id,
-      orderId: existingOrder.id,
+      paymentStatus: session.payment_status,
     });
     return;
   }
 
+  const existingOrder = await findExistingOrder(session.id);
   const lineItems = await stripe.checkout.sessions.listLineItems(session.id, {
     limit: 100,
     expand: ["data.price.product"],
   });
+  const order =
+    existingOrder ?? (await insertPendingOrderFromSession(session, lineItems));
+  const persistedItemCount = await getPersistedOrderItemCount(order.id);
 
-  const order = await insertOrderFromSession(session, lineItems);
-
-  try {
+  if (persistedItemCount === 0) {
     await insertOrderItems(order.id, lineItems);
-  } catch (error) {
-    await createSupabaseServiceRoleClient()
-      .from("orders")
-      .delete()
-      .eq("id", order.id);
-    throw error;
+  } else if (persistedItemCount !== lineItems.data.length) {
+    throw new Error(
+      `Order ${order.id} has ${persistedItemCount} persisted items but Stripe returned ${lineItems.data.length}.`,
+    );
   }
 
-  console.info("Stripe checkout.session.completed persisted", {
+  const didReduceStock = await confirmOrderPaymentAndReduceStock(
+    order.id,
+    session.payment_status,
+  );
+
+  console.info("Stripe Checkout Session payment confirmed and persisted", {
     sessionId: session.id,
     orderId: order.id,
     itemCount: lineItems.data.length,
+    paymentStatus: session.payment_status,
+    didReduceStock,
   });
 }
 
@@ -166,31 +220,51 @@ export async function POST(request: Request) {
     );
   }
 
+  const payload = await request.text();
+  let event: Stripe.Event;
+
   try {
-    const payload = await request.text();
-    const event = stripe.webhooks.constructEvent(
+    event = stripe.webhooks.constructEvent(
       payload,
       signature,
       getStripeWebhookSecret(),
     );
+  } catch (error) {
+    console.error("Stripe webhook signature verification failed:", error);
 
+    return NextResponse.json(
+      { error: "Invalid Stripe webhook request." },
+      { status: 400 },
+    );
+  }
+
+  try {
     switch (event.type) {
       case "checkout.session.completed":
-        await handleCheckoutSessionCompleted(
+      case "checkout.session.async_payment_succeeded":
+        await handleConfirmedCheckoutSession(
           event.data.object as Stripe.Checkout.Session,
         );
         break;
+      case "checkout.session.async_payment_failed": {
+        const session = event.data.object as Stripe.Checkout.Session;
+        console.info("Stripe Checkout Session payment failed", {
+          sessionId: session.id,
+          paymentStatus: session.payment_status,
+        });
+        break;
+      }
       default:
         console.info(`Unhandled Stripe webhook event: ${event.type}`);
     }
 
     return NextResponse.json({ received: true });
   } catch (error) {
-    console.error("Stripe webhook verification failed:", error);
+    console.error("Stripe webhook processing failed:", error);
 
     return NextResponse.json(
-      { error: "Invalid Stripe webhook request." },
-      { status: 400 },
+      { error: "Could not process Stripe webhook." },
+      { status: 500 },
     );
   }
 }

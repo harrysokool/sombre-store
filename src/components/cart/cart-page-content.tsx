@@ -7,6 +7,7 @@ import { OrderSummary } from "@/components/cart/order-summary";
 import { useCartItems } from "@/hooks/use-cart-items";
 import {
   decrementCartItemQuantity,
+  getCartItemQuantityLimit,
   getCartItemCount,
   incrementCartItemQuantity,
   removeCartItem,
@@ -127,12 +128,20 @@ export function CartPageContent() {
                           <button
                             type="button"
                             onClick={() => handleIncrement(item.id)}
-                            className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 text-stone-200 transition-colors hover:border-white/20 hover:text-stone-100"
+                            disabled={
+                              item.quantity >= getCartItemQuantityLimit(item)
+                            }
+                            className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 text-stone-200 transition-colors hover:border-white/20 hover:text-stone-100 disabled:cursor-not-allowed disabled:opacity-40"
                             aria-label={`Increase quantity for ${item.name}`}
                           >
                             +
                           </button>
                         </div>
+                        {item.quantity >= getCartItemQuantityLimit(item) ? (
+                          <p className="mt-2 text-xs text-stone-500">
+                            Maximum available quantity
+                          </p>
+                        ) : null}
                       </div>
 
                       <div className="space-y-1 text-right">

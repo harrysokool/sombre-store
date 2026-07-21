@@ -48,6 +48,7 @@ async function getActiveProducts() {
         short_description,
         price,
         size_label,
+        stock_quantity,
         is_featured,
         created_at,
         brand:brands (
@@ -254,6 +255,11 @@ export function ProductSearchPanel({
                         <span className="font-medium text-stone-200">
                           {formatPrice(product.price)}
                         </span>
+                        {product.stock_quantity <= 0 ? (
+                          <span className="uppercase tracking-[0.16em] text-stone-500">
+                            Sold out
+                          </span>
+                        ) : null}
                       </div>
                     </div>
                   </Link>

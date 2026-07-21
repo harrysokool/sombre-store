@@ -14,6 +14,10 @@ type PersistedOrder = {
   payment_status: string;
 };
 
+function isConfirmedPaymentStatus(paymentStatus: string) {
+  return paymentStatus === "paid" || paymentStatus === "no_payment_required";
+}
+
 async function findOrderByStripeSessionId(stripeSessionId: string) {
   const supabase = createSupabaseServerClient();
   const { data, error } = await supabase
@@ -40,13 +44,15 @@ export default async function CheckoutSuccessPage({
     stripeSessionId.length > 0
       ? await findOrderByStripeSessionId(stripeSessionId)
       : null;
-  const isOrderConfirmed = Boolean(order);
+  const isPaymentConfirmed = order
+    ? isConfirmedPaymentStatus(order.payment_status)
+    : false;
 
   return (
     <section className="px-6 py-24 sm:px-10 sm:py-32 lg:px-12">
       {stripeSessionId ? (
         <CheckoutSuccessStateManager
-          isOrderConfirmed={isOrderConfirmed}
+          isPaymentConfirmed={isPaymentConfirmed}
           sessionId={stripeSessionId}
         />
       ) : null}
@@ -57,12 +63,18 @@ export default async function CheckoutSuccessPage({
             Sombre
           </p>
           <h1 className="text-4xl font-medium tracking-[0.14em] text-stone-100 sm:text-5xl">
-            {isOrderConfirmed ? "Order received" : "Finalizing your order"}
+            {isPaymentConfirmed
+              ? "Order received"
+              : stripeSessionId
+                ? "Payment not confirmed"
+                : "Order status unavailable"}
           </h1>
           <p className="mx-auto max-w-2xl text-base leading-8 text-stone-400">
-            {isOrderConfirmed
+            {isPaymentConfirmed
               ? "Thank you. Your payment was successful and your order has been received. We will use the email below for order updates and support."
-              : "Your payment was completed in Stripe. We are confirming your order details now, and this page will update automatically."}
+              : stripeSessionId
+                ? "Your order is not confirmed yet. We are waiting for Stripe payment confirmation and will update this page automatically. Your cart has not been changed."
+                : "No Stripe Checkout Session was provided, so we cannot confirm a payment or order."}
           </p>
         </div>
 
@@ -112,7 +124,7 @@ export default async function CheckoutSuccessPage({
           >
             Continue Shopping
           </Link>
-          {isOrderConfirmed ? null : (
+          {isPaymentConfirmed ? null : (
             <Link
               href="/cart"
               className="inline-flex items-center justify-center text-sm uppercase tracking-[0.22em] text-stone-400 transition-colors hover:text-stone-100"

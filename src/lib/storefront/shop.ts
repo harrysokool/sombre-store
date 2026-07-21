@@ -14,6 +14,7 @@ export type ProductListItemRow = {
   short_description: string | null;
   price: number | string;
   size_label: string | null;
+  stock_quantity: number;
   is_featured: boolean;
   created_at: string;
   brand: RelationName | RelationName[] | null;
@@ -28,6 +29,7 @@ export type ProductListItem = {
   short_description: string | null;
   price: number | string;
   size_label: string | null;
+  stock_quantity: number;
   is_featured: boolean;
   created_at: string;
   brand: RelationName | null;
@@ -133,6 +135,7 @@ export function normalizeProductListItem(
     short_description: row.short_description,
     price: row.price,
     size_label: row.size_label,
+    stock_quantity: row.stock_quantity,
     is_featured: row.is_featured,
     created_at: row.created_at,
     brand: normalizeProductRelation(row.brand),

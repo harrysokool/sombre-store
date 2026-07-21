@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 
 import type { CartItem } from "@/lib/cart/cart";
-import { getCartItemCount } from "@/lib/cart/cart";
+import {
+  getCartItemCount,
+  MAX_CART_ITEM_QUANTITY,
+} from "@/lib/cart/cart";
 import { getCartSubtotal } from "@/lib/cart/math";
 import type {
   CheckoutCustomerDetails,
@@ -40,6 +43,7 @@ function isValidCartItem(value: unknown): value is CartItem {
     typeof quantity === "number" &&
     Number.isInteger(quantity) &&
     quantity > 0 &&
+    quantity <= MAX_CART_ITEM_QUANTITY &&
     isOptionalString(item.size_label) &&
     isOptionalString(item.image_url)
   );
@@ -52,6 +56,7 @@ type CheckoutProduct = {
   price: number;
   size_label: string | null;
   is_active: boolean;
+  stock_quantity: number;
 };
 
 async function getCheckoutProducts(cartItems: CartItem[]) {
@@ -60,7 +65,7 @@ async function getCheckoutProducts(cartItems: CartItem[]) {
 
   const { data, error } = await supabase
     .from("products")
-    .select("id, slug, name, price, size_label, is_active")
+    .select("id, slug, name, price, size_label, is_active, stock_quantity")
     .in("id", productIds)
     .returns<CheckoutProduct[]>();
 
@@ -108,6 +113,12 @@ function parseCheckoutPayload(body: unknown): CheckoutSessionPayload | null {
     return null;
   }
 
+  const productIds = payload.cartItems.map((item) => item.id);
+
+  if (new Set(productIds).size !== productIds.length) {
+    return null;
+  }
+
   return {
     cartItems: payload.cartItems,
     subtotal: payload.subtotal,
@@ -143,6 +154,25 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: "One or more cart items could not be found." },
         { status: 400 },
+      );
+    }
+
+    const insufficientStockItem = payload.cartItems.find((item) => {
+      const product = productMap.get(item.id);
+      return product && item.quantity > product.stock_quantity;
+    });
+
+    if (insufficientStockItem) {
+      const product = productMap.get(insufficientStockItem.id);
+
+      return NextResponse.json(
+        {
+          error:
+            product && product.stock_quantity > 0
+              ? `${product.name} only has ${product.stock_quantity} available.`
+              : `${product?.name ?? "A product in your cart"} is sold out.`,
+        },
+        { status: 409 },
       );
     }
 
