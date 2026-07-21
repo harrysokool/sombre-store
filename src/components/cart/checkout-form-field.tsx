@@ -4,6 +4,8 @@ type CheckoutFormFieldProps = {
   type: "email" | "tel" | "text";
   placeholder: string;
   required?: boolean;
+  defaultValue?: string;
+  readOnly?: boolean;
   className?: string;
 };
 
@@ -16,6 +18,8 @@ export function CheckoutFormField({
   type,
   placeholder,
   required = false,
+  defaultValue,
+  readOnly = false,
   className = "space-y-2",
 }: CheckoutFormFieldProps) {
   return (
@@ -27,6 +31,8 @@ export function CheckoutFormField({
         type={type}
         name={name}
         required={required}
+        defaultValue={defaultValue}
+        readOnly={readOnly}
         className={inputClassName}
         placeholder={placeholder}
       />

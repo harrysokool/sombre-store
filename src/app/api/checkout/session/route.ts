@@ -10,6 +10,13 @@ import type {
   CheckoutCustomerDetails,
   CheckoutSessionPayload,
 } from "@/lib/checkout/payload";
+import {
+  getCheckoutTotal,
+  isSupportedShippingCountry,
+  SHIPPING_COUNTRY,
+  SHIPPING_FEE_HKD,
+  SHIPPING_FEE_HKD_CENTS,
+} from "@/lib/checkout/shipping";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { stripe } from "@/lib/stripe/server";
 
@@ -91,7 +98,7 @@ function isValidCustomer(value: unknown): value is CheckoutCustomerDetails {
     isOptionalString(customer.addressLine2) &&
     isNonEmptyString(customer.city) &&
     isNonEmptyString(customer.postalCode) &&
-    isNonEmptyString(customer.country)
+    isSupportedShippingCountry(customer.country)
   );
 }
 
@@ -130,7 +137,7 @@ function parseCheckoutPayload(body: unknown): CheckoutSessionPayload | null {
       addressLine2: payload.customer.addressLine2?.trim() ?? "",
       city: payload.customer.city.trim(),
       postalCode: payload.customer.postalCode.trim(),
-      country: payload.customer.country.trim(),
+      country: SHIPPING_COUNTRY,
     },
   };
 }
@@ -206,6 +213,7 @@ export async function POST(request: Request) {
     );
 
     const calculatedSubtotal = getCartSubtotal(validatedCartItems);
+    const calculatedTotal = getCheckoutTotal(calculatedSubtotal);
 
     if (Math.abs(calculatedSubtotal - payload.subtotal) > 0.01) {
       return NextResponse.json(
@@ -236,6 +244,18 @@ export async function POST(request: Request) {
           },
         },
       })),
+      shipping_options: [
+        {
+          shipping_rate_data: {
+            type: "fixed_amount",
+            display_name: "Hong Kong delivery",
+            fixed_amount: {
+              amount: SHIPPING_FEE_HKD_CENTS,
+              currency: "hkd",
+            },
+          },
+        },
+      ],
       metadata: {
         customer_name: payload.customer.fullName,
         customer_phone: payload.customer.phone,
@@ -247,6 +267,8 @@ export async function POST(request: Request) {
         cart_item_count: String(validatedCartItems.length),
         cart_quantity_total: String(getCartItemCount(validatedCartItems)),
         subtotal: calculatedSubtotal.toFixed(2),
+        shipping_fee: SHIPPING_FEE_HKD.toFixed(2),
+        total: calculatedTotal.toFixed(2),
       },
     });
 

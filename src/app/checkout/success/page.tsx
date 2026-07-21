@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { CheckoutSuccessStateManager } from "@/components/cart/checkout-success-state-manager";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { formatPrice } from "@/lib/storefront/format-price";
 
 type SuccessPageSearchParams =
   | Promise<{ session_id?: string }>
@@ -12,6 +13,9 @@ type PersistedOrder = {
   created_at: string;
   customer_email: string;
   payment_status: string;
+  subtotal: number | string;
+  shipping_fee: number | string;
+  total: number | string;
 };
 
 function isConfirmedPaymentStatus(paymentStatus: string) {
@@ -22,7 +26,9 @@ async function findOrderByStripeSessionId(stripeSessionId: string) {
   const supabase = createSupabaseServerClient();
   const { data, error } = await supabase
     .from("orders")
-    .select("id, created_at, customer_email, payment_status")
+    .select(
+      "id, created_at, customer_email, payment_status, subtotal, shipping_fee, total",
+    )
     .eq("stripe_session_id", stripeSessionId)
     .maybeSingle<PersistedOrder>();
 
@@ -113,6 +119,32 @@ export default async function CheckoutSuccessPage({
                   minute: "2-digit",
                 })}
               </p>
+            </div>
+            <div className="space-y-3 border-t border-white/10 pt-4 sm:col-span-2">
+              <div className="flex items-center justify-between gap-4">
+                <p className="text-xs uppercase tracking-[0.24em] text-stone-500">
+                  Product subtotal
+                </p>
+                <p className="text-sm text-stone-200">
+                  {formatPrice(order.subtotal)}
+                </p>
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <p className="text-xs uppercase tracking-[0.24em] text-stone-500">
+                  Hong Kong shipping
+                </p>
+                <p className="text-sm text-stone-200">
+                  {formatPrice(order.shipping_fee)}
+                </p>
+              </div>
+              <div className="flex items-center justify-between gap-4 border-t border-white/10 pt-3">
+                <p className="text-xs uppercase tracking-[0.24em] text-stone-300">
+                  Total
+                </p>
+                <p className="text-base font-medium text-stone-100">
+                  {formatPrice(order.total)}
+                </p>
+              </div>
             </div>
           </div>
         ) : null}

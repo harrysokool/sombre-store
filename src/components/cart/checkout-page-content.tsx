@@ -9,6 +9,11 @@ import { OrderSummary } from "@/components/cart/order-summary";
 import { useCartItems } from "@/hooks/use-cart-items";
 import { getCartItemCount, saveCheckoutCartSnapshot } from "@/lib/cart/cart";
 import type { CheckoutSessionPayload } from "@/lib/checkout/payload";
+import {
+  getCheckoutTotal,
+  SHIPPING_COUNTRY,
+  SHIPPING_FEE_HKD,
+} from "@/lib/checkout/shipping";
 import { getCartLineTotal, getCartSubtotal } from "@/lib/cart/math";
 import { formatPrice } from "@/lib/storefront/format-price";
 
@@ -21,6 +26,7 @@ export function CheckoutPageContent() {
   const resolvedCartItems = cartItems ?? [];
   const itemCount = getCartItemCount(resolvedCartItems);
   const subtotal = getCartSubtotal(resolvedCartItems);
+  const total = getCheckoutTotal(subtotal);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -42,7 +48,7 @@ export function CheckoutPageContent() {
         addressLine2: String(formData.get("addressLine2") ?? "").trim(),
         city: String(formData.get("city") ?? "").trim(),
         postalCode: String(formData.get("postalCode") ?? "").trim(),
-        country: String(formData.get("country") ?? "").trim(),
+        country: SHIPPING_COUNTRY,
       },
     };
 
@@ -186,10 +192,15 @@ export function CheckoutPageContent() {
                   label="Country"
                   name="country"
                   type="text"
-                  placeholder="Country"
+                  placeholder={SHIPPING_COUNTRY}
                   required
+                  defaultValue={SHIPPING_COUNTRY}
+                  readOnly
                   className="space-y-2 sm:col-span-2"
                 />
+                <p className="text-xs leading-6 text-stone-500 sm:col-span-2">
+                  Sombre currently ships only to Hong Kong.
+                </p>
               </form>
             </div>
 
@@ -199,6 +210,8 @@ export function CheckoutPageContent() {
                 title="Secure checkout"
                 itemCount={itemCount}
                 subtotal={subtotal}
+                shippingFee={SHIPPING_FEE_HKD}
+                total={total}
                 className="rounded-[2rem] border border-white/10 bg-white/[0.02] p-6 sm:p-8"
                 contentClassName="space-y-6"
                 lineItems={

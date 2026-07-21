@@ -45,6 +45,21 @@ function getOrderSubtotal(
   );
 }
 
+function getOrderShippingFee(session: Stripe.Checkout.Session) {
+  return (session.total_details?.amount_shipping ?? 0) / 100;
+}
+
+function getOrderTotal(
+  session: Stripe.Checkout.Session,
+  lineItems: Stripe.ApiList<Stripe.LineItem>,
+) {
+  if (typeof session.amount_total === "number") {
+    return session.amount_total / 100;
+  }
+
+  return getOrderSubtotal(session, lineItems) + getOrderShippingFee(session);
+}
+
 function getExpandedStripeProduct(
   product: string | Stripe.Product | Stripe.DeletedProduct | null | undefined,
 ) {
@@ -92,6 +107,8 @@ async function insertPendingOrderFromSession(
       postal_code: metadata.postal_code ?? "",
       country: metadata.country ?? "",
       subtotal: getOrderSubtotal(session, lineItems),
+      shipping_fee: getOrderShippingFee(session),
+      total: getOrderTotal(session, lineItems),
       currency: (session.currency ?? "hkd").toLowerCase(),
       // Keep the order unconfirmed until all of its line items are persisted.
       // A webhook retry can safely resume this pending row if a later write fails.

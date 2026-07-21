@@ -7,6 +7,8 @@ type OrderSummaryProps = {
   title: string;
   itemCount: number;
   subtotal: number;
+  shippingFee?: number;
+  total?: number;
   children: ReactNode;
   className: string;
   contentClassName?: string;
@@ -18,6 +20,8 @@ export function OrderSummary({
   title,
   itemCount,
   subtotal,
+  shippingFee,
+  total,
   children,
   className,
   contentClassName = "space-y-8",
@@ -45,12 +49,34 @@ export function OrderSummary({
 
           <div className="flex items-end justify-between gap-4">
             <p className="text-sm uppercase tracking-[0.18em] text-stone-400">
-              Subtotal
+              {shippingFee === undefined ? "Subtotal" : "Product subtotal"}
             </p>
             <p className="text-2xl font-medium text-stone-100">
               {formatPrice(subtotal)}
             </p>
           </div>
+
+          {shippingFee !== undefined ? (
+            <div className="flex items-end justify-between gap-4">
+              <p className="text-sm uppercase tracking-[0.18em] text-stone-400">
+                Shipping
+              </p>
+              <p className="text-base text-stone-300">
+                {formatPrice(shippingFee)}
+              </p>
+            </div>
+          ) : null}
+
+          {total !== undefined ? (
+            <div className="flex items-end justify-between gap-4 border-t border-white/10 pt-4">
+              <p className="text-sm uppercase tracking-[0.18em] text-stone-300">
+                Total
+              </p>
+              <p className="text-2xl font-medium text-stone-100">
+                {formatPrice(total)}
+              </p>
+            </div>
+          ) : null}
         </div>
 
         {children}
