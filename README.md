@@ -169,7 +169,11 @@ Manual Maison Margiela catalog inserts:
 - `supabase/manual/insert_maison_margiela_replica_products.sql`
 - `supabase/manual/insert_maison_margiela_replica_product_images.sql`
 
-The older `supabase/seed.sql` file still contains sample data and should be reviewed before using it on a fresh database.
+The older `supabase/seed.sql` file contains placeholder sample data and is for local development only.
+
+It only works when the catalog tables (`brands`, `categories`, `products`, `product_images`) are completely empty. If any catalog data already exists, it raises an exception and inserts nothing.
+
+It contains no delete or truncate statements, so it never deletes or replaces the real catalog.
 
 ## Remaining MVP Risks
 

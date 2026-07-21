@@ -3,11 +3,21 @@
 
 begin;
 
--- Reset catalog tables in dependency order so the seed stays repeatable.
-delete from public.product_images;
-delete from public.products;
-delete from public.brands;
-delete from public.categories;
+-- Refuse to run unless the catalog is completely empty. This script contains
+-- no delete/truncate statements, so it can never remove or overwrite existing
+-- rows such as the real Maison Margiela catalog (see supabase/manual/*.sql).
+do $$
+begin
+  if exists (select 1 from public.brands)
+    or exists (select 1 from public.categories)
+    or exists (select 1 from public.products)
+    or exists (select 1 from public.product_images)
+  then
+    raise exception
+      'Refusing to run supabase/seed.sql: the catalog already contains data. This development-only seed works on an empty catalog and will not modify existing rows.';
+  end if;
+end
+$$;
 
 -- Brands
 insert into public.brands (name, slug, description)
