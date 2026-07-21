@@ -11,6 +11,10 @@ type PersistedOrder = {
   payment_status: string;
 };
 
+type PersistedOrderItemReference = {
+  stripe_line_item_id: string | null;
+};
+
 type CheckoutPaymentStatus = Stripe.Checkout.Session["payment_status"];
 type ConfirmedPaymentStatus = Extract<
   CheckoutPaymentStatus,
@@ -124,18 +128,19 @@ async function insertPendingOrderFromSession(
   return data;
 }
 
-async function getPersistedOrderItemCount(orderId: string) {
+async function getPersistedOrderItemReferences(orderId: string) {
   const supabase = createSupabaseServiceRoleClient();
-  const { count, error } = await supabase
+  const { data, error } = await supabase
     .from("order_items")
-    .select("id", { count: "exact", head: true })
-    .eq("order_id", orderId);
+    .select("stripe_line_item_id")
+    .eq("order_id", orderId)
+    .returns<PersistedOrderItemReference[]>();
 
   if (error) {
     throw error;
   }
 
-  return count ?? 0;
+  return data ?? [];
 }
 
 async function confirmOrderPaymentAndReduceStock(
@@ -170,6 +175,7 @@ async function insertOrderItems(
 
     return {
       order_id: orderId,
+      stripe_line_item_id: lineItem.id,
       product_id: stripeProduct?.metadata.product_id || null,
       product_name:
         lineItem.description ?? stripeProduct?.name ?? "Unknown product",
@@ -180,10 +186,50 @@ async function insertOrderItems(
     };
   });
 
-  const { error } = await supabase.from("order_items").insert(items);
+  const { error } = await supabase.from("order_items").upsert(items, {
+    onConflict: "order_id,stripe_line_item_id",
+    ignoreDuplicates: true,
+  });
 
   if (error) {
     throw error;
+  }
+}
+
+function assertCompleteOrderItems(
+  orderId: string,
+  persistedItems: PersistedOrderItemReference[],
+  lineItems: Stripe.ApiList<Stripe.LineItem>,
+) {
+  if (persistedItems.length !== lineItems.data.length) {
+    throw new Error(
+      `Order ${orderId} has ${persistedItems.length} persisted items but Stripe returned ${lineItems.data.length}.`,
+    );
+  }
+
+  const persistedStripeLineItemIds = persistedItems
+    .map((item) => item.stripe_line_item_id)
+    .filter((itemId): itemId is string => itemId !== null);
+
+  // Rows created before the idempotency migration have no Stripe line-item ID.
+  // Their existing count check remains the compatibility guard for retries.
+  if (persistedStripeLineItemIds.length === 0) {
+    return;
+  }
+
+  const expectedStripeLineItemIds = new Set(
+    lineItems.data.map((lineItem) => lineItem.id),
+  );
+
+  if (
+    persistedStripeLineItemIds.length !== persistedItems.length ||
+    persistedStripeLineItemIds.some(
+      (itemId) => !expectedStripeLineItemIds.has(itemId),
+    )
+  ) {
+    throw new Error(
+      `Order ${orderId} does not contain the expected Stripe line items.`,
+    );
   }
 }
 
@@ -203,15 +249,14 @@ async function handleConfirmedCheckoutSession(session: Stripe.Checkout.Session) 
   });
   const order =
     existingOrder ?? (await insertPendingOrderFromSession(session, lineItems));
-  const persistedItemCount = await getPersistedOrderItemCount(order.id);
+  let persistedItems = await getPersistedOrderItemReferences(order.id);
 
-  if (persistedItemCount === 0) {
+  if (persistedItems.length === 0) {
     await insertOrderItems(order.id, lineItems);
-  } else if (persistedItemCount !== lineItems.data.length) {
-    throw new Error(
-      `Order ${order.id} has ${persistedItemCount} persisted items but Stripe returned ${lineItems.data.length}.`,
-    );
+    persistedItems = await getPersistedOrderItemReferences(order.id);
   }
+
+  assertCompleteOrderItems(order.id, persistedItems, lineItems);
 
   const didReduceStock = await confirmOrderPaymentAndReduceStock(
     order.id,
