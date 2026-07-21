@@ -20,6 +20,58 @@ import {
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { stripe } from "@/lib/stripe/server";
 
+const DEVELOPMENT_SITE_URL = "http://localhost:3000";
+
+function getTrustedSiteOrigin() {
+  const configuredSiteUrl = process.env.SITE_URL?.trim();
+  const siteUrl =
+    configuredSiteUrl ||
+    (process.env.NODE_ENV === "development" ? DEVELOPMENT_SITE_URL : null);
+
+  if (!siteUrl) {
+    throw new Error(
+      "Missing SITE_URL. Set it to the trusted public origin for this application.",
+    );
+  }
+
+  let parsedSiteUrl: URL;
+
+  try {
+    parsedSiteUrl = new URL(siteUrl);
+  } catch {
+    throw new Error("SITE_URL must be a valid absolute URL.");
+  }
+
+  const isLocalDevelopmentUrl =
+    process.env.NODE_ENV === "development" &&
+    ["localhost", "127.0.0.1", "[::1]", "::1"].includes(
+      parsedSiteUrl.hostname,
+    );
+
+  if (
+    parsedSiteUrl.protocol !== "https:" &&
+    !(parsedSiteUrl.protocol === "http:" && isLocalDevelopmentUrl)
+  ) {
+    throw new Error(
+      "SITE_URL must use HTTPS, except for localhost during development.",
+    );
+  }
+
+  if (
+    parsedSiteUrl.username ||
+    parsedSiteUrl.password ||
+    parsedSiteUrl.pathname !== "/" ||
+    parsedSiteUrl.search ||
+    parsedSiteUrl.hash
+  ) {
+    throw new Error(
+      "SITE_URL must contain only the trusted origin without credentials, a path, query parameters, or a fragment.",
+    );
+  }
+
+  return parsedSiteUrl.origin;
+}
+
 function isNonEmptyString(value: unknown) {
   return typeof value === "string" && value.trim().length > 0;
 }
@@ -154,6 +206,8 @@ export async function POST(request: Request) {
       );
     }
 
+    const siteOrigin = getTrustedSiteOrigin();
+
     const products = await getCheckoutProducts(payload.cartItems);
     const productMap = new Map(products.map((product) => [product.id, product]));
 
@@ -222,13 +276,11 @@ export async function POST(request: Request) {
       );
     }
 
-    const origin = request.headers.get("origin") ?? new URL(request.url).origin;
-
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       customer_email: payload.customer.email,
-      success_url: `${origin}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${origin}/checkout/cancel`,
+      success_url: `${siteOrigin}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${siteOrigin}/checkout/cancel`,
       line_items: validatedCartItems.map((item) => ({
         quantity: item.quantity,
         price_data: {

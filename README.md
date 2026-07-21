@@ -97,6 +97,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
 STRIPE_SECRET_KEY=
 STRIPE_WEBHOOK_SECRET=
+SITE_URL=http://localhost:3000
 ```
 
 Notes:
@@ -105,6 +106,7 @@ Notes:
 - `SUPABASE_SERVICE_ROLE_KEY` is server-only and must never be exposed to the frontend.
 - `STRIPE_SECRET_KEY` is server-only and creates Stripe Checkout Sessions.
 - `STRIPE_WEBHOOK_SECRET` verifies Stripe webhook requests.
+- `SITE_URL` is the trusted application origin used for Stripe success and cancel redirects. Use the deployed HTTPS origin in production.
 - A Stripe publishable key is not currently required because this app uses Stripe-hosted Checkout from a server-created session.
 
 ## Local Development

@@ -224,6 +224,9 @@ The service role key must never be exposed to frontend code and must not use a `
 - `STRIPE_WEBHOOK_SECRET`  
   Stripe webhook signing secret. Server-only. Used to verify webhook events.
 
+- `SITE_URL`
+  Trusted application origin used for Stripe Checkout success and cancel redirects. Use the deployed HTTPS origin in production.
+
 No Stripe publishable key is currently required because the app redirects to a server-created Stripe Checkout Session.
 
 ## Local Checkout Testing
