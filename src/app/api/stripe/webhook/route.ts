@@ -193,14 +193,11 @@ async function saveRefundState(orderId: string, refund: Stripe.Refund) {
   let updateQuery = supabase
     .from("orders")
     .update(values)
-    .eq("id", orderId);
+    .eq("id", orderId)
+    .neq("order_status", "refunded");
 
   // A delayed event or concurrent refund response must not move a terminal
-  // refund back to an earlier state.
-  if (refundStatus !== "succeeded") {
-    updateQuery = updateQuery.neq("order_status", "refunded");
-  }
-
+  // refund back to an earlier state or rewrite its completion timestamp.
   if (refundStatus === "pending" || refundStatus === "requires_action") {
     updateQuery = updateQuery.neq("order_status", "refund_failed");
   }

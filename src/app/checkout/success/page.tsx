@@ -1,76 +1,15 @@
 import Link from "next/link";
 
 import { CheckoutSuccessStateManager } from "@/components/cart/checkout-success-state-manager";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { loadVerifiedCheckoutReceipt } from "@/lib/checkout/receipt";
 import { formatPrice } from "@/lib/storefront/format-price";
 
 type SuccessPageSearchParams =
   | Promise<{ session_id?: string }>
   | { session_id?: string };
 
-type PersistedOrder = {
-  id: string;
-  created_at: string;
-  customer_email: string;
-  customer_name: string;
-  customer_phone: string | null;
-  address_line_1: string;
-  address_line_2: string | null;
-  city: string;
-  postal_code: string;
-  country: string;
-  payment_status: string;
-  order_status: string;
-  refund_id: string | null;
-  refund_status: string | null;
-  subtotal: number | string;
-  shipping_fee: number | string;
-  total: number | string;
-};
-
-type PersistedOrderItem = {
-  id: string;
-  product_name: string;
-  unit_price: number | string;
-  quantity: number;
-  size_label: string | null;
-};
-
-function isConfirmedPaymentStatus(paymentStatus: string) {
+function isConfirmedPaymentStatus(paymentStatus: string | null) {
   return paymentStatus === "paid" || paymentStatus === "no_payment_required";
-}
-
-async function findOrderByStripeSessionId(stripeSessionId: string) {
-  const supabase = createSupabaseServerClient();
-  const { data, error } = await supabase
-    .from("orders")
-    .select(
-      "id, created_at, customer_email, customer_name, customer_phone, address_line_1, address_line_2, city, postal_code, country, payment_status, order_status, refund_id, refund_status, subtotal, shipping_fee, total",
-    )
-    .eq("stripe_session_id", stripeSessionId)
-    .maybeSingle<PersistedOrder>();
-
-  if (error) {
-    throw error;
-  }
-
-  return data;
-}
-
-async function findOrderItems(orderId: string) {
-  const supabase = createSupabaseServerClient();
-  const { data, error } = await supabase
-    .from("order_items")
-    .select("id, product_name, unit_price, quantity, size_label")
-    .eq("order_id", orderId)
-    .order("created_at", { ascending: true })
-    .returns<PersistedOrderItem[]>();
-
-  if (error) {
-    throw error;
-  }
-
-  return data;
 }
 
 export default async function CheckoutSuccessPage({
@@ -80,13 +19,20 @@ export default async function CheckoutSuccessPage({
 }) {
   const resolvedSearchParams = await searchParams;
   const stripeSessionId = resolvedSearchParams.session_id?.trim() ?? "";
-  const order =
+  const receiptLookup =
     stripeSessionId.length > 0
-      ? await findOrderByStripeSessionId(stripeSessionId)
-      : null;
-  const isPaymentConfirmed = order
-    ? isConfirmedPaymentStatus(order.payment_status)
-    : false;
+      ? await loadVerifiedCheckoutReceipt(stripeSessionId)
+      : {
+          isVerifiedSession: false,
+          order: null,
+          orderItems: [],
+          stripePaymentStatus: null,
+        };
+  const { isVerifiedSession, order, orderItems, stripePaymentStatus } =
+    receiptLookup;
+  const isPaymentConfirmed =
+    isConfirmedPaymentStatus(stripePaymentStatus) &&
+    isConfirmedPaymentStatus(order?.payment_status ?? null);
   const isOrderConfirmed =
     isPaymentConfirmed && order?.order_status === "confirmed";
   const isRefundPending = order?.order_status === "refund_pending";
@@ -94,9 +40,8 @@ export default async function CheckoutSuccessPage({
   const isRefundFailed = order?.order_status === "refund_failed";
   const isUnfulfillable = order?.order_status === "unfulfillable";
   const shouldRefresh =
-    !order || order.order_status === "pending" || isRefundPending;
-  const orderItems =
-    isOrderConfirmed && order ? await findOrderItems(order.id) : [];
+    isVerifiedSession &&
+    (!order || order.order_status === "pending" || isRefundPending);
 
   const heading = isOrderConfirmed
     ? "Order received"
@@ -108,7 +53,7 @@ export default async function CheckoutSuccessPage({
           ? "Refund needs attention"
           : isUnfulfillable
             ? "Order unavailable"
-            : stripeSessionId
+            : stripeSessionId && isVerifiedSession
               ? "Payment not confirmed"
               : "Order status unavailable";
   const message = isOrderConfirmed
@@ -121,13 +66,15 @@ export default async function CheckoutSuccessPage({
           ? "Your payment was confirmed, but the order could not be fulfilled and the automatic refund needs attention. Please contact us and include the order number below."
           : isUnfulfillable
             ? "This order could not be fulfilled because an item was no longer in stock. Stripe did not collect a payment, so no refund is required."
-            : stripeSessionId
+            : stripeSessionId && isVerifiedSession
               ? "Your order is not confirmed yet. We are waiting for Stripe payment confirmation and will update this page automatically. Your cart has not been changed."
-              : "No Stripe Checkout Session was provided, so we cannot confirm a payment or order.";
+              : stripeSessionId
+                ? "The Stripe Checkout Session could not be verified, so no receipt information is available."
+                : "No Stripe Checkout Session was provided, so we cannot confirm a payment or order.";
 
   return (
     <section className="px-6 py-24 sm:px-10 sm:py-32 lg:px-12">
-      {stripeSessionId ? (
+      {stripeSessionId && isVerifiedSession ? (
         <CheckoutSuccessStateManager
           shouldCleanupCart={isOrderConfirmed}
           shouldRefresh={shouldRefresh}
