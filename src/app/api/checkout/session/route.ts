@@ -33,6 +33,49 @@ const CHECKOUT_RATE_LIMIT = { limit: 10, windowMs: 60_000 };
 // before parsing it as JSON.
 const MAX_CHECKOUT_BODY_BYTES = 16 * 1024;
 
+// These fields are copied into Stripe Checkout Session metadata, and Stripe
+// rejects any metadata value longer than 500 characters. Validating well below
+// that ceiling turns an opaque Stripe failure into a clear, fixable 400.
+const CUSTOMER_FIELD_RULES = [
+  { key: "fullName", label: "Full name", maxLength: 120, isRequired: true },
+  { key: "email", label: "Email", maxLength: 254, isRequired: true },
+  { key: "phone", label: "Phone", maxLength: 32, isRequired: false },
+  {
+    key: "addressLine1",
+    label: "Address line 1",
+    maxLength: 200,
+    isRequired: true,
+  },
+  {
+    key: "addressLine2",
+    label: "Address line 2",
+    maxLength: 200,
+    isRequired: false,
+  },
+  { key: "city", label: "City", maxLength: 85, isRequired: true },
+  { key: "postalCode", label: "Postal code", maxLength: 32, isRequired: true },
+] as const satisfies readonly {
+  key: keyof Omit<CheckoutCustomerDetails, "country">;
+  label: string;
+  maxLength: number;
+  isRequired: boolean;
+}[];
+
+const MAX_PRODUCT_SLUG_LENGTH = 200;
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Product IDs go straight into a Postgres uuid comparison, so a malformed ID
+// would otherwise surface as a database error instead of a validation message.
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+type CheckoutPayloadResult =
+  | { payload: CheckoutSessionPayload; error?: undefined }
+  | { payload?: undefined; error: string };
+
+type CheckoutCustomerResult =
+  | { customer: CheckoutCustomerDetails; error?: undefined }
+  | { customer?: undefined; error: string };
+
 function getTrustedSiteOrigin() {
   const configuredSiteUrl = process.env.SITE_URL?.trim();
   const siteUrl =
@@ -83,40 +126,51 @@ function getTrustedSiteOrigin() {
   return parsedSiteUrl.origin;
 }
 
-function isNonEmptyString(value: unknown) {
-  return typeof value === "string" && value.trim().length > 0;
-}
-
 function isOptionalString(value: unknown) {
   return typeof value === "string" || value === null || value === undefined;
 }
 
-function isValidEmail(value: unknown) {
-  return (
-    typeof value === "string" &&
-    value.trim().length > 0 &&
-    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
-  );
-}
-
-function isValidCartItem(value: unknown): value is CartItem {
+function getCartItemError(value: unknown): string | null {
   if (!value || typeof value !== "object") {
-    return false;
+    return "One or more cart items are invalid.";
   }
 
   const item = value as Record<string, unknown>;
   const quantity = item.quantity;
 
-  return (
-    isNonEmptyString(item.id) &&
-    isNonEmptyString(item.slug) &&
-    typeof quantity === "number" &&
-    Number.isInteger(quantity) &&
-    quantity > 0 &&
-    quantity <= MAX_CART_ITEM_QUANTITY &&
-    isOptionalString(item.size_label) &&
-    isOptionalString(item.image_url)
-  );
+  if (typeof item.id !== "string" || !UUID_PATTERN.test(item.id.trim())) {
+    return "One or more cart items reference an unknown product.";
+  }
+
+  if (
+    typeof item.slug !== "string" ||
+    item.slug.trim().length === 0 ||
+    item.slug.trim().length > MAX_PRODUCT_SLUG_LENGTH
+  ) {
+    return "One or more cart items reference an unknown product.";
+  }
+
+  if (
+    typeof quantity !== "number" ||
+    !Number.isInteger(quantity) ||
+    quantity < 1
+  ) {
+    return "Cart quantities must be whole numbers of at least 1.";
+  }
+
+  if (quantity > MAX_CART_ITEM_QUANTITY) {
+    return `You can order at most ${MAX_CART_ITEM_QUANTITY} of each product.`;
+  }
+
+  if (!isOptionalString(item.size_label) || !isOptionalString(item.image_url)) {
+    return "One or more cart items have invalid product details.";
+  }
+
+  return null;
+}
+
+function isValidCartItem(value: unknown): value is CartItem {
+  return getCartItemError(value) === null;
 }
 
 type CheckoutProduct = {
@@ -146,61 +200,112 @@ async function getCheckoutProducts(cartItems: CartItem[]) {
   return data ?? [];
 }
 
-function isValidCustomer(value: unknown): value is CheckoutCustomerDetails {
+function parseCustomer(value: unknown): CheckoutCustomerResult {
   if (!value || typeof value !== "object") {
-    return false;
+    return { error: "Shipping details are required." };
   }
 
-  const customer = value as Record<string, unknown>;
+  const source = value as Record<string, unknown>;
+  const fields: Record<string, string> = {};
 
-  return (
-    isNonEmptyString(customer.fullName) &&
-    isValidEmail(customer.email) &&
-    isOptionalString(customer.phone) &&
-    isNonEmptyString(customer.addressLine1) &&
-    isOptionalString(customer.addressLine2) &&
-    isNonEmptyString(customer.city) &&
-    isNonEmptyString(customer.postalCode) &&
-    isSupportedShippingCountry(customer.country)
-  );
+  for (const rule of CUSTOMER_FIELD_RULES) {
+    const rawValue = source[rule.key];
+
+    if (
+      rawValue !== null &&
+      rawValue !== undefined &&
+      typeof rawValue !== "string"
+    ) {
+      return { error: `${rule.label} must be text.` };
+    }
+
+    const trimmedValue = (rawValue ?? "").trim();
+
+    if (!trimmedValue) {
+      if (rule.isRequired) {
+        return { error: `${rule.label} is required.` };
+      }
+
+      fields[rule.key] = "";
+      continue;
+    }
+
+    if (trimmedValue.length > rule.maxLength) {
+      return {
+        error: `${rule.label} must be ${rule.maxLength} characters or fewer.`,
+      };
+    }
+
+    fields[rule.key] = trimmedValue;
+  }
+
+  if (!EMAIL_PATTERN.test(fields.email)) {
+    return { error: "Enter a valid email address." };
+  }
+
+  if (!isSupportedShippingCountry(source.country)) {
+    return { error: `Sombre currently ships only to ${SHIPPING_COUNTRY}.` };
+  }
+
+  return {
+    customer: {
+      fullName: fields.fullName,
+      email: fields.email,
+      phone: fields.phone,
+      addressLine1: fields.addressLine1,
+      addressLine2: fields.addressLine2,
+      city: fields.city,
+      postalCode: fields.postalCode,
+      country: SHIPPING_COUNTRY,
+    },
+  };
 }
 
-function parseCheckoutPayload(body: unknown): CheckoutSessionPayload | null {
+function parseCheckoutPayload(body: unknown): CheckoutPayloadResult {
   if (!body || typeof body !== "object") {
-    return null;
+    return { error: "Invalid checkout payload." };
   }
 
   const payload = body as Record<string, unknown>;
 
+  if (!Array.isArray(payload.cartItems) || payload.cartItems.length === 0) {
+    return { error: "Your cart is empty." };
+  }
+
+  const cartItemError = payload.cartItems
+    .map(getCartItemError)
+    .find((message): message is string => message !== null);
+
+  if (cartItemError) {
+    return { error: cartItemError };
+  }
+
+  // Every entry passed validation above, so this narrows without dropping any.
+  const cartItems = payload.cartItems.filter(isValidCartItem);
+  const productIds = cartItems.map((item) => item.id);
+
+  if (new Set(productIds).size !== productIds.length) {
+    return { error: "Your cart lists the same product more than once." };
+  }
+
   if (
-    !Array.isArray(payload.cartItems) ||
-    payload.cartItems.length === 0 ||
-    !payload.cartItems.every(isValidCartItem) ||
-    !isValidCustomer(payload.customer) ||
     typeof payload.subtotal !== "number" ||
     !Number.isFinite(payload.subtotal)
   ) {
-    return null;
+    return { error: "Invalid checkout payload." };
   }
 
-  const productIds = payload.cartItems.map((item) => item.id);
+  const { customer, error: customerError } = parseCustomer(payload.customer);
 
-  if (new Set(productIds).size !== productIds.length) {
-    return null;
+  if (!customer) {
+    return { error: customerError ?? "Invalid checkout payload." };
   }
 
   return {
-    cartItems: payload.cartItems,
-    subtotal: payload.subtotal,
-    customer: {
-      fullName: payload.customer.fullName.trim(),
-      email: payload.customer.email.trim(),
-      phone: payload.customer.phone?.trim() ?? "",
-      addressLine1: payload.customer.addressLine1.trim(),
-      addressLine2: payload.customer.addressLine2?.trim() ?? "",
-      city: payload.customer.city.trim(),
-      postalCode: payload.customer.postalCode.trim(),
-      country: SHIPPING_COUNTRY,
+    payload: {
+      cartItems,
+      subtotal: payload.subtotal,
+      customer,
     },
   };
 }
@@ -258,11 +363,11 @@ export async function POST(request: Request) {
       );
     }
 
-    const payload = parseCheckoutPayload(body);
+    const { payload, error: payloadError } = parseCheckoutPayload(body);
 
     if (!payload) {
       return NextResponse.json(
-        { error: "Invalid checkout payload." },
+        { error: payloadError ?? "Invalid checkout payload." },
         { status: 400 },
       );
     }

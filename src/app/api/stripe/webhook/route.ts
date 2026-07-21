@@ -6,6 +6,21 @@ import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
 export const runtime = "nodejs";
 
+// Stripe caps a line-item page at 100, so a larger order has to be paged
+// through. The page ceiling only exists to bound an unexpected cursor loop.
+const LINE_ITEM_PAGE_SIZE = 100;
+const MAX_LINE_ITEM_PAGES = 50;
+
+type WebhookFailureKind = "retryable" | "permanent";
+
+// Identifiers discovered while handling an event, so a failure can be recorded
+// against the session and order it belongs to even when the error is thrown
+// part way through processing.
+type WebhookEventContext = {
+  stripeSessionId: string | null;
+  orderId: string | null;
+};
+
 type PersistedOrder = {
   id: string;
   payment_status: string;
@@ -37,16 +52,49 @@ function getPaymentIntentId(session: Stripe.Checkout.Session) {
     : session.payment_intent?.id ?? null;
 }
 
+// Reads every line item on a session instead of only the first page, so a large
+// order is persisted and stock-checked in full.
+async function listAllCheckoutLineItems(sessionId: string) {
+  const lineItems: Stripe.LineItem[] = [];
+  let startingAfter: string | undefined;
+
+  for (let page = 0; page < MAX_LINE_ITEM_PAGES; page += 1) {
+    const response = await stripe.checkout.sessions.listLineItems(sessionId, {
+      limit: LINE_ITEM_PAGE_SIZE,
+      starting_after: startingAfter,
+      expand: ["data.price.product"],
+    });
+
+    lineItems.push(...response.data);
+
+    if (!response.has_more || response.data.length === 0) {
+      return lineItems;
+    }
+
+    startingAfter = response.data[response.data.length - 1]?.id;
+
+    if (!startingAfter) {
+      return lineItems;
+    }
+  }
+
+  throw new Error(
+    `Stripe Checkout Session ${sessionId} returned more than ${
+      MAX_LINE_ITEM_PAGES * LINE_ITEM_PAGE_SIZE
+    } line items.`,
+  );
+}
+
 function getOrderSubtotal(
   session: Stripe.Checkout.Session,
-  lineItems: Stripe.ApiList<Stripe.LineItem>,
+  lineItems: Stripe.LineItem[],
 ) {
   if (typeof session.amount_subtotal === "number") {
     return session.amount_subtotal / 100;
   }
 
   return (
-    lineItems.data.reduce(
+    lineItems.reduce(
       (total, lineItem) => total + (lineItem.amount_subtotal ?? 0),
       0,
     ) / 100
@@ -59,7 +107,7 @@ function getOrderShippingFee(session: Stripe.Checkout.Session) {
 
 function getOrderTotal(
   session: Stripe.Checkout.Session,
-  lineItems: Stripe.ApiList<Stripe.LineItem>,
+  lineItems: Stripe.LineItem[],
 ) {
   if (typeof session.amount_total === "number") {
     return session.amount_total / 100;
@@ -114,7 +162,7 @@ async function findOrderById(orderId: string) {
 
 async function insertPendingOrderFromSession(
   session: Stripe.Checkout.Session,
-  lineItems: Stripe.ApiList<Stripe.LineItem>,
+  lineItems: Stripe.LineItem[],
 ) {
   const supabase = createSupabaseServiceRoleClient();
   const metadata: Stripe.Metadata = session.metadata ?? {};
@@ -319,8 +367,13 @@ async function handlePaidOversellRefund(
   }
 }
 
-async function handleRefundUpdate(refund: Stripe.Refund) {
+async function handleRefundUpdate(
+  refund: Stripe.Refund,
+  context: WebhookEventContext,
+) {
   const orderId = refund.metadata?.order_id;
+
+  context.orderId = orderId ?? null;
 
   if (!orderId) {
     console.info("Ignoring Stripe refund without a Sombre order ID", {
@@ -373,11 +426,11 @@ async function confirmOrderPaymentAndReduceStock(
 
 async function insertOrderItems(
   orderId: string,
-  lineItems: Stripe.ApiList<Stripe.LineItem>,
+  lineItems: Stripe.LineItem[],
 ) {
   const supabase = createSupabaseServiceRoleClient();
 
-  const items = lineItems.data.map((lineItem) => {
+  const items = lineItems.map((lineItem) => {
     const stripeProduct = getExpandedStripeProduct(lineItem.price?.product);
     const quantity = lineItem.quantity ?? 1;
 
@@ -407,11 +460,11 @@ async function insertOrderItems(
 function assertCompleteOrderItems(
   orderId: string,
   persistedItems: PersistedOrderItemReference[],
-  lineItems: Stripe.ApiList<Stripe.LineItem>,
+  lineItems: Stripe.LineItem[],
 ) {
-  if (persistedItems.length !== lineItems.data.length) {
+  if (persistedItems.length !== lineItems.length) {
     throw new Error(
-      `Order ${orderId} has ${persistedItems.length} persisted items but Stripe returned ${lineItems.data.length}.`,
+      `Order ${orderId} has ${persistedItems.length} persisted items but Stripe returned ${lineItems.length}.`,
     );
   }
 
@@ -426,7 +479,7 @@ function assertCompleteOrderItems(
   }
 
   const expectedStripeLineItemIds = new Set(
-    lineItems.data.map((lineItem) => lineItem.id),
+    lineItems.map((lineItem) => lineItem.id),
   );
 
   if (
@@ -441,7 +494,12 @@ function assertCompleteOrderItems(
   }
 }
 
-async function handleConfirmedCheckoutSession(session: Stripe.Checkout.Session) {
+async function handleConfirmedCheckoutSession(
+  session: Stripe.Checkout.Session,
+  context: WebhookEventContext,
+) {
+  context.stripeSessionId = session.id;
+
   if (!isConfirmedPaymentStatus(session.payment_status)) {
     console.info("Stripe Checkout Session is awaiting payment confirmation", {
       sessionId: session.id,
@@ -451,12 +509,12 @@ async function handleConfirmedCheckoutSession(session: Stripe.Checkout.Session) 
   }
 
   const existingOrder = await findExistingOrder(session.id);
-  const lineItems = await stripe.checkout.sessions.listLineItems(session.id, {
-    limit: 100,
-    expand: ["data.price.product"],
-  });
+  const lineItems = await listAllCheckoutLineItems(session.id);
   const order =
     existingOrder ?? (await insertPendingOrderFromSession(session, lineItems));
+
+  context.orderId = order.id;
+
   let persistedItems = await getPersistedOrderItemReferences(order.id);
 
   if (persistedItems.length === 0) {
@@ -477,11 +535,171 @@ async function handleConfirmedCheckoutSession(session: Stripe.Checkout.Session) 
   console.info("Stripe Checkout Session payment confirmed and persisted", {
     sessionId: session.id,
     orderId: order.id,
-    itemCount: lineItems.data.length,
+    itemCount: lineItems.length,
     paymentStatus: session.payment_status,
     didReduceStock,
     orderStatus: processedOrder.order_status,
   });
+}
+
+// Postgres error codes that cannot succeed on a redelivery of the same event.
+// P0001 is a raise_exception from this project's own PL/pgSQL guards, such as
+// an order with no items or an item with no product. A unique violation (23505)
+// is deliberately absent: it means a concurrent delivery won the race, and a
+// retry then finds the row that delivery created.
+const PERMANENT_POSTGRES_ERROR_CODES = new Set([
+  "P0001", // raise_exception
+  "23502", // not_null_violation
+  "23514", // check_violation
+  "22P02", // invalid_text_representation
+  "22003", // numeric_value_out_of_range
+]);
+
+function getPostgresErrorCode(error: unknown) {
+  if (!error || typeof error !== "object" || !("code" in error)) {
+    return null;
+  }
+
+  const { code } = error as { code?: unknown };
+
+  return typeof code === "string" ? code : null;
+}
+
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (typeof error === "object" && error && "message" in error) {
+    const { message } = error as { message?: unknown };
+
+    if (typeof message === "string") {
+      return message;
+    }
+  }
+
+  return String(error);
+}
+
+// Anything not known to be permanent stays retryable, so an unrecognised fault
+// keeps Stripe redelivering rather than silently dropping a paid order.
+function getWebhookFailureKind(error: unknown): WebhookFailureKind {
+  if (error instanceof Stripe.errors.StripeInvalidRequestError) {
+    return "permanent";
+  }
+
+  const postgresErrorCode = getPostgresErrorCode(error);
+
+  if (
+    postgresErrorCode &&
+    PERMANENT_POSTGRES_ERROR_CODES.has(postgresErrorCode)
+  ) {
+    return "permanent";
+  }
+
+  return "retryable";
+}
+
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// A refund's order_id comes from Stripe metadata, so it is not guaranteed to be
+// a real order key. Recording the failure matters more than linking it, so a
+// malformed ID is dropped rather than allowed to reject the whole insert.
+function getRecordableOrderId(orderId: string | null) {
+  return orderId && UUID_PATTERN.test(orderId) ? orderId : null;
+}
+
+// Recording must never replace the original failure with a second one, so every
+// problem here is logged and swallowed.
+async function recordWebhookFailure(
+  event: Stripe.Event,
+  context: WebhookEventContext,
+  error: unknown,
+  failureKind: WebhookFailureKind,
+) {
+  try {
+    const supabase = createSupabaseServiceRoleClient();
+    const { error: recordError } = await supabase.rpc(
+      "record_stripe_webhook_failure",
+      {
+        p_stripe_event_id: event.id,
+        p_stripe_event_type: event.type,
+        p_stripe_session_id: context.stripeSessionId,
+        p_order_id: getRecordableOrderId(context.orderId),
+        p_error_message: getErrorMessage(error),
+        p_failure_kind: failureKind,
+      },
+    );
+
+    if (recordError) {
+      throw recordError;
+    }
+  } catch (recordError) {
+    console.error("Failed to persist a Stripe webhook failure", {
+      eventId: event.id,
+      eventType: event.type,
+      recordError,
+    });
+  }
+}
+
+async function resolveWebhookFailure(event: Stripe.Event) {
+  try {
+    const supabase = createSupabaseServiceRoleClient();
+    const { data, error } = await supabase.rpc(
+      "resolve_stripe_webhook_failure",
+      { p_stripe_event_id: event.id },
+    );
+
+    if (error) {
+      throw error;
+    }
+
+    if (data === true) {
+      console.info("Recovered a previously failed Stripe webhook delivery", {
+        eventId: event.id,
+        eventType: event.type,
+      });
+    }
+  } catch (error) {
+    console.error("Failed to resolve a Stripe webhook failure", {
+      eventId: event.id,
+      eventType: event.type,
+      error,
+    });
+  }
+}
+
+async function processWebhookEvent(
+  event: Stripe.Event,
+  context: WebhookEventContext,
+) {
+  switch (event.type) {
+    case "checkout.session.completed":
+    case "checkout.session.async_payment_succeeded":
+      await handleConfirmedCheckoutSession(
+        event.data.object as Stripe.Checkout.Session,
+        context,
+      );
+      break;
+    case "checkout.session.async_payment_failed": {
+      const session = event.data.object as Stripe.Checkout.Session;
+      context.stripeSessionId = session.id;
+      console.info("Stripe Checkout Session payment failed", {
+        sessionId: session.id,
+        paymentStatus: session.payment_status,
+      });
+      break;
+    }
+    case "refund.created":
+    case "refund.updated":
+    case "refund.failed":
+      await handleRefundUpdate(event.data.object as Stripe.Refund, context);
+      break;
+    default:
+      console.info(`Unhandled Stripe webhook event: ${event.type}`);
+  }
 }
 
 export async function POST(request: Request) {
@@ -512,34 +730,36 @@ export async function POST(request: Request) {
     );
   }
 
+  const context: WebhookEventContext = {
+    stripeSessionId: null,
+    orderId: null,
+  };
+
   try {
-    switch (event.type) {
-      case "checkout.session.completed":
-      case "checkout.session.async_payment_succeeded":
-        await handleConfirmedCheckoutSession(
-          event.data.object as Stripe.Checkout.Session,
-        );
-        break;
-      case "checkout.session.async_payment_failed": {
-        const session = event.data.object as Stripe.Checkout.Session;
-        console.info("Stripe Checkout Session payment failed", {
-          sessionId: session.id,
-          paymentStatus: session.payment_status,
-        });
-        break;
-      }
-      case "refund.created":
-      case "refund.updated":
-      case "refund.failed":
-        await handleRefundUpdate(event.data.object as Stripe.Refund);
-        break;
-      default:
-        console.info(`Unhandled Stripe webhook event: ${event.type}`);
-    }
+    await processWebhookEvent(event, context);
+    await resolveWebhookFailure(event);
 
     return NextResponse.json({ received: true });
   } catch (error) {
-    console.error("Stripe webhook processing failed:", error);
+    const failureKind = getWebhookFailureKind(error);
+
+    console.error("Stripe webhook processing failed:", {
+      eventId: event.id,
+      eventType: event.type,
+      failureKind,
+      stripeSessionId: context.stripeSessionId,
+      orderId: context.orderId,
+      error,
+    });
+
+    await recordWebhookFailure(event, context, error, failureKind);
+
+    // A permanent failure cannot succeed on redelivery, so it is acknowledged
+    // once recorded instead of being retried until Stripe gives up. A retryable
+    // failure still answers with an error so Stripe delivers the event again.
+    if (failureKind === "permanent") {
+      return NextResponse.json({ received: true, recorded: true });
+    }
 
     return NextResponse.json(
       { error: "Could not process Stripe webhook." },
