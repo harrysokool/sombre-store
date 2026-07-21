@@ -276,6 +276,38 @@ export function CheckoutPageContent() {
                     payment details securely.
                   </p>
 
+                  <p className="text-center text-xs leading-6 text-stone-500">
+                    By continuing you agree to our{" "}
+                    <Link
+                      href="/terms"
+                      className="text-stone-400 underline underline-offset-4 transition-colors hover:text-stone-200"
+                    >
+                      Terms and Conditions
+                    </Link>
+                    ,{" "}
+                    <Link
+                      href="/shipping-policy"
+                      className="text-stone-400 underline underline-offset-4 transition-colors hover:text-stone-200"
+                    >
+                      Shipping Policy
+                    </Link>
+                    ,{" "}
+                    <Link
+                      href="/refund-policy"
+                      className="text-stone-400 underline underline-offset-4 transition-colors hover:text-stone-200"
+                    >
+                      Return and Refund Policy
+                    </Link>
+                    , and{" "}
+                    <Link
+                      href="/privacy-policy"
+                      className="text-stone-400 underline underline-offset-4 transition-colors hover:text-stone-200"
+                    >
+                      Privacy Policy
+                    </Link>
+                    .
+                  </p>
+
                   <Link
                     href="/cart"
                     className="inline-flex w-full items-center justify-center text-xs uppercase tracking-[0.22em] text-stone-500 transition-colors hover:text-stone-200"
