@@ -1,8 +1,9 @@
-import Image from "next/image";
 import Link from "next/link";
 
+import { CampaignHero } from "@/components/home/campaign-hero";
+import { SignatureShowcase } from "@/components/home/signature-showcase";
+import { StoryBand } from "@/components/home/story-band";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { formatPrice } from "@/lib/storefront/format-price";
 import {
     normalizeProductListItem,
     type ProductListItem,
@@ -12,17 +13,6 @@ import {
 const maisonMargielaShopHref = "/shop?category=perfume&brand=maison-margiela";
 
 export const dynamic = "force-dynamic";
-
-const heroImages = [
-    {
-        src: "/images/products/maison-margiela/model-3.jpg",
-        alt: "Maison Margiela Replica fragrance styled with a model",
-    },
-    {
-        src: "/images/products/maison-margiela/model-4.jpg",
-        alt: "Maison Margiela Replica fragrance lifestyle scene",
-    },
-];
 
 async function getMaisonMargielaProducts() {
     try {
@@ -74,180 +64,83 @@ async function getMaisonMargielaProducts() {
     }
 }
 
-function getHomepageFeaturedProducts(products: ProductListItem[]) {
-    const featuredProducts = products.filter((product) => product.is_featured);
-
-    if (featuredProducts.length >= 3) {
-        return featuredProducts.slice(0, 3);
-    }
-
-    return products.slice(0, 3);
+// Featured products lead the row; the rest follow so the showcase stays full
+// even when nothing is flagged. Presentation only - the query above is unchanged.
+function getShowcaseProducts(products: ProductListItem[]) {
+    return [
+        ...products.filter((product) => product.is_featured),
+        ...products.filter((product) => !product.is_featured),
+    ];
 }
 
 export default async function Home() {
     const maisonMargielaProducts = await getMaisonMargielaProducts();
-    const featuredProducts = getHomepageFeaturedProducts(
-        maisonMargielaProducts,
-    );
+    const showcaseProducts = getShowcaseProducts(maisonMargielaProducts);
 
     return (
-        <div className="overflow-hidden">
-            <section className="relative min-h-[calc(100svh-5.5rem)] overflow-hidden border-b border-white/10 bg-stone-950">
-                <div className="absolute inset-0 grid grid-rows-[1fr_13rem] sm:grid-cols-[minmax(0,1.15fr)_minmax(18rem,0.85fr)] sm:grid-rows-1">
-                    <div className="relative">
-                        <Image
-                            src={heroImages[0].src}
-                            alt={heroImages[0].alt}
-                            fill
-                            priority
-                            sizes="(min-width: 640px) 58vw, 100vw"
-                            className="object-cover"
-                        />
-                    </div>
+        // `clip` on one axis only: horizontal overflow is still contained, but
+        // the hero can still sit under the header via its negative top margin,
+        // which `overflow-hidden` would have cropped away.
+        <div className="overflow-x-clip">
+            <CampaignHero
+                eyebrow="Sombre Fragrance"
+                headline="Quiet scent, kept close."
+                ctaLabel="Discover the edit"
+                ctaHref={maisonMargielaShopHref}
+            />
 
-                    <div className="relative border-t border-white/10 sm:border-l sm:border-t-0">
-                        <Image
-                            src={heroImages[1].src}
-                            alt={heroImages[1].alt}
-                            fill
-                            sizes="(min-width: 640px) 42vw, 100vw"
-                            className="object-cover"
-                        />
-                    </div>
-                </div>
-
-                <div className="absolute inset-0 bg-gradient-to-t from-stone-950 via-stone-950/45 to-transparent sm:bg-gradient-to-r sm:from-stone-950/95 sm:via-stone-950/35 sm:to-transparent" />
-
-                <div className="relative z-10 mx-auto flex min-h-[calc(100svh-5.5rem)] w-full max-w-7xl items-end px-6 pb-10 pt-24 sm:px-10 sm:pb-16 lg:px-12">
-                    <div className="max-w-xl space-y-7">
-                        <div className="space-y-5">
-                            <p className="text-xs uppercase tracking-[0.28em] text-stone-300">
-                                Sombre Fragrance
-                            </p>
-                            <h1 className="text-4xl font-medium leading-tight text-stone-100 sm:text-5xl">
-                                Curated fragrance, quietly chosen.
-                            </h1>
-                            <p className="max-w-lg text-base leading-8 text-stone-300">
-                                A focused Maison Margiela Replica edit, selected
-                                for everyday ritual and personal atmosphere.
-                            </p>
-                        </div>
-
-                        <div className="flex flex-col gap-3 sm:flex-row">
-                            <Link
-                                href={maisonMargielaShopHref}
-                                className="inline-flex items-center justify-center rounded-full bg-stone-100 px-6 py-3 text-sm uppercase tracking-[0.18em] text-stone-950 transition-colors hover:bg-white"
-                            >
-                                Shop the edit
-                            </Link>
-                            <Link
-                                href={maisonMargielaShopHref}
-                                className="inline-flex items-center justify-center rounded-full border border-white/15 px-6 py-3 text-sm uppercase tracking-[0.18em] text-stone-100 transition-colors hover:border-white/30 hover:bg-white/5"
-                            >
-                                View Maison Margiela
-                            </Link>
-                        </div>
-                    </div>
-                </div>
+            {/* Deliberate pause between the hero and the first product beat. */}
+            <section className="px-6 py-28 text-center sm:px-10 sm:py-36 lg:px-12">
+                <p className="mx-auto max-w-3xl font-display text-2xl font-light leading-[1.5] text-stone-200 sm:text-3xl lg:text-4xl">
+                    A narrow selection, chosen for the way a room remembers it.
+                </p>
+                <p className="mx-auto mt-8 max-w-xl text-sm leading-8 text-stone-500">
+                    Sombre carries a focused Maison Margiela Replica edit — scents
+                    built around memory, place, and the hours you return to.
+                </p>
             </section>
 
-            <section className="px-6 py-16 sm:px-10 sm:py-20 lg:px-12">
-                <div className="mx-auto flex w-full max-w-7xl flex-col gap-8">
-                    <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-                        <div className="max-w-2xl space-y-3">
-                            <p className="text-xs uppercase tracking-[0.28em] text-stone-500">
-                                Replica edit
-                            </p>
-                            <h2 className="text-3xl font-medium text-stone-100">
-                                Maison Margiela Replica
-                            </h2>
-                            <p className="text-sm leading-7 text-stone-400">
-                                A compact selection of quiet, wearable scents
-                                for daily ritual and personal atmosphere.
-                            </p>
-                        </div>
-                        <Link
-                            href={maisonMargielaShopHref}
-                            className="text-sm uppercase tracking-[0.2em] text-stone-300 transition-colors hover:text-stone-100"
-                        >
-                            Shop all
-                        </Link>
-                    </div>
+            <SignatureShowcase
+                eyebrow="The Edit"
+                heading="Signatures"
+                products={showcaseProducts}
+                viewAllHref={maisonMargielaShopHref}
+            />
 
-                    {featuredProducts.length > 0 ? (
-                        <div className="grid gap-8 md:grid-cols-3">
-                            {featuredProducts.map((product) => (
-                                <Link
-                                    key={product.slug}
-                                    href={`/products/${product.slug}`}
-                                    className="group block"
-                                >
-                                    <article className="space-y-4">
-                                        <div className="overflow-hidden rounded-lg border border-white/10 bg-stone-900">
-                                            {product.primaryImage ? (
-                                                <Image
-                                                    src={
-                                                        product.primaryImage
-                                                            .image_url
-                                                    }
-                                                    alt={
-                                                        product.primaryImage
-                                                            .alt_text ??
-                                                        `${product.name} product image`
-                                                    }
-                                                    width={720}
-                                                    height={900}
-                                                    className="aspect-[4/5] w-full object-cover transition-transform duration-500 group-hover:scale-[1.02]"
-                                                />
-                                            ) : (
-                                                <div className="flex aspect-[4/5] items-center justify-center bg-white/[0.02]">
-                                                    <p className="text-xs uppercase tracking-[0.24em] text-stone-500">
-                                                        Image coming soon
-                                                    </p>
-                                                </div>
-                                            )}
-                                        </div>
-                                        <div className="space-y-3">
-                                            <div className="space-y-1">
-                                                <p className="text-xs uppercase tracking-[0.22em] text-stone-500">
-                                                    {product.brand?.name ??
-                                                        "Maison Margiela"}
-                                                </p>
-                                                <h3 className="text-xl font-medium text-stone-100">
-                                                    {product.name}
-                                                </h3>
-                                            </div>
-                                            <div className="flex items-center justify-between gap-4 border-t border-white/10 pt-3">
-                                                <p className="text-sm text-stone-400">
-                                                    {product.size_label ??
-                                                        "Fragrance"}
-                                                </p>
-                                                <p className="text-sm font-medium text-stone-100">
-                                                    {formatPrice(product.price)}
-                                                </p>
-                                            </div>
-                                            <p className="text-sm uppercase tracking-[0.2em] text-stone-500 transition-colors group-hover:text-stone-200">
-                                                {product.stock_quantity > 0
-                                                    ? "View product"
-                                                    : "Sold out"}
-                                            </p>
-                                        </div>
-                                    </article>
-                                </Link>
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="border-t border-white/10 px-6 py-12 text-center">
-                            <h3 className="text-xl font-medium text-stone-100">
-                                Products coming soon
-                            </h3>
-                            <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-stone-400">
-                                The Maison Margiela Replica edit will appear
-                                here once products are active in the catalog.
-                            </p>
-                        </div>
-                    )}
-                </div>
+            <div className="py-28 sm:py-36">
+                <StoryBand
+                    eyebrow="Replica"
+                    headline="Familiar places, bottled."
+                    body="Each Replica reconstructs a moment — woodsmoke in a shuttered room, salt drying on skin, the low hum of a late bar. Worn quietly, they read as memory rather than perfume."
+                    ctaLabel="Explore Replica"
+                    ctaHref={maisonMargielaShopHref}
+                    imageSrc="/images/products/maison-margiela/model-2.jpg"
+                    imageAlt="Sombre fragrance styled in an editorial setting"
+                    imageSide="left"
+                />
+            </div>
+
+            <StoryBand
+                eyebrow="The Ritual"
+                headline="Worn close to the skin."
+                body="Applied at the pulse, a Replica settles within the hour and stays near. Nothing announces itself across a room — the intent is atmosphere, held at conversational distance."
+                ctaLabel="Shop the collection"
+                ctaHref={maisonMargielaShopHref}
+                imageSrc="/images/products/maison-margiela/model-4.png"
+                imageAlt="Sombre fragrance campaign still life"
+                imageSide="right"
+            />
+
+            <section className="px-6 py-32 text-center sm:px-10 sm:py-44 lg:px-12">
+                <h2 className="mx-auto max-w-2xl font-display text-4xl font-light leading-[1.15] text-stone-100 sm:text-5xl lg:text-6xl">
+                    Chosen slowly, worn daily.
+                </h2>
+                <Link
+                    href={maisonMargielaShopHref}
+                    className="mt-10 inline-block border-b border-stone-600 pb-1 text-xs uppercase tracking-[0.28em] text-stone-200 transition-colors hover:border-stone-300 hover:text-white"
+                >
+                    Enter the shop
+                </Link>
             </section>
         </div>
     );

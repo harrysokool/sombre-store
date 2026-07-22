@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import { NavbarCartIndicator } from "@/components/cart/navbar-cart-indicator";
@@ -78,7 +79,12 @@ export function Navbar() {
     const [isSearchOpen, setIsSearchOpen] = useState(false);
     const [activeMenu, setActiveMenu] = useState<"main" | "shop">("main");
     const [isNavbarVisible, setIsNavbarVisible] = useState(true);
+    const [isAtPageTop, setIsAtPageTop] = useState(true);
     const previousScrollYRef = useRef(0);
+
+    // The home page opens on a full-bleed campaign image, so the bar sits over
+    // the artwork until the first scroll. Every other route keeps the solid bar.
+    const isHomePage = usePathname() === "/";
 
     useEffect(() => {
         const topThreshold = 64;
@@ -87,6 +93,8 @@ export function Navbar() {
         function handleScroll() {
             const currentScrollY = window.scrollY;
             const previousScrollY = previousScrollYRef.current;
+
+            setIsAtPageTop(currentScrollY <= 8);
 
             if (currentScrollY <= topThreshold) {
                 setIsNavbarVisible(true);
@@ -108,10 +116,21 @@ export function Navbar() {
         previousScrollYRef.current = window.scrollY;
         window.addEventListener("scroll", handleScroll, { passive: true });
 
-        return () => window.removeEventListener("scroll", handleScroll);
+        // Read the real position once after paint, so a restored scroll offset
+        // (back navigation, a refreshed deep link) does not leave the bar
+        // rendering as though the page were still at the top.
+        const initialReadId = requestAnimationFrame(handleScroll);
+
+        return () => {
+            cancelAnimationFrame(initialReadId);
+            window.removeEventListener("scroll", handleScroll);
+        };
     }, []);
 
     const shouldShowNavbar = isMenuOpen || isSearchOpen || isNavbarVisible;
+    // An open panel always gets the solid bar so its controls stay readable.
+    const isOverlayHeader =
+        isHomePage && isAtPageTop && !isMenuOpen && !isSearchOpen;
 
     function closeMenu() {
         setIsMenuOpen(false);
@@ -140,14 +159,21 @@ export function Navbar() {
     return (
         <>
             <header
-                className={`sticky top-0 z-30 border-b border-white/10 bg-stone-950/90 backdrop-blur-md transition-all duration-300 ease-out ${
+                className={`sticky top-0 z-30 transition-all duration-300 ease-out ${
+                    isOverlayHeader
+                        ? "border-b border-transparent bg-transparent"
+                        : "border-b border-white/10 bg-stone-950/90 backdrop-blur-md"
+                } ${
                     shouldShowNavbar
                         ? "pointer-events-auto translate-y-0 opacity-100 blur-0"
                         : "pointer-events-none -translate-y-2 opacity-0 blur-sm"
                 }`}
             >
                 <div className="relative w-full py-5 pl-4 pr-1 sm:pl-5 sm:pr-1.5 lg:pl-6 lg:pr-2">
-                    <div className="grid grid-cols-[5.5rem_auto_5.5rem] items-center sm:grid-cols-[7.5rem_auto_6.75rem]">
+                    {/* The wordmark below is absolutely centred, so it never
+                        occupies a track here. Two flex ends keep each icon group
+                        pinned to its own edge at every width. */}
+                    <div className="flex items-center justify-between">
                         <div className="z-10 flex items-center justify-start">
                             <button
                                 type="button"
@@ -170,7 +196,7 @@ export function Navbar() {
                                 href="/"
                                 onClick={closeMenu}
                                 aria-label="Sombre home"
-                                className="pointer-events-auto font-serif text-[1.35rem] font-medium tracking-[0.18em] text-stone-100 sm:text-[2.0rem]"
+                                className="pointer-events-auto font-display text-[1.15rem] font-normal leading-none tracking-[0.3em] text-stone-100 transition-colors hover:text-white sm:text-[2.05rem] sm:tracking-[0.34em]"
                             >
                                 Sombre
                             </Link>
