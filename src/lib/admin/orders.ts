@@ -1,3 +1,4 @@
+import type { FulfilmentStatus } from "@/lib/admin/fulfilment-rules";
 import { getAdminUser } from "@/lib/supabase/admin-auth";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
@@ -10,6 +11,7 @@ export type AdminOrderListItem = {
   currency: string;
   payment_status: string;
   order_status: string;
+  fulfilment_status: FulfilmentStatus;
 };
 
 export type AdminOrderDetail = AdminOrderListItem & {
@@ -25,6 +27,11 @@ export type AdminOrderDetail = AdminOrderListItem & {
   refund_status: string | null;
   refund_id: string | null;
   refunded_at: string | null;
+  courier: string | null;
+  tracking_number: string | null;
+  shipped_at: string | null;
+  delivered_at: string | null;
+  fulfilment_updated_at: string | null;
 };
 
 export type AdminOrderItem = {
@@ -36,9 +43,9 @@ export type AdminOrderItem = {
 };
 
 const ORDER_LIST_COLUMNS =
-  "id, created_at, customer_name, customer_email, total, currency, payment_status, order_status";
+  "id, created_at, customer_name, customer_email, total, currency, payment_status, order_status, fulfilment_status";
 
-const ORDER_DETAIL_COLUMNS = `${ORDER_LIST_COLUMNS}, customer_phone, address_line_1, address_line_2, district, city, postal_code, country, subtotal, shipping_fee, refund_status, refund_id, refunded_at`;
+const ORDER_DETAIL_COLUMNS = `${ORDER_LIST_COLUMNS}, customer_phone, address_line_1, address_line_2, district, city, postal_code, country, subtotal, shipping_fee, refund_status, refund_id, refunded_at, courier, tracking_number, shipped_at, delivered_at, fulfilment_updated_at`;
 
 // Orders hold private customer data, so every read here re-checks the admin
 // gate itself rather than trusting the caller to have done it. Throws instead of
@@ -98,5 +105,24 @@ export async function getAdminOrder(orderId: string) {
     throw itemsError;
   }
 
-  return { order, items: items ?? [] };
+  // set_order_fulfilment refuses to run while one of these is outstanding, so
+  // the page reads it too and can say why the controls are locked.
+  const { data: refundReview, error: refundReviewError } = await supabase
+    .from("webhook_failures")
+    .select("id")
+    .eq("order_id", order.id)
+    .eq("is_resolved", false)
+    .like("stripe_event_type", "refund.%")
+    .limit(1)
+    .maybeSingle<{ id: string }>();
+
+  if (refundReviewError) {
+    throw refundReviewError;
+  }
+
+  return {
+    order,
+    items: items ?? [],
+    hasUnresolvedRefundReview: Boolean(refundReview),
+  };
 }

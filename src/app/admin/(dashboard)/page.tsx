@@ -71,6 +71,7 @@ export default async function AdminOrdersPage() {
               <th className="px-4 py-4 font-normal">Date</th>
               <th className="px-4 py-4 font-normal">Payment</th>
               <th className="px-4 py-4 font-normal">Status</th>
+              <th className="px-4 py-4 font-normal">Fulfilment</th>
               <th className="px-4 py-4 text-right font-normal">Total</th>
             </tr>
           </thead>
@@ -102,6 +103,9 @@ export default async function AdminOrdersPage() {
                 </td>
                 <td className="px-4 py-4">
                   <StatusPill value={order.order_status} />
+                </td>
+                <td className="px-4 py-4">
+                  <StatusPill value={order.fulfilment_status} />
                 </td>
                 <td className="whitespace-nowrap px-4 py-4 text-right text-stone-100">
                   {formatPrice(order.total)}

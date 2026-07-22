@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { OrderFulfilmentPanel } from "@/app/admin/(dashboard)/orders/[id]/order-fulfilment-panel";
+import { getFulfilmentBlockReason } from "@/lib/admin/fulfilment-rules";
 import { getAdminOrder } from "@/lib/admin/orders";
 import { formatPrice } from "@/lib/storefront/format-price";
 import { requireAdminUser } from "@/lib/supabase/admin-auth";
@@ -13,6 +15,10 @@ type AdminOrderPageProps = {
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function formatTimestamp(value: string | null) {
+  return value ? new Date(value).toLocaleString("en-HK") : null;
+}
 
 function Field({ label, value }: { label: string; value: string }) {
   return (
@@ -43,7 +49,14 @@ export default async function AdminOrderDetailPage({
     notFound();
   }
 
-  const { order, items } = result;
+  const { order, items, hasUnresolvedRefundReview } = result;
+  const fulfilmentBlockReason = getFulfilmentBlockReason({
+    paymentStatus: order.payment_status,
+    orderStatus: order.order_status,
+    refundStatus: order.refund_status,
+    refundId: order.refund_id,
+    hasUnresolvedRefundReview,
+  });
   const addressLines = [
     order.address_line_1,
     order.address_line_2,
@@ -105,6 +118,17 @@ export default async function AdminOrderDetailPage({
           ) : null}
         </div>
       ) : null}
+
+      <OrderFulfilmentPanel
+        orderId={order.id}
+        status={order.fulfilment_status}
+        courier={order.courier}
+        trackingNumber={order.tracking_number}
+        shippedAtLabel={formatTimestamp(order.shipped_at)}
+        deliveredAtLabel={formatTimestamp(order.delivered_at)}
+        updatedAtLabel={formatTimestamp(order.fulfilment_updated_at)}
+        lockedReason={fulfilmentBlockReason}
+      />
 
       <div className="space-y-4 rounded-2xl border border-white/10 bg-white/[0.02] px-5 py-6 sm:px-6">
         <h3 className="text-xs uppercase tracking-[0.24em] text-stone-500">
