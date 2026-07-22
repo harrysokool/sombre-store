@@ -168,8 +168,11 @@ export default async function CheckoutSuccessPage({
                   {order.customer_phone ? <p>{order.customer_phone}</p> : null}
                   <p>{order.address_line_1}</p>
                   {order.address_line_2 ? <p>{order.address_line_2}</p> : null}
+                  {order.district ? <p>{order.district}</p> : null}
                   <p>
-                    {order.city}, {order.postal_code}
+                    {[order.city, order.postal_code]
+                      .filter((part) => Boolean(part))
+                      .join(", ")}
                   </p>
                   <p>{order.country}</p>
                 </address>

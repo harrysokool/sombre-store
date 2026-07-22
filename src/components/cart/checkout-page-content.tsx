@@ -46,6 +46,7 @@ export function CheckoutPageContent() {
         phone: String(formData.get("phone") ?? "").trim(),
         addressLine1: String(formData.get("addressLine1") ?? "").trim(),
         addressLine2: String(formData.get("addressLine2") ?? "").trim(),
+        district: String(formData.get("district") ?? "").trim(),
         city: String(formData.get("city") ?? "").trim(),
         postalCode: String(formData.get("postalCode") ?? "").trim(),
         country: SHIPPING_COUNTRY,
@@ -173,6 +174,15 @@ export function CheckoutPageContent() {
                 />
 
                 <CheckoutFormField
+                  label="District"
+                  name="district"
+                  type="text"
+                  placeholder="e.g. Wan Chai, Sha Tin, Tsuen Wan"
+                  required
+                  className="space-y-2 sm:col-span-2"
+                />
+
+                <CheckoutFormField
                   label="City"
                   name="city"
                   type="text"
@@ -184,8 +194,7 @@ export function CheckoutPageContent() {
                   label="Postal code"
                   name="postalCode"
                   type="text"
-                  placeholder="Postal code"
-                  required
+                  placeholder="Optional"
                 />
 
                 <CheckoutFormField

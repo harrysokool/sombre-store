@@ -6,6 +6,7 @@ export type CheckoutCustomerDetails = {
   phone: string;
   addressLine1: string;
   addressLine2: string;
+  district: string;
   city: string;
   postalCode: string;
   country: string;

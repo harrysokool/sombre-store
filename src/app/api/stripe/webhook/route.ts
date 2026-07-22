@@ -178,6 +178,7 @@ async function insertPendingOrderFromSession(
       customer_phone: metadata.customer_phone ?? null,
       address_line_1: metadata.address_line_1 ?? "",
       address_line_2: metadata.address_line_2 ?? null,
+      district: metadata.district ?? null,
       city: metadata.city ?? "",
       postal_code: metadata.postal_code ?? "",
       country: metadata.country ?? "",

@@ -11,8 +11,9 @@ type PersistedOrder = {
   customer_phone: string | null;
   address_line_1: string;
   address_line_2: string | null;
+  district: string | null;
   city: string;
-  postal_code: string;
+  postal_code: string | null;
   country: string;
   payment_status: string;
   order_status: string;
@@ -76,6 +77,7 @@ function toCheckoutReceiptOrder(order: PersistedOrder): CheckoutReceiptOrder {
     customer_phone: order.customer_phone,
     address_line_1: order.address_line_1,
     address_line_2: order.address_line_2,
+    district: order.district,
     city: order.city,
     postal_code: order.postal_code,
     country: order.country,
@@ -129,7 +131,7 @@ export async function loadVerifiedCheckoutReceipt(
   const { data, error } = await supabase
     .from("orders")
     .select(
-      "id, created_at, customer_email, customer_name, customer_phone, address_line_1, address_line_2, city, postal_code, country, payment_status, order_status, refund_id, refund_status, subtotal, shipping_fee, total, currency, stripe_payment_intent_id",
+      "id, created_at, customer_email, customer_name, customer_phone, address_line_1, address_line_2, district, city, postal_code, country, payment_status, order_status, refund_id, refund_status, subtotal, shipping_fee, total, currency, stripe_payment_intent_id",
     )
     .eq("stripe_session_id", session.id)
     .maybeSingle<PersistedOrder>();

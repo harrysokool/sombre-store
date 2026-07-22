@@ -52,8 +52,10 @@ const CUSTOMER_FIELD_RULES = [
     maxLength: 200,
     isRequired: false,
   },
+  { key: "district", label: "District", maxLength: 85, isRequired: true },
   { key: "city", label: "City", maxLength: 85, isRequired: true },
-  { key: "postalCode", label: "Postal code", maxLength: 32, isRequired: true },
+  // Hong Kong has no postal code system, so this stays optional.
+  { key: "postalCode", label: "Postal code", maxLength: 32, isRequired: false },
 ] as const satisfies readonly {
   key: keyof Omit<CheckoutCustomerDetails, "country">;
   label: string;
@@ -254,6 +256,7 @@ function parseCustomer(value: unknown): CheckoutCustomerResult {
       phone: fields.phone,
       addressLine1: fields.addressLine1,
       addressLine2: fields.addressLine2,
+      district: fields.district,
       city: fields.city,
       postalCode: fields.postalCode,
       country: SHIPPING_COUNTRY,
@@ -479,6 +482,7 @@ export async function POST(request: Request) {
         customer_phone: payload.customer.phone,
         address_line_1: payload.customer.addressLine1,
         address_line_2: payload.customer.addressLine2,
+        district: payload.customer.district,
         city: payload.customer.city,
         postal_code: payload.customer.postalCode,
         country: payload.customer.country,
