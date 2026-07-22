@@ -2,6 +2,11 @@ import { NextResponse } from "next/server";
 import Stripe from "stripe";
 
 import { sendOrderStatusEmails } from "@/lib/email/order-emails";
+import {
+  describeRefundAmounts,
+  getRefundPaymentIntentId,
+  isFullRefundAmount,
+} from "@/lib/stripe/refunds";
 import { getStripeWebhookSecret, stripe } from "@/lib/stripe/server";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
@@ -13,6 +18,17 @@ const LINE_ITEM_PAGE_SIZE = 100;
 const MAX_LINE_ITEM_PAGES = 50;
 
 type WebhookFailureKind = "retryable" | "permanent";
+
+// A condition that a redelivery can never resolve, so it is recorded for a human
+// and acknowledged instead of being retried until Stripe gives up. Used for
+// refunds that cannot be linked to an order and for partial refunds, both of
+// which need manual attention rather than another attempt.
+class PermanentWebhookError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PermanentWebhookError";
+  }
+}
 
 // Identifiers discovered while handling an event, so a failure can be recorded
 // against the session and order it belongs to even when the error is thrown
@@ -369,29 +385,148 @@ async function handlePaidOversellRefund(
   }
 }
 
+type RefundTargetOrder = {
+  id: string;
+  total: number | string;
+};
+
+async function findOrderByIdForRefund(orderId: string) {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from("orders")
+    .select("id, total")
+    .eq("id", orderId)
+    .maybeSingle<RefundTargetOrder>();
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+async function findOrderByPaymentIntentId(paymentIntentId: string) {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from("orders")
+    .select("id, total")
+    .eq("stripe_payment_intent_id", paymentIntentId)
+    .maybeSingle<RefundTargetOrder>();
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+// Metadata stays the first path, because refunds this code creates carry the
+// order ID directly. A refund raised from the Stripe Dashboard has no metadata,
+// so it is matched through the PaymentIntent, which orders already store
+// uniquely in stripe_payment_intent_id.
+async function resolveRefundOrder(refund: Stripe.Refund) {
+  const metadataOrderId = refund.metadata?.order_id;
+
+  if (metadataOrderId && UUID_PATTERN.test(metadataOrderId)) {
+    const order = await findOrderByIdForRefund(metadataOrderId);
+
+    if (order) {
+      return { order, source: "metadata" as const };
+    }
+  }
+
+  const paymentIntentId = getRefundPaymentIntentId(refund);
+
+  if (paymentIntentId) {
+    const order = await findOrderByPaymentIntentId(paymentIntentId);
+
+    if (order) {
+      return { order, source: "payment_intent" as const };
+    }
+  }
+
+  return { order: null, source: "unresolved" as const };
+}
+
+async function restoreOrderStockAfterRefund(orderId: string, refundId: string) {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase.rpc(
+    "restore_order_stock_after_refund",
+    {
+      p_order_id: orderId,
+      p_refund_id: refundId,
+      p_refund_status: "succeeded",
+    },
+  );
+
+  if (error) {
+    throw error;
+  }
+
+  return data === true;
+}
+
 async function handleRefundUpdate(
   refund: Stripe.Refund,
   context: WebhookEventContext,
 ) {
-  const orderId = refund.metadata?.order_id;
+  // Stripe does not guarantee webhook event ordering, so act on the current
+  // object rather than allowing an older event payload to regress the status.
+  // refund.created and refund.updated both arrive here and are decided by the
+  // status this retrieve reports, not by the status the event was emitted with.
+  const currentRefund = await stripe.refunds.retrieve(refund.id);
+  const { order, source } = await resolveRefundOrder(currentRefund);
 
-  context.orderId = orderId ?? null;
-
-  if (!orderId) {
-    console.info("Ignoring Stripe refund without a Sombre order ID", {
-      refundId: refund.id,
-      refundStatus: refund.status,
-    });
-    return;
+  if (!order) {
+    // Deliberately not ignored. Recorded as a permanent failure so it surfaces
+    // in unresolved_webhook_failures, and acknowledged so Stripe stops retrying
+    // a link that no redelivery can make succeed.
+    throw new PermanentWebhookError(
+      `Stripe refund ${currentRefund.id} could not be linked to a Sombre order (payment intent ${
+        getRefundPaymentIntentId(currentRefund) ?? "unknown"
+      }).`,
+    );
   }
 
-  // Stripe does not guarantee webhook event ordering, so retrieve the current
-  // object rather than allowing an older event payload to regress the status.
-  const currentRefund = await stripe.refunds.retrieve(refund.id);
-  await saveRefundState(orderId, currentRefund);
+  context.orderId = order.id;
+
+  const refundStatus = normalizeRefundStatus(currentRefund.status);
+
+  // A partial refund must not return the whole order's inventory and must not
+  // mark the order fully refunded. The order row is left untouched and the
+  // condition is recorded for a human to settle.
+  if (!isFullRefundAmount(currentRefund.amount, order.total)) {
+    throw new PermanentWebhookError(
+      `Stripe refund ${currentRefund.id} on order ${order.id} is partial (${describeRefundAmounts(
+        currentRefund.amount,
+        order.total,
+      )}, status ${refundStatus}). Stock was not restored and the order was not marked refunded. Settle the inventory manually.`,
+    );
+  }
+
+  if (refundStatus === "succeeded") {
+    // Refund state and inventory move together or not at all. The RPC is the
+    // only writer here, so a failure rolls back both and leaves the order in its
+    // previous state rather than showing refunded with stock still missing.
+    const didRestoreStock = await restoreOrderStockAfterRefund(
+      order.id,
+      currentRefund.id,
+    );
+
+    console.info("Recorded a succeeded Stripe refund atomically", {
+      refundId: currentRefund.id,
+      orderId: order.id,
+      linkedBy: source,
+      didRestoreStock,
+    });
+  } else {
+    // Pending, requires_action, failed and canceled never touch inventory, so
+    // the existing refund-state writer and its ordering guards still apply.
+    await saveRefundState(order.id, currentRefund);
+  }
 
   // Follow-on only. This never throws, so refund handling is unaffected.
-  await sendOrderStatusEmails(orderId);
+  await sendOrderStatusEmails(order.id);
 }
 
 async function getPersistedOrderItemReferences(orderId: string) {
@@ -593,6 +728,10 @@ function getErrorMessage(error: unknown) {
 // Anything not known to be permanent stays retryable, so an unrecognised fault
 // keeps Stripe redelivering rather than silently dropping a paid order.
 function getWebhookFailureKind(error: unknown): WebhookFailureKind {
+  if (error instanceof PermanentWebhookError) {
+    return "permanent";
+  }
+
   if (error instanceof Stripe.errors.StripeInvalidRequestError) {
     return "permanent";
   }

@@ -1,280 +1,434 @@
-Sombre — Launch Readiness Report
+Sombre — Launch Readiness Audit
 
-Date: 2026-07-21 · Branch: main · Last commit: 0d62b6e · No files changed.
+Date: 2026-07-22 · Branch: main · HEAD: ee33ceb added admin dashboard
 
-Verification results
+A. Executive summary
 
-┌─────────────────────────────┬─────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│            Check            │                                                 Result                                                  │
-├─────────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ npm run lint                │ ✅ clean                                                                                                │
-├─────────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ npx tsc --noEmit            │ ✅ clean                                                                                                │
-├─────────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ npm run build               │ ✅ compiled in 3.7s, 17 static + 5 dynamic routes                                                       │
-├─────────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ git diff --check            │ ✅ clean                                                                                                │
-├─────────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ npx supabase migration list │ ✅ 9 local = 9 remote, in sync                                                                          │
-├─────────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ Automated tests             │ ❌ None exist. No test script in package.json, zero test files, no framework installed. Nothing to run. │
-└─────────────────────────────┴─────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+Launch readiness: 62%. The payment engine is genuinely well built and I verified its core properties directly rather than trusting the build. RLS is locked down — I confirmed this empirically with the anon key, not by reading migration files. The admin dashboard works and its gate holds at runtime. All work is committed and pushed.
 
----
-1. Current launch readiness: ~55%
+You still cannot accept a real payment. Stripe is in test mode with no production webhook endpoint, the site isn't deployed, your public legal pages display [LEGAL BUSINESS NAME], and no one is notified when an order arrives. Two financial-integrity bugs are live today: refunds issued from the Stripe Dashboard are silently ignored, and stock is never restored after any refund.
 
-That single number hides a wide split, so here's the honest breakdown:
-
-┌──────────────────────────────────────────────────────────────┬───────┬─────────────────────────────────────────┐
-│                             Area                             │ Ready │                 Comment                 │
-├──────────────────────────────────────────────────────────────┼───────┼─────────────────────────────────────────┤
-│ Payment engine (checkout → webhook → order → stock → refund) │ ~90%  │ Genuinely well built                    │
-├──────────────────────────────────────────────────────────────┼───────┼─────────────────────────────────────────┤
-│ Storefront UI                                                │ ~75%  │ Works, but thin cat
-├──────────────────────────────────────────────────────────────┼───────┼─────────────────────────────────────────┤
-│ Business operations (emails, admin, legal)                   │ ~15%  │ Barely started
-├──────────────────────────────────────────────────────────────┼───────┼─────────────────────────────────────────┤
-│ Production infrastructure (hosting, live Stripe, monitoring) │ ~5%   │ Not started
-└──────────────────────────────────────────────────────────────┴───────┴─────────────────────────────────────────┘
-
-You cannot accept a real payment today. Stripe is still in test mode, the site isn't deployed, your legal pages show [LEGAL BUSINESS NAME] to customers, and if someone did pay you, nobody would be told the order
-exists.
-
-The good news: the hardest part — the part that loses money when it's wrong — is the part th
+┌───────────────────────────┬───────┬─────────────────────────────────────────────────────────────────────┐
+│           Area            │ Score │                                Basis                                │
+├───────────────────────────┼───────┼─────────────────────────────────────────────────────────────────────┤
+│ Payment engine            │ 80    │ Verified end-to-end; refund-sync and stock-restore gaps             │
+├───────────────────────────┼───────┼─────────────────────────────────────────────────────────────────────┤
+│ Storefront                │ 70    │ Works; 2 of 3 nav categories empty, no SEO, no error boundaries     │
+├───────────────────────────┼───────┼───────────────────────────────────────────────────────
+│ Admin & fulfilment        │ 45    │ Auth + views verified working, but strictly read-only               │
+├───────────────────────────┼───────┼───────────────────────────────────────────────────────
+│ Business operations       │ 15    │ Legal placeholders unfilled, no email, no courier                   │
+├───────────────────────────┼───────┼───────────────────────────────────────────────────────
+│ Security                  │ 70    │ RLS/keys/gate verified; Next CVEs, no headers, in-memory rate limit │
+├───────────────────────────┼───────┼───────────────────────────────────────────────────────
+│ Production infrastructure │ 10    │ Not deployed, test-mode Stripe, no monitoring, no tests             │
+└───────────────────────────┴───────┴───────────────────────────────────────────────────────
 
 ---
-2. What is already ready
+B. Verified working
 
-The money path is solid and I've verified it end-to-end. In the previous task I ran signed webhook events against the real dev database and confirmed: orders created correctly, stock reduced atomically,
-redelivery didn't duplicate items or double-reduce stock, refunds transitioned properly, andd resolved.
+1. Repository state — clean and fully pushed
 
-- Server-controlled pricing (src/app/api/checkout/session/route.ts) — price, stock, and actirom Supabase and the subtotal recomputed server-side. A tampered client payload is rejected.Client image_url is forced to null so nothing customer-supplied reaches Stripe.
-- Signed webhooks (src/app/api/stripe/webhook/route.ts:501) — signature verified before any sts are rejected with 400 and cannot write anything.
-- Duplicate protection — three independent layers: a unique constraint on orders.stripe_session_id, an order_items upsert on (order_id, stripe_line_item_id), and a stable Stripe idempotency key for refunds.
-- Atomic stock reduction (supabase/migrations/20260721020000_add_paid_oversell_refunds.sql) le ID order to avoid deadlocks, checks quantities, and reduces stock in one transaction.
-- Paid oversell refunds — if stock runs out between payment and confirmation, the order commits to refund_pending and is refunded automatically rather than silently failing.
-- Webhook failure tracking (supabase/migrations/20260721040000_...sql) — permanent vs retryaw per event, occurrence_count on replay, auto-resolve on successful retry. Tested andworking.
-- Receipt verification (src/lib/checkout/receipt.ts) — arriving at the success page proves n payment intent, currency, subtotal, shipping, and total against Stripe before showinganything.
-- RLS (20260721030000) — orders, order_items, profiles, and webhook_failures have RLS on witgrants, so only the service role can touch them. Catalog tables are read-only to the publicand filtered to is_active = true.
-- Trusted redirects — SITE_URL must be HTTPS (except localhost in dev) and is rejected if itth, a query, or a fragment.
-- Legal page scaffolding — Shipping, Refund, Privacy, and Terms pages exist and are linked from the footer.
+git branch --show-current  → main
+git log -1 --oneline       → ee33ceb added admin dashboard
+git status --short         → (empty)
+git diff --check           → exit 0
+
+Modified: none. Deleted: none. Untracked: none. git rev-list --left-right --count origin/mai local-only work, nothing unpushed. This is a real improvement: the district migration, email system, and admin dashboard are all committed.
+
+2. Build quality
+
+┌──────────────────┬────────────────────────────────────────────────────┐
+│     Command      │                       Result                       │
+├──────────────────┼────────────────────────────────────────────────────┤
+│ npm run lint     │ exit 0, clean                                      │
+├──────────────────┼────────────────────────────────────────────────────┤
+│ npx tsc --noEmit │ exit 0, clean                                      │
+├──────────────────┼────────────────────────────────────────────────────┤
+│ npm run build    │ exit 0 — 16 pages, ƒ Proxy (Middleware) registered │
+└──────────────────┴────────────────────────────────────────────────────┘
+
+Tests: none exist. package.json scripts are only dev, build, start, lint. A repo-wide search for *.test.*, *.spec.*, vitest.config*, jest.config*, playwright.config*, __tests__ returned zero files. Nothing to
+run. A green build proves the code compiles, nothing more — every "verified" claim below res live test, never on the build.
+
+3. Migrations — 11/11 applied, zero drift
+
+┌─────┬──────────────────────────────────────────────────────┬─────────────────────────────────────────────────────┐
+│  #  │                      Migration                       │                                    Purpose                                    │
+├─────┼──────────────────────────────────────────────────────┼─────────────────────────────────────────────────────┤
+│ 1   │ 20260405000000_initial_catalog_schema                │ profiles, brands, categories, products, product_images                        │
+├─────┼──────────────────────────────────────────────────────┼─────────────────────────────────────────────────────┤
+│ 2   │ 20260406000000_add_orders_schema                     │ orders + order_items; unique stripe_session_id                                │
+├─────┼──────────────────────────────────────────────────────┼─────────────────────────────────────────────────────┤
+│ 3   │ 20260523000000_update_orders_currency_default_to_hkd │ HKD default                                                                   │
+├─────┼──────────────────────────────────────────────────────┼─────────────────────────────────────────────────────┤
+│ 4   │ 20260717000000_add_atomic_stock_control              │ stock_reduced_at + confirm_paid_order_and_reduce_stock RPC                    │
+├─────┼──────────────────────────────────────────────────────┼─────────────────────────────────────────────────────┤
+│ 5   │ 20260721000000_add_order_shipping_totals             │ shipping_fee, total                                                           │
+├─────┼──────────────────────────────────────────────────────┼─────────────────────────────────────────────────────┤
+│ 6   │ 20260721010000_add_order_item_idempotency            │ stripe_line_item_id + unique (order_id, stripe_line_item_id)                  │
+├─────┼──────────────────────────────────────────────────────┼─────────────────────────────────────────────────────┤
+│ 7   │ 20260721020000_add_paid_oversell_refunds             │ order_status/refund columns; RPC v2 commits refund_pending instead of raising │
+├─────┼──────────────────────────────────────────────────────┼─────────────────────────────────────────────────────┤
+│ 8   │ 20260721030000_enable_row_level_security             │ RLS on all 7 tables; read-only policies for catalog only                      │
+├─────┼──────────────────────────────────────────────────────┼─────────────────────────────────────────────────────┤
+│ 9   │ 20260721040000_add_webhook_failure_tracking          │ webhook_failures + record/resolve RPCs + view                                 │
+├─────┼──────────────────────────────────────────────────────┼─────────────────────────────────────────────────────┤
+│ 10  │ 20260722000000_add_order_district                    │ district column (nullable); drops postal_code NOT NULL                        │
+├─────┼──────────────────────────────────────────────────────┼─────────────────────────────────────────────────────┤
+│ 11  │ 20260722010000_add_order_email_delivery              │ order_emails + claim/mark RPCs + view                                         │
+└─────┴──────────────────────────────────────────────────────┴─────────────────────────────────────────────────────┘
+
+4. Checkout and pricing security — all verified in code
+
+src/app/api/checkout/session/route.ts
+
+┌──────────────────────────────────────┬────────────────────────────────────────────────────────────────────┐
+│               Property               │                                           Evidence                                           │
+├──────────────────────────────────────┼────────────────────────────────────────────────────────────────────┤
+│ Prices from database                 │ L420 price: product.price; L457 unit_amount: Math.round(item.price * 100)                    │
+├──────────────────────────────────────┼────────────────────────────────────────────────────────────────────┤
+│ Browser cannot submit trusted prices │ Client subtotal used only as a mismatch gate (L441); charged amount is calculatedSubtotal    │
+├──────────────────────────────────────┼────────────────────────────────────────────────────────────────────┤
+│ Invalid quantities rejected          │ L155–165                                                                                     │
+├──────────────────────────────────────┼────────────────────────────────────────────────────────────────────┤
+│ Fractional quantities rejected       │ L157 !Number.isInteger(quantity)                                                             │
+├──────────────────────────────────────┼────────────────────────────────────────────────────────────────────┤
+│ Duplicate products rejected          │ L290 new Set(productIds).size !== productIds.length                                          │
+├──────────────────────────────────────┼────────────────────────────────────────────────────────────────────┤
+│ Inactive products rejected           │ L412 !product.is_active — plus RLS excludes them from the query entirely                     │
+├──────────────────────────────────────┼────────────────────────────────────────────────────────────────────┤
+│ Sold-out cannot be purchased         │ L390–407, HTTP 409                                                                           │
+├──────────────────────────────────────┼────────────────────────────────────────────────────────────────────┤
+│ Stock checked before payment         │ Same block, before sessions.create                                                           │
+├──────────────────────────────────────┼────────────────────────────────────────────────────────────────────┤
+│ Shipping calculated server-side      │ src/lib/checkout/shipping.ts L2–3; SHIPPING_FEE_HKD_CENTS                                    │
+├──────────────────────────────────────┼────────────────────────────────────────────────────────────────────┤
+│ Trusted success/cancel URLs          │ L107–128: HTTPS enforced except localhost in dev; rejects credentials, path, query, fragment │
+└──────────────────────────────────────┴────────────────────────────────────────────────────────────────────┘
+
+5. Stripe webhook — verified, one flagged bug
+
+src/app/api/stripe/webhook/route.ts
+
+┌────────────────────────────────────────────┬───────────────────────────────────────────────────────────────┐
+│                  Property                  │                                        Evidence                                         │
+├────────────────────────────────────────────┼───────────────────────────────────────────────────────────────┤
+│ Signature checked                          │ L728 constructEvent, before any processing                                              │
+├────────────────────────────────────────────┼───────────────────────────────────────────────────────────────┤
+│ Only paid / no_payment_required confirm    │ L508 isConfirmedPaymentStatus                                                           │
+├────────────────────────────────────────────┼───────────────────────────────────────────────────────────────┤
+│ Delayed payments handled                   │ L689 async_payment_succeeded, L695 async_payment_failed                                 │
+├────────────────────────────────────────────┼───────────────────────────────────────────────────────────────┤
+│ No duplicate orders                        │ Unique stripe_session_id + findExistingOrder L516                                       │
+├────────────────────────────────────────────┼───────────────────────────────────────────────────────────────┤
+│ No duplicate order items                   │ L456–457 upsert onConflict: "order_id,stripe_line_item_id", ignoreDuplicates            │
+├────────────────────────────────────────────┼───────────────────────────────────────────────────────────────┤
+│ Atomic stock reduction                     │ L418 RPC only; row locks in stable ID order                                             │
+├────────────────────────────────────────────┼───────────────────────────────────────────────────────────────┤
+│ Stock cannot reduce twice                  │ stock_reduced_at guard inside RPC                                                       │
+├────────────────────────────────────────────┼───────────────────────────────────────────────────────────────┤
+│ One refund per oversell                    │ L350 idempotencyKey: sombre-paid-oversell-${order.id} + L328 refunds.list recovery scan │
+├────────────────────────────────────────────┼───────────────────────────────────────────────────────────────┤
+│ Failures recorded and classified           │ L639 record_stripe_webhook_failure                                                      │
+├────────────────────────────────────────────┼───────────────────────────────────────────────────────────────┤
+│ Retryable → 500                            │ L775                                                                                    │
+├────────────────────────────────────────────┼───────────────────────────────────────────────────────────────┤
+│ Permanent → 200, visible for investigation │ L769; row persists in unresolved_webhook_failures                                       │
+├────────────────────────────────────────────┼───────────────────────────────────────────────────────────────┤
+│ Dashboard refunds                          │ L376–386 — BUG, see D1                                                                  │
+└────────────────────────────────────────────┴───────────────────────────────────────────────────────────────┘
+
+6. Cart and success page — verified
+
+- Cart clears only on isOrderConfirmed (success/page.tsx L79) — pending, refund, and oversel
+- Only purchased quantities are subtracted; a cart holding 3 when 2 were bought correctly retains 1 (cart.ts reconcile).
+- Refund/oversell states render distinct headings and never claim success (success/page.tsx
+- Refresh/reopen is safe — the snapshot key is removed after reconciliation, so it's idempotent.
+- Orders complete without the customer returning — order creation is entirely webhook-driven
+- Not verified working: polling has no cap — see D4.
+
+7. Hong Kong address flow — verified across all seven hops
+
+┌─────────────────────┬──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│         Hop         │                                                           Evidence                                 │
+├─────────────────────┼──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Form                │ checkout-page-content.tsx L178 district required; L195 postal code wno required                    │
+├─────────────────────┼──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Payload type        │ payload.ts L9 district: string                                                                     │
+├─────────────────────┼──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ API validation      │ session/route.ts L55 district isRequired: true; L58 postalCode isReq                               │
+├─────────────────────┼──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Stripe metadata     │ L485 district: payload.customer.district                                                           │
+├─────────────────────┼──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Webhook persistence │ webhook/route.ts L182 district: metadata.district ?? null                                          │
+├─────────────────────┼──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Database            │ 20260722000000 L5 adds column; L13 drops postal_code NOT NULL                                      │
+├─────────────────────┼──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Receipt             │ success/page.tsx L171 district; L173 [city, postal_code].filter(Booling comma on empty postal code │
+├─────────────────────┼──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Admin               │ orders/[id]/page.tsx L50–51 same join; L153–155 explicit note for or                               │
+└─────────────────────┴──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+I queried the database: all 11 existing orders have district = NULL, and both the receipt and admin detail render them safely.
+
+8. Admin security — verified at runtime
+
+Live probes against the running server, unauthenticated:
+
+┌──────────────────────────────────────────────┬─────────────────────────────────────────────────────────────────────────────┐
+│                    Route                     │                                   Result          │
+├──────────────────────────────────────────────┼─────────────────────────────────────────────────────────────────────────────┤
+│ /admin                                       │ 307 → /admin/login                                │
+├──────────────────────────────────────────────┼─────────────────────────────────────────────────────────────────────────────┤
+│ /admin/orders/<real-uuid>                    │ 307 → /admin/login                                │
+├──────────────────────────────────────────────┼─────────────────────────────────────────────────────────────────────────────┤
+│ /admin/orders/xxx (malformed)                │ 307 → /admin/login — auth precedes ID validothing │
+├──────────────────────────────────────────────┼─────────────────────────────────────────────────────────────────────────────┤
+│ /admin/login                                 │ 200, renders form                                 │
+├──────────────────────────────────────────────┼─────────────────────────────────────────────────────────────────────────────┤
+│ /, /shop, /cart, /checkout, /checkout/cancel │ all 200 — guest checkout unchanged                │
+└──────────────────────────────────────────────┴─────────────────────────────────────────────────────────────────────────────┘
+
+Grepping the /admin response body for @gmai, @aia.com, customer_email, confirmed → 0 matches. No order data before authentication.
+
+- admin-auth.ts L58 uses getUser(), which revalidates the token with Supabase — not getSession(), which would trust the cookie.
+- L37–42 fails closed: unset ADMIN_EMAIL logs an error and denies everyone.
+- L48 exact case-insensitive match — only the approved address.
+- src/lib/admin/orders.ts L57, L75 use the service-role client, with an independent assertAdt redirects), so a page's error handling can't swallow it.
+- Public signup is a manual Supabase dashboard setting and is not inferable from code — listed in F.
+
+9. Email system — implemented, deliberately dormant
+
+Implemented and verified by code:
+- Config gate runs first (order-emails.ts L3–11) — with Resend unset, it returns before any o checkout, payment, stock, refunds, or webhook processing.
+- Customer confirmation and seller notification are prepared only for order_status === "confirmed" (L72).
+- Refund emails map correctly: refund_pending → L99, refunded → L107, refund_failed → L115.
+- Retry protection: unique (order_id, email_kind) + claim_order_email returning NULL when already sent.
+- Stuck-attempt recovery: last_attempt_at < now() - interval '5 minutes' (migration L26) let while blocking concurrent double-sends.
+- Sent cannot be marked failed: mark_order_email_failed L17 and status <> 'sent'.
+- HTML escaping: templates.ts L35–41 escapes & < > " '.
+- Failures persist in order_emails and surface in unsent_order_emails.
+
+Blocked because Resend is not configured: every one of the above is code-verified but never runtime-tested. order_emails has 0 rows. No email has ever been sent or claimed.
+
+10. RLS and data exposure — empirically verified with the anon key
+
+I probed the live database using the same key the browser holds:
+
+┌──────────────────────────────────────────────────┬──────────────────────┐
+│                   Table / view                   │   Anonymous SELECT   │
+├──────────────────────────────────────────────────┼──────────────────────┤
+│ orders, order_items, profiles                    │ BLOCKED (42501)      │
+├──────────────────────────────────────────────────┼──────────────────────┤
+│ webhook_failures, order_emails                   │ BLOCKED (42501)      │
+├──────────────────────────────────────────────────┼──────────────────────┤
+│ unresolved_webhook_failures, unsent_order_emails │ BLOCKED (42501)      │
+├──────────────────────────────────────────────────┼──────────────────────┤
+│ products, brands, categories, product_images     │ readable (by design) │
+└──────────────────────────────────────────────────┴──────────────────────┘
+
+- Anonymous UPDATE products → BLOCKED. Anonymous INSERT orders → BLOCKED.
+- Privileged RPCs (confirm_paid_order_and_reduce_stock, record_stripe_webhook_failure, claime (PGRST202) for anon.
+- Anon sees 5 products, zero inactive — the is_active = true policy holds.
+- No service-role key can reach client code: zero client components import it; the built bunns 0 matches for SUPABASE_SERVICE_ROLE_KEY, service_role, sk_test_, sk_live_, whsec_,RESEND_API_KEY, ADMIN_EMAIL. Runtime guard at service-role.ts L21.
+- Receipt access is safely verified: receipt.ts L150–158 cross-checks payment intent, currend total between Stripe and Supabase; L174–176 releases line items only when both sides agreeand order_status === "confirmed".
 
 ---
-3. Critical launch blockers
+C. Critical blockers before accepting real payments
 
-These must be done before your first real sale.
+C1 — Stripe is in test mode with no production webhook. STRIPE_SECRET_KEY=sk_test_…. No livef you swap in live keys without registering https://yourdomain.com/api/stripe/webhook,customers will be charged and no orders will ever be created. Today's setup depends on stripe listen CLI forwarding to localhost.
 
-B1 — Your legal pages publicly display placeholder text
+C2 — Not deployed. No vercel.json, no Dockerfile, no CI, no domain. SITE_URL=http://localhost:3000. Note that getTrustedSiteOrigin (L107–114) throws on a non-HTTPS URL outside development — so checkout will
+hard-fail in production until SITE_URL is a real HTTPS origin. That's correct behaviour, but
 
-src/lib/legal/business-details.ts
+C3 — Legal pages display placeholders. src/lib/legal/business-details.ts — all 12 values areUSINESS NAME], [HONG KONG BUSINESS REGISTRATION NUMBER], [SUPPORT EMAIL ADDRESS], [COURIERNAME], and 8 more. These render live on Terms, Privacy, Refund, and Shipping pages. Stripe requires accurate business information, and HK consumers need a real contact route.
 
-Every value is a bracketed placeholder, and they render live on four public pages:
+C4 — Nobody is notified of an order. Email is intentionally paused, so today the only way to learn you made a sale is opening the admin dashboard or Supabase. order_emails has 0 rows. A missed order becomes a
+chargeback.
 
-legalName: "[LEGAL BUSINESS NAME]"
-registrationNumber: "[HONG KONG BUSINESS REGISTRATION NUMBER]"
-supportEmail: "[SUPPORT EMAIL ADDRESS]"
-returnWindow: "[RETURN WINDOW, e.g. 14 DAYS]"
-
-A customer reading your Terms sees "This website is operated by [LEGAL BUSINESS NAME]" (src/app/terms/page.tsx:17), and your Refund Policy tells them to email [SUPPORT EMAIL ADDRESS]
-(src/app/refund-policy/page.tsx:34). In Hong Kong, consumer-facing terms and a real contact ading business — and Stripe requires accurate business information. The file's own commentsays these MUST be replaced before real orders. It's a 15-minute fix but it is absolutely blocking.
-
-B2 — Nobody is told when an order is placed
-
-No email dependency exists (no resend, nodemailer, sendgrid in package.json).
-
-The customer gets no receipt except a web page they may close. You get no notification at all. The only way you'd learn you made a sale is by manually opening the Supabase dashboard. If a customer pays and you
-never ship, that's a chargeback and a complaint. This is the single biggest operational gap.
-
-B3 — No way to see or fulfil orders
-
-src/app/admin/page.tsx is a three-line stub rendering PagePlaceholder. So are src/app/login/s/page.tsx.
-
-There is no order list, no way to mark something shipped, no way to add tracking, and no wayithout writing SQL. You'd be running the store from the Supabase table editor.
-
-B4 — Stripe is in test mode, with no production webhook
-
-.env.local has STRIPE_SECRET_KEY=sk_test_….
-
-No live keys, no live webhook endpoint registered at a public URL, and no live-mode webhook nt setup relies on 4 stripe listen CLI processes forwarding to localhost — that is adevelopment tool and stops the moment your laptop sleeps. If you flip to live keys without registering a production webhook endpoint, customers will be charged and no orders will ever be created.
-
-B5 — The site isn't deployed anywhere
-
-No vercel.json, no Dockerfile, no CI config, no domain. SITE_URL=http://localhost:3000.
-
-B6 — Hong Kong customers cannot enter a valid address
-
-src/app/api/checkout/session/route.ts:56 marks postalCode as isRequired: true.
-
-Hong Kong does not use postal codes. Every customer must invent a fake one to check out. There is also no District/Region field (src/components/cart/checkout-page-content.tsx collects only address lines 1–2 and
-City), which is how HK addresses are actually written — e.g. "Flat 5B, 12 Wan Chai Road, WanYour courier may not be able to deliver from what you collect. For a Hong-Kong-only storethis is a genuine blocker, not a nicety.
-
-B7 — The new migration is not committed to git
-
-supabase/migrations/20260721040000_add_webhook_failure_tracking.sql shows as ?? (untracked) in git status.
-
-The table is already applied to your remote database but the file that creates it exists only on this laptop. Deploy from git and your production code will call record_stripe_webhook_failure — which exists in
-the DB now, so it'd work, but the migration history is out of sync. Lose this laptop and youse. The two modified route files are also uncommitted.
+C5 — ADMIN_EMAIL is unset, so the admin dashboard is currently inaccessible to everyone (faied). One env var plus a Supabase user creation.
 
 ---
-4. High priority fixes
+D. High priority problems
 
-Strongly recommended before the first sale, but the store can technically transact without them.
+D1 — Dashboard-initiated refunds are silently discarded. webhook/route.ts L376–386: handleRefundUpdate reads refund.metadata?.order_id; only refunds this code creates carry it. Refunding a customer the normal
+way — clicking Refund in the Stripe Dashboard — hits if (!orderId) { console.info("Ignoring…tays confirmed, refund_status stays null, and your books diverge from Stripe. The fix isavailable: stripe_payment_intent_id is already a unique column.
 
-H1 — Refunds you issue from the Stripe Dashboard are silently ignored
+D2 — Stock is never restored after any refund. I searched all of src/ and supabase/migrations/: the only two writes to stock_quantity are 20260717000000 L92 and 20260721020000 L149, both subtractions. Refund a
+unit and it's gone from inventory permanently. With only 18 units in stock (HK$23,760 total)bined with D1, a dashboard refund is both invisible and destroys inventory.
 
-src/app/api/stripe/webhook/route.ts:370-385
+D3 — Next.js 16.2.2 carries 4 high-severity advisories, including Middleware/Proxy bypass (G92v-c6pp-mqqv, GHSA-267c-6grr-h53f) — and this project now ships middleware.ts.
 
-handleRefundUpdate reads refund.metadata?.order_id. Only refunds this code creates carry that field. When you refund a customer the normal way — clicking Refund in the Stripe Dashboard — there's no metadata, so
-the handler logs "Ignoring Stripe refund" and returns. Your database keeps saying confirmed.l disagree the first time you handle a return.
+Important mitigation, verified: admin authorization is not in middleware. middleware.ts onlye lives in (dashboard)/layout.tsx and independently in src/lib/admin/orders.ts. A middlewarebypass would not grant admin access. Still, sharp <0.35.0 (high, libvips CVEs) is reachable via next/image, which every product page uses. Upgrading needs next@16.2.11, outside the pinned "next": "16.2.2".
 
-The fix is straightforward: fall back to looking up the order by stripe_payment_intent_id, wolumn.
+D4 — Success page polls forever. success/page.tsx L42–44 + checkout-success-state-manager.tsx L35–37: while order_status is pending or refund_pending, router.refresh() fires every 3 seconds with no attempt cap
+and no backoff. Each refresh triggers a live Stripe API call plus a Supabase query. A tab les ~28,000 Stripe calls.
 
-H2 — Stock is never restored on a refund
+D5 — Rate limiting does not work in production. src/lib/rate-limit.ts L27: counters live in ny multi-instance host the limit becomes 10 × instances. L91 trusts x-forwarded-forunconditionally — reachable directly, an attacker rotates fake IPs and bypasses it entirely. Both are documented in the file; neither is fixed.
 
-No code anywhere increases stock_quantity — both migrations only subtract.
+D6 — No error boundaries anywhere. No error.tsx, global-error.tsx, or not-found.tsx in src/app. receipt.ts L115/L138/L184 re-throw, so a transient Stripe or Supabase blip right after payment shows the customer a
+raw crash page.
 
-Sell 1 of 4, refund it, and your catalog says 3 forever. Combined with H1, a dashboard refun destroys a unit of inventory. With only 18 units in stock total, that error compounds fast.
+D7 — Admin is read-only. No order status transitions, no tracking number field (no column exo product or stock editing. You can see orders but not fulfil them in the app.
 
-H3 — Rate limiting doesn't work in production
+D8 — Zero automated tests. The payment logic now spans idempotency, oversell recovery, refunfication, and email claiming. Every future change is unverifiable except by hand.
 
-src/lib/rate-limit.ts:27, 90
+---
+E. Medium priority improvements
 
-Counters live in a Map inside one process. On Vercel or any multi-instance host each instancur "10 per minute" becomes 10 × instances. Worse, getClientIp trusts the x-forwarded-forheader unconditionally — anyone who can reach your origin directly can send a fake IP per request and bypass the limit entirely. The file documents both weaknesses honestly; neither is fixed. You need a shared
-store (Upstash/Redis) or Vercel's built-in protection.
+- Two of three nav categories are empty. Confirmed by query: perfume 5 products, bath-and-body 0, home-fragrance 0 — yet navbar.tsx L17–19 links all three.
+- No SEO or social surface. No metadataBase, openGraph, robots, sitemap.xml, or favicon. layescription.
+- Receipt URLs never expire and aren't noindex. success/page.tsx L165–176 renders name, email, phone, and full address to anyone holding the session_id.
+- No security headers. next.config.ts is an empty object — no CSP, HSTS, X-Frame-Options, or
+- Partial refunds unsupported — refunds.create sends no amount, so it's always full-value.
+- Disputes unhandled — no charge.dispute.created handler; it falls to the default log-only b
+- Images oversized — model-4.jpg 2.7 MB, model-3.jpg 2.1 MB.
+- Cookie flags rely on @supabase/ssr defaults — no explicit secure/sameSite override. Correc in production.
+- src/app/login/page.tsx is still an unrelated empty placeholder (admin login is at /admin/login).
+- error_message columns could embed PII from provider errors (webhook/route.ts L639) — low rles.
 
-H4 — The cart only clears if the customer returns to the success page
+---
+F. Manual setup still required
 
-src/components/cart/checkout-success-state-manager.tsx:26-27, src/app/checkout/success/page.
+1. Stripe: activate live mode; register https://yourdomain.com/api/stripe/webhook; subscribe to checkout.session.completed, checkout.session.async_payment_succeeded, checkout.session.async_payment_failed,
+refund.created, refund.updated, refund.failed; copy that endpoint's live signing secret.
+2. Supabase Auth: create the admin user (Authentication → Users → Add user, Auto Confirm). Disable public signups (Authentication → Providers) — this is a dashboard setting, not visible in code, and I have not
+assumed its current value.
+3. Supabase backups: confirm PITR/backup policy. Not verifiable from the repo. If orders is lost you have no record of who paid.
+4. Hosting: deploy, attach domain, enforce HTTPS, set all env vars, set SITE_URL to the fina
+5. Monitoring: none exists. Everything goes to console.error. At minimum alert on webhook 500s and watch unresolved_webhook_failures (0 rows today) and unsent_order_emails.
+6. Business details: courier account, support inbox, returns address, processing/delivery ti
 
-Cleanup runs in a useEffect on the success page. Pay, then close the tab or lose signal on te cart still contains everything just purchased — inviting an accidental second order.
+G. Uncommitted work
 
-H5 — No error boundaries anywhere
+None. Working tree clean, git diff --check passes, nothing untracked, and main is level withbehind). All launch work — district handling, email system, admin dashboard — is committedand pushed. No launch work exists only locally.
 
-No error.tsx, global-error.tsx, or not-found.tsx exist in src/app/.
+---
+H. Exact recommended task order
 
-src/lib/checkout/receipt.ts:115, 138, 184 re-throw on Stripe or Supabase errors. A brief netccessful payment shows the customer a raw crash page at the worst possible moment.
+1. Fill in business-details.ts (C3) + set ADMIN_EMAIL and create the Supabase admin user (C5ers.
+2. Fix D1 + D2 together — look the order up by stripe_payment_intent_id, and restore stock in a new RPC guarded by a stock_restored_at column mirroring stock_reduced_at. These are financial-integrity bugs that
+are live today.
+3. Upgrade Next to 16.2.11 (D3), then re-run lint/tsc/build.
+4. Add order status + tracking number to admin (D7) so you can actually fulfil.
+5. Go live on Stripe and deploy (C1, C2), then place one real order with your own card and refund it end-to-end.
+6. Turn Resend back on (C4) — the code is ready; only config is missing.
+7. Then: D4 poll cap, D6 error boundaries, D5 rate limiting, D8 tests.
 
-H6 — The success page polls forever
+I. Files and line numbers for key findings
 
-src/app/checkout/success/page.tsx:42-44 + state manager's 3-second router.refresh()
+┌────────────────────────────────────────┬───────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                Finding                 │                                               Loc                           │
+├────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Dashboard refunds ignored              │ src/app/api/stripe/webhook/route.ts:376-386                                 │
+├────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Stock never restored                   │ supabase/migrations/20260717000000:92, 2026072102s)                         │
+├────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Unbounded polling                      │ src/app/checkout/success/page.tsx:42-44; src/compss-state-manager.tsx:35-37 │
+├────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ In-memory / spoofable rate limit       │ src/lib/rate-limit.ts:27, 91                                                │
+├────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Legal placeholders                     │ src/lib/legal/business-details.ts:9-20                                      │
+├────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Empty categories linked in nav         │ src/components/layout/navbar.tsx:18-19                                      │
+├────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ No security headers                    │ next.config.ts (empty config)                                               │
+├────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Admin gate                             │ src/lib/supabase/admin-auth.ts:37-42, 48, 58, 70-                           │
+├────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Admin data gate                        │ src/lib/admin/orders.ts:44-52, 57, 75                                       │
+├────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Email config gate precedes DB          │ src/lib/email/order-emails.ts:3-11                                          │
+├────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Email claim idempotency                │ supabase/migrations/20260722010000:16-27, mark-fa                           │
+├────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Receipt cross-checks                   │ src/lib/checkout/receipt.ts:150-158, 174-176                                │
+├────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Trusted SITE_URL                       │ src/app/api/checkout/session/route.ts:107-128                               │
+├────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ HK district required / postal optional │ src/app/api/checkout/session/route.ts:55, 58                                │
+└────────────────────────────────────────┴───────────────────────────────────────────────────────────────────────────────────────────────────────┘
 
-While an order is pending, the page refreshes every 3 seconds with no cap and no backoff. Earipe API call plus a Supabase query. One customer leaving the tab open overnight generatesroughly 28,000 Stripe calls.
+12. Environment variables
 
-H7 — Two of your three navigation categories are empty
+┌───────────────────────────────┬────────────────────────────┬───────────────────┬───────────────────┬──────────────────────┬─────────────────────────────────────────────────────────────────────────────────┐
+│           Variable            │      Required locally      │   Required in     │  In .env.sing  │                             Dangerous to be missing                             │
+│                               │                            │    production     │                   │                      │                                                                                 │
+├───────────────────────────────┼────────────────────────────┼───────────────────┼────────────────┼─────────────────────────────────────────────────────────────────────────────────┤
+│ NEXT_PUBLIC_SUPABASE_URL      │ Yes                        │ Yes               │ ✅                │ No                   │ Yes — every page throws                                                         │
+├───────────────────────────────┼────────────────────────────┼───────────────────┼────────────────┼─────────────────────────────────────────────────────────────────────────────────┤
+│ NEXT_PUBLIC_SUPABASE_ANON_KEY │ Yes                        │ Yes               │ ✅                │ No                   │ Yes — catalog fails                                                             │
+├───────────────────────────────┼────────────────────────────┼───────────────────┼────────────────┼─────────────────────────────────────────────────────────────────────────────────┤
+│ SUPABASE_SERVICE_ROLE_KEY     │ Yes                        │ Yes               │ ✅                │ No                   │ Yes — webhook cannot write orders                                               │
+├───────────────────────────────┼────────────────────────────┼───────────────────┼────────────────┼─────────────────────────────────────────────────────────────────────────────────┤
+│ STRIPE_SECRET_KEY             │ Yes                        │ Yes               │ ✅                │ No                   │ Yes — throws at module load                                                     │
+├───────────────────────────────┼────────────────────────────┼───────────────────┼────────────────┼─────────────────────────────────────────────────────────────────────────────────┤
+│ STRIPE_WEBHOOK_SECRET         │ Yes                        │ Yes               │ ✅                │ No                   │ Yes — every webhook 400s, no orders                                             │
+├───────────────────────────────┼────────────────────────────┼───────────────────┼────────────────┼─────────────────────────────────────────────────────────────────────────────────┤
+│ Stripe publishable key        │ No                         │ No                │ ❌ (correctly     │ Yes                  │ No — unused; Checkout is redirect-based. A stale                                │
+│                               │                            │                   │ absent)        │ NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY sits unused in .env.local                    │
+├───────────────────────────────┼────────────────────────────┼───────────────────┼───────────────────┼──────────────────────┼─────────────────────────────────────────────────────────────────────────────────┤
+│ SITE_URL                      │ Optional (dev falls back   │ Yes               │ ✅             │ Yes — getTrustedSiteOrigin throws in production                                 │
+│                               │ to localhost)              │                   │                   │                      │                                                                                 │
+├───────────────────────────────┼────────────────────────────┼───────────────────┼────────────────┼─────────────────────────────────────────────────────────────────────────────────┤
+│ ADMIN_EMAIL                   │ For admin                  │ Yes               │ ✅                │ Fails closed         │ Medium — admin unusable, but not a security hole                                │
+├───────────────────────────────┼────────────────────────────┼───────────────────┼────────────────┼─────────────────────────────────────────────────────────────────────────────────┤
+│ RESEND_API_KEY                │ No                         │ Yes (once         │ ✅                │ Yes — verified       │ No today; yes after launch                                                      │
+│                               │                            │ resumed)          │                │                                                                                 │
+├───────────────────────────────┼────────────────────────────┼───────────────────┼───────────────────┼──────────────────────┼─────────────────────────────────────────────────────────────────────────────────┤
+│ EMAIL_FROM                    │ No                         │ Yes (once         │ ✅ (with       │ No today                                                                        │
+│                               │                            │ resumed)          │                   │                      │                                                                                 │
+├───────────────────────────────┼────────────────────────────┼───────────────────┼────────────────┼─────────────────────────────────────────────────────────────────────────────────┤
+│ SELLER_NOTIFICATION_EMAIL     │ No                         │ Yes (once         │ ✅                │ Yes — only gates     │ No                                                                              │
+│                               │                            │ resumed)          │                │                                                                                 │
+├───────────────────────────────┼────────────────────────────┼───────────────────┼───────────────────┼──────────────────────┼─────────────────────────────────────────────────────────────────────────────────┤
+│ EMAIL_REPLY_TO                │ No                         │ Recommended       │ ✅             │ No — but refund-failed email tells customers to reply                           │
+└───────────────────────────────┴────────────────────────────┴───────────────────┴───────────────────┴──────────────────────┴─────────────────────────────────────────────────────────────────────────────────┘
 
-src/components/layout/navbar.tsx:18-19
+All 12 code-referenced variables are represented; no orphan variables in code.
 
-The menu offers "Body Care" and "Home Fragrance", but the database contains 5 products, all in Perfume. Customers clicking those links land on empty pages. Either hide the links or stock the categories.
+13. Storefront and operations
 
-H8 — No automated tests
+┌─────────────────────────────────────────────┬────────────────────────────────────────────────────────────────────────────────────────────┐
+│                    Item                     │                                           St                     │
+├─────────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Product listing / details / cart / checkout │ Verified working (200 on all routes)                             │
+├─────────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Success & cancel pages                      │ Verified working                                                 │
+├─────────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Legal pages                                 │ Exist and are linked, but render placeholder                     │
+├─────────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Contact details                             │ Placeholder                                                      │
+├─────────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Empty categories                            │ 2 of 3 empty, still linked                                       │
+├─────────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Mobile behaviour (code)                     │ 122 sm: + 37 lg: breakpoints, applied consisd in overflow-x-auto │
+├─────────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Admin fulfilment                            │ Not implemented — read-only                                      │
+├─────────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Order status management                     │ Not implemented                                                  │
+├─────────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Product / stock management                  │ Not implemented                                                  │
+├─────────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Customer & seller email                     │ Implemented, paused, never runtime-tested                        │
+├─────────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Refund management                           │ Automatic oversell only; no manual refund UIed                   │
+├─────────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Database backups                            │ Unverified — manual check required                               │
+├─────────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Production alerting                         │ Not implemented                                                  │
+├─────────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Error boundaries                            │ Not implemented                                                  │
+├─────────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Rate limiting                               │ Implemented but ineffective in production                        │
+└─────────────────────────────────────────────┴────────────────────────────────────────────────────────────────────────────────────────────┘
 
-The payment logic is now genuinely intricate — idempotency, oversell recovery, refund ordering, failure classification. Every future change is unverifiable except by hand. I verified the current behaviour manually, but that doesn't protect you tomorrow.
-                                                                                                                                                                                                                    ---
-5. Recommended improvements that can wait until after launch                                                                                                                                                       
-- Customer accounts and order history — src/app/login/page.tsx is a stub; guest checkout is fine to launch with.                                                                                                    - SEO and social sharing — src/app/layout.tsx:16-19 has only a title and description. No metage, no Twitter card, no per-page metadata on shop or product pages, no robots.txt, nositemap.xml, no favicon. Links shared to WhatsApp or Instagram will look bare. Worth doing in week one, but it doesn't block a sale.                                                                                - Image optimisation — public/images/products/maison-margiela/model-4.jpg is 2.7 MB and modetotal). next/image optimises delivery, so this costs build/transform time rather thancustomer bandwidth. Compress them when convenient.                                                                                                                                                                  - Chargeback handling — charge.dispute.created falls through to the default log-only branch.
-- Receipt line-total rounding — unit_price is computed as amount_subtotal / quantity / 100 and stored as numeric(10,2), so a line total can drift by a cent on awkward quantities.                                  - Abandoned-checkout localStorage keys — src/lib/cart/cart.ts:168-177 writes a snapshot key cleaned on a confirmed success page; abandoned ones accumulate.
-- Catalog data lives outside migrations — supabase/manual/*.sql holds the real products. A database rebuilt purely from supabase/migrations/ would have an empty catalog.                                           - Stale documentation — README.md:178-180 still says "Stock validation is not implemented ye20260717000000.
-- Placeholder pages are publicly routable — /admin, /login, /brands return empty stubs. Not linked from navigation, so low impact, but they'll get crawled.                                                        
----                                                                                                                                                                                                                 6. Security and customer data risks
-                                                                                                                                                                                                                    What's genuinely good: no secrets are committed (.gitignore covers .env* with a !.env.examplles confirms .env and .env.local are untracked). The service-role key is server-only andthrows if imported into browser code. Private tables have RLS with no policies. SQL is parameterised and the stock RPC pins search_path. React escaping is intact with no dangerouslySetInnerHTML.                 
-Risks that remain:                                                                                                                                                                                                 
-┌───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┬───────────────────────────────────────────────────┬──────────────────────────┐    │                                                             Risk                                    │                     Location                      │         Severity         │
-├───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┼───────────────────────────────────────────────────┼──────────────────────────┤    │ Receipt URL exposes name, email, phone, and full home address to anyone holding the sessiooindex,   │ src/app/checkout/success/page.tsx:167-176         │ Medium                   │
-│ no robots.txt                                                                                                                 │                                                   │                          │    ├─────────────────────────────────────────────────────────────────────────────────────────────────────┼───────────────────────────────────────────────────┼──────────────────────────┤
-│ Rate limiter spoofable and per-instance (H3)                                                                                  │ src/lib/rate-limit.ts:90                          │ Medium                   │    ├─────────────────────────────────────────────────────────────────────────────────────────────────────┼───────────────────────────────────────────────────┼──────────────────────────┤
-│ .env in the project root contains DB_PWD — a database password. Gitignored and untracked, so not leaked, but it's an unused   │ .env                                              │ Medium                   │    │ stray file holding a live credential                                                                │                                                   │                          │
-├───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┼───────────────────────────────────────────────────┼──────────────────────────┤    │ Three .DS_Store files sit inside public/ and would be served at /images/.DS_Store if you dtory.     │ public/.DS_Store and two others                   │ Low                      │
-│ Gitignored, so a git-based deploy is safe                                                                                     │                                                   │                          │    ├─────────────────────────────────────────────────────────────────────────────────────────────────────┼───────────────────────────────────────────────────┼──────────────────────────┤
-│ Anon key can enumerate the full catalog including exact stock_quantity from the browser                                       │ src/components/search/product-search-panel.tsx:40 │ Low — architectural,     │    │                                                                                                     │                                                   │ accepted                 │
-├───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┼───────────────────────────────────────────────────┼──────────────────────────┤    │ Unused env vars in .env.local: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY, NEXT_PUBLIC_SITE_URL — n src/    │ .env.local                                        │ Low — cleanup            │
-└───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┴───────────────────────────────────────────────────┴──────────────────────────┘   
-Session IDs are long and unguessable, so the receipt exposure isn't trivially exploitable — but the URL works forever, and once it lands in browser history on a shared computer, a support ticket, or an analytics tool, that customer's home address is retrievable indefinitely.
-                                                                                                                                                                                                                    ---
-7. Stripe and payment risks                                                                                                                                                                                        
-1. Test mode → live mode is not just a key swap. You need live keys, a registered production webhook endpoint, and its live signing secret. Test-mode and live-mode webhook secrets are different values.           2. No production webhook endpoint exists. Until one is registered at a public HTTPS URL, livers. This is the highest-consequence Stripe risk on the list.
-3. Dashboard refunds don't sync (H1).                                                                                                                                                                               4. Disputes are unhandled. A chargeback silently does nothing.
-5. No Stripe Radar review or rules configured, and no fraud handling beyond the (broken) IP rate limit.                                                                                                             6. Currency and amounts are correct — HKD throughout, HK$50 shipping applied via shipping_opd between Stripe and Supabase on the receipt. No issues found here.
-7. Line-item pagination is safe but untestable at the boundary — Stripe caps a Checkout Session at 100 line items, so the multi-page branch is unreachable in practice through your flow.                          
----                                                                                                                                                                                                                 8. Database and migration risks
-                                                                                                                                                                                                                    Current state is healthy. All 9 migrations applied, no drift, no pending changes. Migrationsnt, and each backfills existing rows before adding constraints — careful work.
-                                                                                                                                                                                                                    Risks:
-- The newest migration is uncommitted (B7). Applied to the database, absent from version control.                                                                                                                   - No rollback path — no down migrations. Acceptable for an MVP; know it.
-- Catalog is outside migrations — supabase/manual/*.sql applied by hand.                                                                                                                                            - No backup or point-in-time-recovery verified. Confirm your Supabase plan's backup policy bIf the orders table is lost, you have no record of who paid you.
-- supabase/seed.sql is safe — it aborts if the catalog is non-empty, so it can't clobber real products.                                                                                                             - supabase/.temp/ is committed (9 files including pooler-url and the project ref). No passwos already public via NEXT_PUBLIC_SUPABASE_URL, so this is hygiene rather than a breach.
-                                                                                                                                                                                                                    ---
-9. Missing business and store operations                                                                                                                                                                           
-- Order confirmation email to the customer (B2)                                                                                                                                                                     - New-order notification to you (B2)
-- Shipping confirmation with tracking number — no field exists on orders to store one                                                                                                                               - Admin order list and fulfilment workflow (B3)
-- Admin product/stock/price management (B3)                                                                                                                                                                         - Real business identity on legal pages (B1)
-- A working support email address that someone monitors                                                                                                                                                             - Courier account and agreed delivery times — business-details.ts still says [COURIER NAME]
-- Packaging and returns address                                                                                                                                                                                     - Refund workflow you can actually operate (H1)
-- Only 18 units across 5 products (HK$23,760 of sellable inventory) — enough to launch, but two of three advertised categories are empty (H7)                                                                      
----                                                                                                                                                                                                                 10. Exact production setup still required
-                                                                                                                                                                                                                    Environment variables (all six from .env.example, set in your host's dashboard — never commi
-NEXT_PUBLIC_SUPABASE_URL      = https://afcybhdzexmnhjexblrm.supabase.co                                                                                                                                            NEXT_PUBLIC_SUPABASE_ANON_KEY = <anon key>
-SUPABASE_SERVICE_ROLE_KEY     = <service role key — server only, never NEXT_PUBLIC_>                                                                                                                                STRIPE_SECRET_KEY             = sk_live_…        ← currently sk_test_
-STRIPE_WEBHOOK_SECRET         = whsec_…          ← must be the LIVE endpoint's secret                                                                                                                               SITE_URL                      = https://yourdomain.com   ← must be HTTPS, no trailing path
-Do not carry over NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY or NEXT_PUBLIC_SITE_URL — both are unused.                                                                                                                    
-Stripe:                                                                                                                                                                                                             1. Activate the live account (business details, HK bank account, identity verification)
-2. Create a live webhook endpoint at https://yourdomain.com/api/stripe/webhook                                                                                                                                      3. Subscribe it to: checkout.session.completed, checkout.session.async_payment_succeeded, chnt_failed, refund.created, refund.updated, refund.failed
-4. Copy that endpoint's signing secret into STRIPE_WEBHOOK_SECRET                                                                                                                                                   5. Send a test event and confirm a 200
-                                                                                                                                                                                                                    Hosting: deploy (Vercel is the natural fit for Next 16), point the domain, confirm HTTPS, seigin, then redeploy — SITE_URL is read at request time but the origin must match exactly orStripe redirects break.                                                                                                                                                                                            
-Supabase: confirm backups/PITR are enabled; keep RLS on; rotate the service-role key if it has ever been shared.                                                                                                   
-Monitoring: there is none today. Everything goes to console.error, which disappears. At minimum, alert on webhook 500s and watch the unresolved_webhook_failures view — that view is your early-warning system for  paid orders that failed to process, and nothing currently tells you when a row appears.
-                                                                                                                                                                                                                    ---
-11. The five tasks to complete next, in order                                                                                                                                                                      
-1. Commit your work, then fill in real business details.                                                                                                                                                            Commit the two modified route files and supabase/migrations/20260721040000_...sql (B7), then in src/lib/legal/business-details.ts (B1). Cheap, fast, and both are hard blockers. Do themfirst so nothing else is at risk of being lost.                                                                                                                                                                    
-2. Fix Hong Kong address handling.                                                                                                                                                                                  Make postalCode optional and add a District/Region field (B6). Touches src/components/cart/cthe CUSTOMER_FIELD_RULES in src/app/api/checkout/session/route.ts, the Stripe metadata block, and a small migration for a district column on orders. Do this before emails, because the confirmation email should print a correct address.                                                                       
-3. Add order emails and a seller notification.                                                                                                                                                                      Send from the webhook once order_status becomes confirmed, plus refund-state emails (B2). Th payment into a working purchase, and it doubles as your order alert until an admin panelexists.                                                                                                                                                                                                            
-4. Go live on Stripe and deploy.                                                                                                                                                                                    Live keys, production webhook endpoint, domain, HTTPS, SITE_URL (B4, B5). Then place one reaur own card and refund it, verifying the order row, stock reduction, email, and refund allbehave.                                                                                                                                                                                                            
-5. Build a minimal admin order view, and fix refund sync + stock restore.                                                                                                                                           A read-only order list with a "mark shipped" action (B3), plus falling back to stripe_paymenrefunds and restoring stock on refund (H1, H2). This is the point where you can actuallyoperate the store day to day.                                                                                                                                                                                      
-After those five: automated tests around the webhook, the rate limiter fix, error boundaries, and SEO.                                                                                                             
----                                                                                                                                                                                                                 12. Final launch checklist
-                                                                                                                                                                                                                    Required before the first real sale
-                                                                                                                                                                                                                    ┌─────┬────────────────────────────────────────────────────┬────────────────────────────────
-│  #  │                        Item                        │                  Status                   │                                                                                                            ├─────┼────────────────────────────────────────────────────┼────────────────────────────────
-│ 1   │ Payment path correct and verified                  │ ✅ PASS                                   │                                                                                                            ├─────┼────────────────────────────────────────────────────┼────────────────────────────────
-│ 2   │ Signed webhooks, duplicate protection, idempotency │ ✅ PASS                                   │                                                                                                            ├─────┼────────────────────────────────────────────────────┼────────────────────────────────
-│ 3   │ Atomic stock reduction and oversell refunds        │ ✅ PASS                                   │                                                                                                            ├─────┼────────────────────────────────────────────────────┼────────────────────────────────
-│ 4   │ Webhook failure tracking                           │ ✅ PASS                                   │                                                                                                            ├─────┼────────────────────────────────────────────────────┼────────────────────────────────
-│ 5   │ RLS on orders, order items, profiles, failures     │ ✅ PASS                                   │                                                                                                            ├─────┼────────────────────────────────────────────────────┼────────────────────────────────
-│ 6   │ Server-controlled prices and shipping              │ ✅ PASS                                   │                                                                                                            ├─────┼────────────────────────────────────────────────────┼────────────────────────────────
-│ 7   │ Receipt verified against Stripe                    │ ✅ PASS                                   │                                                                                                            ├─────┼────────────────────────────────────────────────────┼────────────────────────────────
-│ 8   │ Trusted SITE_URL redirects                         │ ✅ PASS                                   │                                                                                                            ├─────┼────────────────────────────────────────────────────┼────────────────────────────────
-│ 9   │ Lint / typecheck / build clean                     │ ✅ PASS                                   │                                                                                                            ├─────┼────────────────────────────────────────────────────┼────────────────────────────────
-│ 10  │ Migrations applied and in sync                     │ ✅ PASS                                   │                                                                                                            ├─────┼────────────────────────────────────────────────────┼────────────────────────────────
-│ 11  │ Migration file committed to git                    │ ❌ FAIL — untracked                       │                                                                                                            ├─────┼────────────────────────────────────────────────────┼────────────────────────────────
-│ 12  │ Real business and legal details                    │ ❌ FAIL — all placeholders                │                                                                                                            ├─────┼────────────────────────────────────────────────────┼────────────────────────────────
-│ 13  │ Order confirmation email to customer               │ ❌ FAIL — none                            │                                                                                                            ├─────┼────────────────────────────────────────────────────┼────────────────────────────────
-│ 14  │ New-order notification to seller                   │ ❌ FAIL — none                            │                                                                                                            ├─────┼────────────────────────────────────────────────────┼────────────────────────────────
-│ 15  │ Order fulfilment / admin view                      │ ❌ FAIL — stub page                       │                                                                                                            ├─────┼────────────────────────────────────────────────────┼────────────────────────────────
-│ 16  │ Stripe live mode activated                         │ ❌ FAIL — test keys                       │                                                                                                            ├─────┼────────────────────────────────────────────────────┼────────────────────────────────
-│ 17  │ Production webhook endpoint registered             │ ❌ FAIL — CLI forwarding only             │                                                                                                            ├─────┼────────────────────────────────────────────────────┼────────────────────────────────
-│ 18  │ Deployed to a domain with HTTPS                    │ ❌ FAIL — not deployed                    │                                                                                                            ├─────┼────────────────────────────────────────────────────┼────────────────────────────────
-│ 19  │ Production env vars set                            │ ❌ FAIL — localhost values                │                                                                                                            ├─────┼────────────────────────────────────────────────────┼────────────────────────────────
-│ 20  │ Hong Kong address handling correct                 │ ❌ FAIL — postcode required, no district  │                                                                                                            ├─────┼────────────────────────────────────────────────────┼────────────────────────────────
-│ 21  │ Database backups confirmed                         │ ⚠️ UNVERIFIED                             │                                                                                                            ├─────┼────────────────────────────────────────────────────┼────────────────────────────────
-│ 22  │ Webhook failure alerting                           │ ❌ FAIL — view exists, nothing watches it │                                                                                                            └─────┴────────────────────────────────────────────────────┴────────────────────────────────
-                                                                                                                                                                                                                    Required-before-launch score: 10 pass / 11 fail / 1 unverified.
-                                                                                                                                                                                                                    Can wait until after launch
-                                                                                                                                                                                                                    ┌──────────────────────────────────────────────┬──────────────────────────────────────────────────────────────────────────┐
-│                     Item                     │                                               Status                                               │                                                               ├──────────────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────┤
-│ Dashboard refund sync                        │ ❌ FAIL — H1                                                                                       │                                                               ├──────────────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────┤
-│ Stock restored on refund                     │ ❌ FAIL — H2                                                                                       │                                                               ├──────────────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────┤
-│ Production-grade rate limiting               │ ❌ FAIL — H3                                                                                       │                                                               ├──────────────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────┤
-│ Reliable cart cleanup                        │ ❌ FAIL — H4                                                                                       │                                                               ├──────────────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────┤
-│ Error boundaries                             │ ❌ FAIL — H5                                                                                       │                                                               ├──────────────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────┤
-│ Success page poll cap                        │ ❌ FAIL — H6                                                                                       │                                                               ├──────────────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────┤
-│ Empty nav categories                         │ ❌ FAIL — H7                                                                                       │                                                               ├──────────────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────┤
-│ Automated tests                              │ ❌ FAIL — H8                                                                                       │                                                               ├──────────────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────┤
-│ SEO / OpenGraph / robots / sitemap / favicon │ ❌ FAIL                                                                                            │                                                               ├──────────────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────┤
-│ Dispute handling                             │ ❌ FAIL                                                                                            │                                                               ├──────────────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────┤
-│ Image compression                            │ ⚠️ 2.7 MB and 2.1 MB source files                                                                  │                                                               ├──────────────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────┤
-│ Mobile layout                                │ ✅ PASS — 122 sm: and 37 lg: breakpoints, consistently applied                                     │                                                               ├──────────────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────┤
-│ Basic accessibility                          │ ✅ PASS — proper <label> wrapping in checkout-form-field.tsx, 7 alt attributes, 23 ARIA attributes │                                                               ├──────────────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────┤
-│ Customer accounts                            │ ⚪ Not needed — guest checkout is fine                                                             │                                                               └──────────────────────────────────────────────┴──────────────────────────────────────────────────────────────────────────┘
-                                                                                                                                                                                                                    ---
-Bottom line                                                                                                                                                                                                        
-Do not launch yet. Not because the code is unsafe — the payment, stock, and refund logic is the strongest part of this project and I've verified it against a real database. Launch is blocked because the business around it isn't finished: your legal pages show placeholder text, nobody gets told when an oway to fulfil it, Hong Kong customers can't enter a real address, and Stripe is still intest mode with no production webhook.
+---
+The five most important actions to launch safely
 
-The encouraging part is that the remaining work is mostly configuration and straightforward feature work, not redesign. Tasks 1 and 2 above are a day's work and clear four blockers. Realistically you are 1–2 weeks from a safe first sale, and the risky engineering is already behind you.
+1. Register a production Stripe webhook and switch to live keys — without this, live customer is ever created. The single highest-consequence gap.
+2. Fix dashboard-refund sync and stock restoration (webhook/route.ts:376-386; new restore RPC) — both are live financial-integrity bugs that will corrupt your books and inventory the first time you handle a return.
+3. Fill in the real business and legal details (business-details.ts) — hours of work, legally required, and currently visible to every visitor.
+4. Deploy with a domain, HTTPS, and SITE_URL, then place and refund one real order end-to-ent.
+5. Turn Resend back on and add order status + tracking to admin — so a sale reaches you and you can actually ship it.
