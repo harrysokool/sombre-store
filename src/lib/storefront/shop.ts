@@ -250,15 +250,81 @@ export function getShopPageCopy(
   return view;
 }
 
-export function shouldShowCategoryBrandSelection(
-  hasError: boolean,
+export type ShopCategoryLink = {
+  label: string;
+  categoryParam: string;
+  href: string;
+  isActive: boolean;
+};
+
+/**
+ * The category row shown above the grid. A category with nothing in it is left
+ * out rather than offering a link to an empty page, except when it is the view
+ * currently being looked at — a direct or bookmarked URL still needs its own
+ * entry to stay highlighted.
+ */
+export function getShopCategoryLinks(
+  products: ProductListItem[],
+  view: ShopView,
+): ShopCategoryLink[] {
+  const populatedSlugs = new Set(
+    products
+      .map((product) => product.category?.slug)
+      .filter((slug): slug is string => Boolean(slug)),
+  );
+  const activeCategoryParam =
+    view.type === "category" ? view.categoryParam : null;
+
+  const categoryLinks = Object.values(categoryViews)
+    .filter(
+      (categoryView) =>
+        populatedSlugs.has(categoryView.categorySlug) ||
+        categoryView.categoryParam === activeCategoryParam,
+    )
+    .map((categoryView) => ({
+      label: categoryView.title,
+      categoryParam: categoryView.categoryParam,
+      href: `/shop?category=${categoryView.categoryParam}`,
+      isActive: categoryView.categoryParam === activeCategoryParam,
+    }));
+
+  return [
+    {
+      label: "All",
+      categoryParam: "all",
+      href: "/shop",
+      isActive: view.type === "all",
+    },
+    ...categoryLinks,
+  ];
+}
+
+/**
+ * Brand links for the current category. Returns an empty list unless the
+ * category holds more than one brand, so a single-brand category never shows a
+ * filter that cannot narrow anything.
+ */
+export function getShopBrandLinks(
+  brands: RelationName[],
   view: ShopView,
   params: ShopSearchParams,
 ) {
-  return (
-    !hasError &&
-    view.type === "category" &&
-    !getSearchParamValue(params.brand) &&
-    getSearchParamValue(params.view) !== "all"
-  );
+  if (view.type !== "category" || brands.length < 2) {
+    return [];
+  }
+
+  const selectedBrand = getSearchParamValue(params.brand);
+
+  return [
+    {
+      label: "All Brands",
+      href: `/shop?category=${view.categoryParam}`,
+      isActive: !selectedBrand,
+    },
+    ...brands.map((brand) => ({
+      label: brand.name,
+      href: `/shop?category=${view.categoryParam}&brand=${brand.slug}`,
+      isActive: brand.slug === selectedBrand,
+    })),
+  ];
 }

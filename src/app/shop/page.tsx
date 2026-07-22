@@ -1,15 +1,18 @@
-import { CategoryBrandSelection } from "@/components/shop/category-brand-selection";
+import Link from "next/link";
+
 import { ProductCard } from "@/components/shop/product-card";
+import { ShopCategoryNav } from "@/components/shop/shop-category-nav";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formatPrice } from "@/lib/storefront/format-price";
 import {
   getBrandsForProducts,
   getCategoryProducts,
+  getShopBrandLinks,
+  getShopCategoryLinks,
   getShopPageCopy,
   getShopView,
   getVisibleProducts,
   normalizeProductListItem,
-  shouldShowCategoryBrandSelection,
   type ProductListItem,
   type ProductListItemRow,
   type ShopSearchParams,
@@ -84,39 +87,39 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
     shopView.type === "category" ? getBrandsForProducts(categoryProducts) : [];
   const visibleProducts = getVisibleProducts(products, shopView, params);
   const pageCopy = getShopPageCopy(shopView, params, categoryBrands);
-  const shouldShowBrandSelection = shouldShowCategoryBrandSelection(
-    hasError,
-    shopView,
-    params,
-  );
+  const categoryLinks = getShopCategoryLinks(products, shopView);
+  const brandLinks = getShopBrandLinks(categoryBrands, shopView, params);
 
   return (
-    <section className="px-6 py-16 sm:px-10 sm:py-24 lg:px-12">
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-12">
-        <div className="max-w-3xl space-y-5">
-          <div className="space-y-4">
-            <p className="text-xs uppercase tracking-[0.28em] text-stone-500">
-              {pageCopy.eyebrow}
-            </p>
-            <h1 className="text-4xl font-medium leading-tight text-stone-100 sm:text-5xl">
-              {pageCopy.title}
-            </h1>
-          </div>
-          <p className="max-w-2xl text-base leading-8 text-stone-400">
+    <section className="px-6 py-20 sm:px-10 sm:py-28 lg:px-12">
+      <div className="mx-auto w-full max-w-7xl">
+        <header className="mx-auto max-w-2xl text-center">
+          <p className="text-[0.65rem] uppercase tracking-[0.42em] text-stone-500 sm:text-xs">
+            {pageCopy.eyebrow}
+          </p>
+          <h1 className="mt-5 font-display text-4xl font-light leading-[1.1] text-stone-100 sm:text-5xl lg:text-6xl">
+            {pageCopy.title}
+          </h1>
+          <p className="mt-6 text-sm leading-8 text-stone-400 sm:text-base">
             {pageCopy.description}
           </p>
-        </div>
+        </header>
 
-        {shouldShowBrandSelection && shopView.type === "category" ? (
-          <CategoryBrandSelection view={shopView} brands={categoryBrands} />
-        ) : visibleProducts.length > 0 ? (
-          <div className="space-y-6 border-t border-white/10 pt-8">
-            <p className="text-sm text-stone-500">
-              {visibleProducts.length}{" "}
-              {visibleProducts.length === 1 ? "product" : "products"}
-            </p>
+        {hasError ? null : (
+          <div className="mt-14 sm:mt-16">
+            <ShopCategoryNav
+              categoryLinks={categoryLinks}
+              brandLinks={brandLinks}
+            />
+          </div>
+        )}
 
-            <div className="grid gap-x-6 gap-y-12 sm:grid-cols-2 xl:grid-cols-3">
+        {visibleProducts.length > 0 ? (
+          <div className="mt-14 sm:mt-16">
+            {/* Two up from 360px, where a tile is still wide enough to hold the
+                brand line without breaking it mid-phrase. Narrower than that
+                goes single column rather than cramped. */}
+            <div className="grid grid-cols-1 gap-x-4 gap-y-14 min-[360px]:grid-cols-2 sm:gap-x-6 sm:gap-y-16 md:grid-cols-3 xl:grid-cols-4">
               {visibleProducts.map((product) => (
                 <ProductCard
                   key={product.id}
@@ -125,23 +128,37 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
                   brandName={product.brand?.name ?? null}
                   formattedPrice={formatPrice(product.price)}
                   sizeLabel={product.size_label}
+                  notes={product.short_description}
                   stockQuantity={product.stock_quantity}
                   imageUrl={product.primaryImage?.image_url ?? null}
                   imageAlt={product.primaryImage?.alt_text ?? null}
                 />
               ))}
             </div>
+
+            <p className="mt-16 text-center text-[0.65rem] uppercase tracking-[0.24em] text-stone-600">
+              {visibleProducts.length}{" "}
+              {visibleProducts.length === 1 ? "Product" : "Products"}
+            </p>
           </div>
         ) : (
-          <div className="border-t border-white/10 px-6 py-14 text-center">
-            <h2 className="text-xl font-medium text-stone-100">
-              {hasError ? "Catalog unavailable" : "No products found"}
+          // Reached by a direct or bookmarked URL for a category that is empty,
+          // or when the catalog itself could not be loaded.
+          <div className="mx-auto mt-20 max-w-xl text-center sm:mt-24">
+            <h2 className="font-display text-2xl font-light text-stone-200 sm:text-3xl">
+              {hasError ? "The collection is unavailable" : "Nothing here yet"}
             </h2>
-            <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-stone-400">
+            <p className="mt-5 text-sm leading-8 text-stone-500">
               {hasError
-                ? "We could not load the collection right now. Please try again soon."
-                : "New selections will appear in this view soon."}
+                ? "We could not load the collection right now. Please try again shortly."
+                : "This part of the edit is still being composed. The rest of the collection is waiting."}
             </p>
+            <Link
+              href="/shop"
+              className="mt-9 inline-block border-b border-stone-600 pb-1 text-xs uppercase tracking-[0.28em] text-stone-200 transition-colors hover:border-stone-300 hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-stone-300 focus-visible:ring-offset-4 focus-visible:ring-offset-stone-950"
+            >
+              View all products
+            </Link>
           </div>
         )}
       </div>

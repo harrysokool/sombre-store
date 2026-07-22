@@ -7,6 +7,8 @@ type ProductCardProps = {
   brandName: string | null;
   formattedPrice: string;
   sizeLabel: string | null;
+  /** Fragrance notes, shown between the name and the size when present. */
+  notes: string | null;
   stockQuantity: number;
   imageUrl: string | null;
   imageAlt: string | null;
@@ -18,61 +20,73 @@ export function ProductCard({
   brandName,
   formattedPrice,
   sizeLabel,
+  notes,
   stockQuantity,
   imageUrl,
   imageAlt,
 }: ProductCardProps) {
+  const isSoldOut = stockQuantity <= 0;
+
   return (
-    <Link href={`/products/${slug}`} className="group block h-full">
-      <article className="flex h-full flex-col">
-        <div className="relative overflow-hidden rounded-lg border border-white/10 bg-white">
-          {stockQuantity <= 0 ? (
-            <span className="absolute left-3 top-3 z-10 rounded-full bg-stone-950 px-3 py-1 text-[10px] uppercase tracking-[0.2em] text-stone-100">
+    <Link
+      href={`/products/${slug}`}
+      className="group block focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-stone-300 focus-visible:ring-offset-4 focus-visible:ring-offset-stone-950"
+    >
+      <article>
+        {/* The bottle photography is shot on white, so the panel matches it and
+            the tile reads as one surface rather than a bordered card. */}
+        <div className="relative aspect-square overflow-hidden bg-white">
+          {isSoldOut ? (
+            <span className="absolute left-3 top-3 z-10 bg-stone-950 px-3 py-1 text-[0.6rem] uppercase tracking-[0.2em] text-stone-100">
               Sold out
             </span>
           ) : null}
+
           {imageUrl ? (
             <Image
               src={imageUrl}
               alt={imageAlt ?? `${name} product image`}
-              width={720}
-              height={900}
-              className="aspect-[4/5] w-full object-contain p-4 transition-transform duration-500 group-hover:scale-[1.02]"
+              fill
+              // Matches the 2 / 3 / 4 column grid below, so a phone never
+              // downloads a desktop-width candidate.
+              sizes="(min-width: 1280px) 22vw, (min-width: 768px) 30vw, 45vw"
+              className={`object-contain p-5 transition-transform duration-700 ease-out sm:p-7 md:group-hover:scale-[1.04] ${
+                isSoldOut ? "opacity-60" : ""
+              }`}
             />
           ) : (
-            <div className="flex aspect-[4/5] items-center justify-center bg-white">
-              <p className="text-xs uppercase tracking-[0.24em] text-stone-500">
-                No image
+            <div className="flex h-full items-center justify-center">
+              <p className="text-[0.6rem] uppercase tracking-[0.24em] text-stone-500">
+                Image coming soon
               </p>
             </div>
           )}
         </div>
 
-        <div className="flex flex-1 flex-col justify-between gap-5 pt-5">
-          <div className="space-y-3">
-            {brandName ? (
-              <p className="text-xs uppercase tracking-[0.22em] text-stone-500">
-                {brandName}
-              </p>
-            ) : null}
-            <h2 className="text-xl font-medium leading-snug text-stone-100">
-              {name}
-            </h2>
-          </div>
-
-          <div className="space-y-4">
-            <div className="flex items-center justify-between gap-4 border-t border-white/10 pt-4">
-              <p className="text-sm text-stone-400">
-                {sizeLabel ?? "Fragrance"}
-              </p>
-              <p className="text-base font-medium text-stone-100">
-                {formattedPrice}
-              </p>
-            </div>
-            <p className="text-sm uppercase tracking-[0.2em] text-stone-500 transition-colors group-hover:text-stone-200">
-              {stockQuantity > 0 ? "View Product" : "Sold out"}
+        <div className="px-1 pt-5 text-center sm:pt-6">
+          {brandName ? (
+            <p className="text-[0.6rem] uppercase tracking-[0.24em] text-stone-500">
+              {brandName}
             </p>
-          </div>
+          ) : null}
+
+          <h2 className="mt-2 font-display text-lg font-normal leading-snug text-stone-100 transition-colors group-hover:text-white sm:text-xl">
+            {name}
+          </h2>
+
+          {notes ? (
+            <p className="mt-2 text-xs leading-6 text-stone-500">{notes}</p>
+          ) : null}
+
+          {sizeLabel ? (
+            <p className="mt-2 text-[0.65rem] uppercase tracking-[0.2em] text-stone-500">
+              {sizeLabel}
+            </p>
+          ) : null}
+
+          <p className="mt-3 text-sm text-stone-300">
+            {isSoldOut ? "Sold out" : formattedPrice}
+          </p>
         </div>
       </article>
     </Link>
