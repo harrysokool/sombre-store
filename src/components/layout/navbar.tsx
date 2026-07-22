@@ -5,21 +5,8 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import { NavbarCartIndicator } from "@/components/cart/navbar-cart-indicator";
+import { NavDrawer } from "@/components/layout/nav-drawer";
 import { ProductSearchPanel } from "@/components/search/product-search-panel";
-
-const navigationItems = [
-    { label: "About", href: "/about" },
-    { label: "Contact", href: "/contact" },
-];
-
-const shopNavigationItems = [
-    { label: "Best Sellers", href: "/shop?collection=best-sellers" },
-    { label: "New Arrivals", href: "/shop?collection=new-arrivals" },
-    { label: "Perfume", href: "/shop?category=perfume" },
-    { label: "Body Care", href: "/shop?category=body-care" },
-    { label: "Home Fragrance", href: "/shop?category=home-fragrance" },
-    { label: "All Products", href: "/shop" },
-];
 
 function MenuIcon() {
     return (
@@ -32,25 +19,6 @@ function MenuIcon() {
             strokeWidth="1.5"
         >
             <path d="M4 7h16M4 12h16M4 17h16" strokeLinecap="round" />
-        </svg>
-    );
-}
-
-function CloseIcon() {
-    return (
-        <svg
-            aria-hidden="true"
-            viewBox="0 0 24 24"
-            className="h-5 w-5"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-        >
-            <path
-                d="M6 6l12 12M18 6 6 18"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-            />
         </svg>
     );
 }
@@ -77,8 +45,10 @@ function SearchIcon() {
 export function Navbar() {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isSearchOpen, setIsSearchOpen] = useState(false);
-    const [activeMenu, setActiveMenu] = useState<"main" | "shop">("main");
     const [isNavbarVisible, setIsNavbarVisible] = useState(true);
+    // Handed to the drawer so closing it returns focus to the control that
+    // opened it, rather than dropping the keyboard back at the top of the page.
+    const menuButtonRef = useRef<HTMLButtonElement>(null);
     const [isAtPageTop, setIsAtPageTop] = useState(true);
     const previousScrollYRef = useRef(0);
 
@@ -134,7 +104,6 @@ export function Navbar() {
 
     function closeMenu() {
         setIsMenuOpen(false);
-        setActiveMenu("main");
     }
 
     function closeSearch() {
@@ -176,6 +145,7 @@ export function Navbar() {
                     <div className="flex items-center justify-between">
                         <div className="z-10 flex items-center justify-start">
                             <button
+                                ref={menuButtonRef}
                                 type="button"
                                 aria-expanded={isMenuOpen}
                                 aria-controls="site-menu"
@@ -219,93 +189,11 @@ export function Navbar() {
                 </div>
             </header>
 
-            <div
-                className={`fixed inset-0 z-40 transition-opacity duration-300 ${
-                    isMenuOpen
-                        ? "pointer-events-auto opacity-100"
-                        : "pointer-events-none opacity-0"
-                }`}
-                aria-hidden={!isMenuOpen}
-            >
-                <button
-                    type="button"
-                    aria-label="Close navigation menu"
-                    onClick={closeMenu}
-                    className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-                />
-            </div>
-
-            <aside
-                id="site-menu"
-                aria-label="Navigation panel"
-                className={`fixed left-0 top-0 z-50 h-full w-full max-w-[24rem] border-r border-white/10 bg-stone-950 px-6 py-6 transition-transform duration-300 ease-out sm:px-8 ${
-                    isMenuOpen ? "translate-x-0" : "-translate-x-full"
-                }`}
-            >
-                <div className="flex h-full flex-col">
-                    <div className="flex justify-end border-b border-white/10 pb-6">
-                        <button
-                            type="button"
-                            onClick={closeMenu}
-                            aria-label="Close navigation menu"
-                            className="inline-flex h-10 w-10 items-center justify-center text-stone-300 transition-colors hover:text-stone-100"
-                        >
-                            <CloseIcon />
-                        </button>
-                    </div>
-
-                    <nav
-                        aria-label={activeMenu === "shop" ? "Shop" : "Primary"}
-                        className="flex-1"
-                    >
-                        {activeMenu === "main" ? (
-                            <div className="space-y-5 pt-8">
-                                <button
-                                    type="button"
-                                    onClick={() => setActiveMenu("shop")}
-                                    className="block text-left text-3xl font-medium tracking-[0.08em] text-stone-100 transition-colors hover:text-white"
-                                >
-                                    Shop
-                                </button>
-
-                                {navigationItems.map((item) => (
-                                    <Link
-                                        key={item.label}
-                                        href={item.href}
-                                        onClick={closeMenu}
-                                        className="block text-3xl font-medium tracking-[0.08em] text-stone-100 transition-colors hover:text-white"
-                                    >
-                                        {item.label}
-                                    </Link>
-                                ))}
-                            </div>
-                        ) : (
-                            <div className="pt-8">
-                                <button
-                                    type="button"
-                                    onClick={() => setActiveMenu("main")}
-                                    className="mb-8 text-xs uppercase tracking-[0.3em] text-stone-500 transition-colors hover:text-stone-100"
-                                >
-                                    Back
-                                </button>
-
-                                <div className="space-y-5">
-                                    {shopNavigationItems.map((item) => (
-                                        <Link
-                                            key={item.label}
-                                            href={item.href}
-                                            onClick={closeMenu}
-                                            className="block text-2xl font-medium tracking-[0.08em] text-stone-100 transition-colors hover:text-white sm:text-3xl"
-                                        >
-                                            {item.label}
-                                        </Link>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                    </nav>
-                </div>
-            </aside>
+            <NavDrawer
+                isOpen={isMenuOpen}
+                onClose={closeMenu}
+                returnFocusRef={menuButtonRef}
+            />
 
             <ProductSearchPanel isOpen={isSearchOpen} onClose={closeSearch} />
         </>

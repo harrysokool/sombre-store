@@ -31,3 +31,25 @@ a,
 button {
   cursor: pointer;
 }
+
+/* Nav drawer: a short settle as one menu level replaces another. */
+@keyframes drawer-level-in {
+  from {
+    opacity: 0;
+    transform: translateX(0.75rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-drawer-level {
+  animation: drawer-level-in 240ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-drawer-level {
+    animation: none;
+  }
+}
