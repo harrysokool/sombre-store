@@ -14,15 +14,7 @@ The tested purchase path is: `cart -> checkout -> Stripe Checkout -> Stripe webh
 
 ## Commands
 
-```bash
-npm run dev          # start dev server
-npm run build         # production build
-npm start             # run production build
-npm run lint           # eslint
-npx tsc --noEmit       # typecheck (no separate typecheck script)
-```
-
-There is no test suite/framework configured in this repo.
+Standard scripts are in `package.json`. Two things it won't tell you: typecheck is `npx tsc --noEmit` (there is no typecheck script), and there is no test suite or test framework configured.
 
 Local Stripe webhook testing requires the Stripe CLI in a second terminal, forwarding to the webhook route, with the printed webhook secret copied into `STRIPE_WEBHOOK_SECRET` in `.env.local` (dev server restart required after env changes):
 
@@ -30,7 +22,7 @@ Local Stripe webhook testing requires the Stripe CLI in a second terminal, forwa
 stripe listen --forward-to localhost:3000/api/stripe/webhook
 ```
 
-Required env vars (see `.env.example`): `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `SITE_URL`. Convention: browser-exposed vars are prefixed `NEXT_PUBLIC_`; everything else is server-only and must never be sent to the client.
+Required env vars are listed in `.env.example`. Convention: browser-exposed vars are prefixed `NEXT_PUBLIC_`; everything else is server-only and must never be sent to the client.
 
 ## Architecture
 
@@ -58,10 +50,10 @@ Key correctness patterns in the webhook worth preserving when touching this code
 
 `src/lib/checkout/receipt.ts` (`loadVerifiedCheckoutReceipt`) does not treat arrival at `/checkout/success?session_id=...` as proof of payment. It re-fetches the Stripe session server-side, loads the persisted Supabase order by `stripe_session_id`, and cross-checks payment intent ID, currency, and amounts (subtotal/shipping/total) between Stripe and Supabase before returning order data to the page. Only orders with a confirmed payment status and `order_status === "confirmed"` get their line items returned.
 
-### Directory layout
+### Repo conventions and gotchas
 
-- `src/app/*` — App Router pages/routes (storefront pages, `api/checkout/session`, `api/stripe/webhook`). `about` and `contact` are implemented pages. `admin`, `login`, and `brands` are currently unbuilt placeholders (`PagePlaceholder` component).
-- `src/components/{cart,product,shop,layout,search,shared}` — presentational components grouped by feature area; page files own data loading, components own rendering.
-- `src/hooks/use-cart-items.ts` — shared cart state hook used by both cart and checkout pages.
-- `src/lib/{cart,checkout,storefront,stripe,supabase}` — non-UI logic: cart storage/math, checkout payload/shipping/receipt logic, product/shop query helpers, Stripe/Supabase client setup.
-- `supabase/migrations/` — schema history through `20260721030000_enable_row_level_security.sql` (append-only; check the latest migrations before assuming a schema/risk described in the docs is still unaddressed). Always confirm actual remote migration status with `npx supabase migration list` rather than assuming the local migrations directory reflects what's applied. `supabase/manual/` holds one-off additive SQL for the Maison Margiela catalog. `supabase/seed.sql` is legacy sample data — review before running it against a fresh database.
+- Page files own data loading; components own rendering.
+- `admin`, `login`, and `brands` are unbuilt placeholders (`PagePlaceholder`), not working pages.
+- `supabase/migrations/` is append-only. Always confirm what is actually applied with `npx supabase migration list` rather than assuming the local directory matches the remote database.
+- `supabase/manual/` holds one-off additive SQL for the Maison Margiela catalog.
+- `supabase/seed.sql` is legacy sample data — review before running it against a fresh database.

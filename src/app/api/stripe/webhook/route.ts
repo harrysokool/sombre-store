@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 
+import { sendOrderStatusEmails } from "@/lib/email/order-emails";
 import { getStripeWebhookSecret, stripe } from "@/lib/stripe/server";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
@@ -388,6 +389,9 @@ async function handleRefundUpdate(
   // object rather than allowing an older event payload to regress the status.
   const currentRefund = await stripe.refunds.retrieve(refund.id);
   await saveRefundState(orderId, currentRefund);
+
+  // Follow-on only. This never throws, so refund handling is unaffected.
+  await sendOrderStatusEmails(orderId);
 }
 
 async function getPersistedOrderItemReferences(orderId: string) {
@@ -541,6 +545,10 @@ async function handleConfirmedCheckoutSession(
     didReduceStock,
     orderStatus: processedOrder.order_status,
   });
+
+  // Follow-on only. This never throws, so payment, stock, and refund handling
+  // are unaffected by an email provider outage.
+  await sendOrderStatusEmails(order.id);
 }
 
 // Postgres error codes that cannot succeed on a redelivery of the same event.
