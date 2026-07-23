@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 
+import { ProductDetails } from "@/components/product/product-details";
 import { ProductGallery } from "@/components/product/product-gallery";
 import { ProductInfo } from "@/components/product/product-info";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -115,26 +116,34 @@ export default async function ProductDetailPage({
     const primaryImage = getPrimaryProductImage(product.product_images);
 
     return (
-        <section className="px-6 py-24 sm:px-10 sm:py-32 lg:px-12">
-            <div className="mx-auto grid w-full max-w-7xl gap-16 lg:grid-cols-[1.12fr_0.88fr] lg:items-start">
-                <ProductGallery
-                    images={product.product_images}
-                    productName={product.name}
-                />
+        <section className="px-6 py-16 sm:px-10 sm:py-24 lg:px-12">
+            <div className="mx-auto w-full max-w-7xl">
+                {/* Image-first on mobile, image on the larger side on desktop. */}
+                <div className="grid gap-10 lg:grid-cols-[1.35fr_1fr] lg:items-start lg:gap-16">
+                    <ProductGallery
+                        images={product.product_images}
+                        productName={product.name}
+                    />
 
-                <ProductInfo
-                    id={product.id}
-                    slug={slug}
-                    name={product.name}
-                    price={product.price}
-                    sizeLabel={product.size_label}
-                    stockQuantity={product.stock_quantity}
-                    shortDescription={product.short_description}
+                    <ProductInfo
+                        id={product.id}
+                        slug={slug}
+                        name={product.name}
+                        price={product.price}
+                        sizeLabel={product.size_label}
+                        stockQuantity={product.stock_quantity}
+                        shortDescription={product.short_description}
+                        brandName={product.brand?.name ?? null}
+                        categoryName={product.category?.name ?? null}
+                        imageUrl={primaryImage?.image_url ?? null}
+                    />
+                </div>
+
+                <ProductDetails
                     description={product.description}
-                    isFeatured={product.is_featured}
                     brandName={product.brand?.name ?? null}
                     categoryName={product.category?.name ?? null}
-                    imageUrl={primaryImage?.image_url ?? null}
+                    sizeLabel={product.size_label}
                 />
             </div>
         </section>

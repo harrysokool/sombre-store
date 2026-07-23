@@ -92,7 +92,10 @@ function updateCartItems(updater: (items: CartItem[]) => CartItem[]) {
   return updatedItems;
 }
 
-export function addItemToCart(item: Omit<CartItem, "quantity">) {
+export function addItemToCart(
+  item: Omit<CartItem, "quantity">,
+  quantity = 1,
+) {
   return updateCartItems((currentItems) => {
     const quantityLimit = getCartItemQuantityLimit(item);
 
@@ -100,26 +103,36 @@ export function addItemToCart(item: Omit<CartItem, "quantity">) {
       return currentItems;
     }
 
+    // Only a whole, positive count adds anything. A malformed argument falls
+    // back to a single unit, so it can never corrupt the line. The default of 1
+    // keeps every existing caller identical to before.
+    const requestedQuantity =
+      Number.isInteger(quantity) && quantity > 0 ? quantity : 1;
+
     const existingItem = currentItems.find(
       (currentItem) => currentItem.id === item.id,
     );
 
     if (existingItem) {
+      // Grow toward the limit, never past it, and never below what is already
+      // held — a line that predates a stock drop is left untouched, matching the
+      // previous single-unit behaviour exactly.
+      const nextQuantity = Math.max(
+        existingItem.quantity,
+        Math.min(existingItem.quantity + requestedQuantity, quantityLimit),
+      );
+
       return currentItems.map((currentItem) =>
         currentItem.id === item.id
-          ? {
-              ...currentItem,
-              ...item,
-              quantity:
-                currentItem.quantity < quantityLimit
-                  ? currentItem.quantity + 1
-                  : currentItem.quantity,
-            }
+          ? { ...currentItem, ...item, quantity: nextQuantity }
           : currentItem,
       );
     }
 
-    return [...currentItems, { ...item, quantity: 1 }];
+    return [
+      ...currentItems,
+      { ...item, quantity: Math.min(requestedQuantity, quantityLimit) },
+    ];
   });
 }
 

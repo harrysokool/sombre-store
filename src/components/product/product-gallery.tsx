@@ -3,42 +3,43 @@ import Image from "next/image";
 import type { ProductImage } from "@/lib/storefront/products";
 
 type ProductGalleryProps = {
-    images: ProductImage[] | null;
-    productName: string;
+  images: ProductImage[] | null;
+  productName: string;
 };
 
+// Matches the desktop two-column split (image takes the larger side, ~55vw) and
+// the full-bleed mobile image, so no oversized candidate is ever fetched.
+const IMAGE_SIZES = "(min-width: 1024px) 55vw, 90vw";
+
 export function ProductGallery({ images, productName }: ProductGalleryProps) {
+  if (!images || images.length === 0) {
     return (
-        <div className="grid gap-6 sm:grid-cols-2">
-            {images && images.length > 0 ? (
-                images.map((image) => (
-                    <div
-                        key={`${image.image_url}-${image.sort_order}`}
-                        className="space-y-4"
-                    >
-                        <div className="overflow-hidden rounded-[2rem] border border-white/10 bg-white">
-                            <Image
-                                src={image.image_url}
-                                alt={
-                                    image.alt_text ??
-                                    `${productName} product image`
-                                }
-                                width={960}
-                                height={1200}
-                                className="aspect-[4/5] w-full object-contain p-6 sm:p-8"
-                            />
-                        </div>
-                    </div>
-                ))
-            ) : (
-                <div className="sm:col-span-2">
-                    <div className="flex aspect-[16/10] items-center justify-center rounded-[2rem] border border-white/10 bg-white">
-                        <p className="text-sm uppercase tracking-[0.24em] text-stone-500">
-                            No product images
-                        </p>
-                    </div>
-                </div>
-            )}
-        </div>
+      <div className="flex aspect-square w-full items-center justify-center bg-white">
+        <p className="text-xs uppercase tracking-[0.24em] text-stone-500">
+          No product image
+        </p>
+      </div>
     );
+  }
+
+  return (
+    <div className="space-y-4">
+      {images.map((image, index) => (
+        <div
+          key={`${image.image_url}-${image.sort_order}`}
+          className="relative aspect-square w-full overflow-hidden bg-white"
+        >
+          <Image
+            src={image.image_url}
+            alt={image.alt_text ?? `${productName} fragrance bottle`}
+            fill
+            // The first image is the LCP candidate on this route.
+            priority={index === 0}
+            sizes={IMAGE_SIZES}
+            className="object-contain p-8 sm:p-12"
+          />
+        </div>
+      ))}
+    </div>
+  );
 }

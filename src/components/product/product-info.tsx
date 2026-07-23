@@ -1,12 +1,6 @@
 import { AddToCartButton } from "@/components/cart/add-to-cart-button";
 import { formatPrice } from "@/lib/storefront/format-price";
 
-const purchaseTrustItems = [
-  "Secure checkout with Stripe",
-  "Ships from Sombre",
-  "Support available after purchase",
-];
-
 type ProductInfoProps = {
   id: string;
   slug: string;
@@ -15,8 +9,6 @@ type ProductInfoProps = {
   sizeLabel: string | null;
   stockQuantity: number;
   shortDescription: string | null;
-  description: string | null;
-  isFeatured: boolean;
   brandName: string | null;
   categoryName: string | null;
   imageUrl: string | null;
@@ -30,73 +22,78 @@ export function ProductInfo({
   sizeLabel,
   stockQuantity,
   shortDescription,
-  description,
-  isFeatured,
   brandName,
   categoryName,
   imageUrl,
 }: ProductInfoProps) {
-  return (
-    <div className="space-y-10 lg:pt-6">
-      <div className="space-y-6">
-        <div className="flex flex-wrap items-center gap-3 text-xs uppercase tracking-[0.34em] text-stone-500">
-          <span>{brandName ?? "Unbranded"}</span>
-          <span className="text-stone-700">/</span>
-          <span>{categoryName ?? "Uncategorized"}</span>
-        </div>
+  const isSoldOut = stockQuantity <= 0;
 
+  return (
+    <div>
+      <div className="space-y-8">
         <div className="space-y-5">
-          <div className="flex flex-wrap items-center gap-4">
-            <h1 className="text-4xl font-medium leading-tight tracking-[0.1em] text-stone-100 sm:text-5xl lg:text-[3.6rem]">
-              {name}
-            </h1>
-            {isFeatured ? (
-              <span className="text-[11px] uppercase tracking-[0.24em] text-stone-500">
-                Featured
+          <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.65rem] uppercase tracking-[0.34em] text-stone-500">
+            {brandName ? <span>{brandName}</span> : null}
+            {brandName && categoryName ? (
+              <span aria-hidden="true" className="text-stone-700">
+                /
               </span>
             ) : null}
-          </div>
+            {categoryName ? <span>{categoryName}</span> : null}
+          </p>
+
+          <h1 className="font-display text-4xl font-light leading-[1.05] text-stone-100 sm:text-5xl lg:text-[3.4rem]">
+            {name}
+          </h1>
 
           {shortDescription ? (
-            <p className="max-w-xl text-lg leading-8 text-stone-300">
+            <p className="max-w-md text-base leading-8 text-stone-400">
               {shortDescription}
             </p>
           ) : null}
         </div>
-      </div>
 
-      <div className="flex flex-wrap items-end gap-x-10 gap-y-5 border-y border-white/10 py-7">
-        <div className="space-y-2">
-          <p className="text-xs uppercase tracking-[0.24em] text-stone-500">
-            Price
-          </p>
-          <p className="text-3xl font-medium text-stone-100">
-            {formatPrice(price)}
-          </p>
-        </div>
-
-        {sizeLabel ? (
-          <div className="space-y-2">
-            <p className="text-xs uppercase tracking-[0.24em] text-stone-500">
-              Size
-            </p>
-            <p className="text-sm uppercase tracking-[0.18em] text-stone-300">
-              {sizeLabel}
-            </p>
+        {/* Price / size / availability — plain columns with hairline rules
+            rather than a boxed card. */}
+        <dl className="flex flex-wrap items-baseline gap-x-10 gap-y-4 border-y border-white/10 py-6">
+          <div className="space-y-1.5">
+            <dt className="text-[0.65rem] uppercase tracking-[0.24em] text-stone-500">
+              Price
+            </dt>
+            <dd className="text-2xl font-light text-stone-100">
+              {formatPrice(price)}
+            </dd>
           </div>
-        ) : null}
 
-        <div className="space-y-2">
-          <p className="text-xs uppercase tracking-[0.24em] text-stone-500">
-            Availability
-          </p>
-          <p className="text-sm uppercase tracking-[0.18em] text-stone-300">
-            {stockQuantity > 0 ? "In stock" : "Sold out"}
-          </p>
-        </div>
-      </div>
+          {sizeLabel ? (
+            <div className="space-y-1.5">
+              <dt className="text-[0.65rem] uppercase tracking-[0.24em] text-stone-500">
+                Size
+              </dt>
+              <dd className="text-sm uppercase tracking-[0.16em] text-stone-300">
+                {sizeLabel}
+              </dd>
+            </div>
+          ) : null}
 
-      <div className="space-y-5 pt-1">
+          <div className="space-y-1.5">
+            <dt className="text-[0.65rem] uppercase tracking-[0.24em] text-stone-500">
+              Availability
+            </dt>
+            {/* Text carries the meaning; the dot is a redundant cue, never the
+                only one. */}
+            <dd className="flex items-center gap-2 text-sm uppercase tracking-[0.16em] text-stone-300">
+              <span
+                aria-hidden="true"
+                className={`h-1.5 w-1.5 rounded-full ${
+                  isSoldOut ? "bg-stone-600" : "bg-stone-300"
+                }`}
+              />
+              {isSoldOut ? "Sold out" : "In stock"}
+            </dd>
+          </div>
+        </dl>
+
         <AddToCartButton
           product={{
             id,
@@ -108,39 +105,6 @@ export function ProductInfo({
             stock_quantity: stockQuantity,
           }}
         />
-
-        <div className="max-w-md space-y-3 border-y border-white/10 py-5">
-          <p className="text-xs uppercase tracking-[0.28em] text-stone-500">
-            Shop with confidence
-          </p>
-          <ul className="space-y-2">
-            {purchaseTrustItems.map((item) => (
-              <li key={item} className="text-sm leading-6 text-stone-300">
-                {item}
-              </li>
-            ))}
-          </ul>
-        </div>
-      </div>
-
-      <div className="space-y-4">
-        <p className="text-xs uppercase tracking-[0.34em] text-stone-500">
-          Product Details
-        </p>
-        <p className="max-w-2xl text-base leading-8 text-stone-400">
-          {description ?? "Details for this selection are coming soon."}
-        </p>
-      </div>
-
-      <div className="space-y-4 border-t border-white/10 pt-8">
-        <p className="text-xs uppercase tracking-[0.34em] text-stone-500">
-          Shipping and Returns
-        </p>
-        <p className="max-w-2xl text-sm leading-7 text-stone-400">
-          Orders are packed by Sombre after checkout confirmation. If something
-          is not right with your order, contact support and we will help with
-          the next step.
-        </p>
       </div>
     </div>
   );
