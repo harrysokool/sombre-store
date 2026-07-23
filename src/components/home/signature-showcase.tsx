@@ -34,7 +34,7 @@ export function SignatureShowcase({
 
       {/* One row that reads as a grid on desktop and a snapping carousel on
           phones. The trailing spacer lets the last card centre itself. */}
-      <div className="mt-12 flex snap-x snap-mandatory gap-3 overflow-x-auto px-6 pb-2 [-ms-overflow-style:none] [scrollbar-width:none] sm:px-10 md:grid md:grid-cols-5 md:gap-4 md:overflow-visible md:pb-0 lg:px-12 [&::-webkit-scrollbar]:hidden">
+      <div className="mt-12 flex snap-x snap-mandatory gap-3 overflow-x-auto px-6 pb-2 [-ms-overflow-style:none] [scrollbar-width:none] sm:px-10 md:grid md:grid-cols-3 md:gap-4 md:overflow-visible md:pb-0 lg:grid-cols-5 lg:px-12 [&::-webkit-scrollbar]:hidden">
         {products.map((product) => (
           <Link
             key={product.slug}
