@@ -43,7 +43,10 @@ export function CartPageContent() {
 
   return (
     <section className="px-6 py-20 sm:px-10 sm:py-28 lg:px-12">
-      <div className="mx-auto w-full max-w-7xl">
+      <div
+        className="mx-auto w-full max-w-7xl"
+        aria-busy={cartItems === null || undefined}
+      >
         <header className="flex flex-wrap items-end justify-between gap-4 border-b border-white/10 pb-8">
           <div className="space-y-3">
             <p className="text-[0.65rem] uppercase tracking-[0.42em] text-stone-500 sm:text-xs">
@@ -61,7 +64,11 @@ export function CartPageContent() {
         </header>
 
         {cartItems === null ? (
-          <p className="py-24 text-center text-sm text-stone-500">
+          <p
+            role="status"
+            aria-live="polite"
+            className="py-24 text-center text-sm text-stone-500"
+          >
             Loading your cart&hellip;
           </p>
         ) : hasItems ? (
