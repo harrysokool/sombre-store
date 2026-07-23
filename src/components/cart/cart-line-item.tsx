@@ -67,17 +67,17 @@ export function CartLineItem({
         )}
       </Link>
 
-      <div className="flex flex-col gap-6">
+      <div className="flex min-w-0 flex-col gap-6">
         <div className="flex items-start justify-between gap-4">
-          <div className="space-y-1.5">
+          <div className="min-w-0 space-y-1.5">
             <Link
               href={`/products/${item.slug}`}
-              className={`font-display text-xl font-normal leading-tight text-stone-100 transition-colors hover:text-white sm:text-2xl ${focusRing}`}
+              className={`block break-words font-display text-xl font-normal leading-tight text-stone-100 transition-colors hover:text-white [overflow-wrap:anywhere] sm:text-2xl ${focusRing}`}
             >
               {item.name}
             </Link>
             {item.size_label ? (
-              <p className="text-[0.65rem] uppercase tracking-[0.2em] text-stone-500">
+              <p className="break-words text-[0.65rem] uppercase tracking-[0.2em] text-stone-500 [overflow-wrap:anywhere]">
                 {item.size_label}
               </p>
             ) : null}

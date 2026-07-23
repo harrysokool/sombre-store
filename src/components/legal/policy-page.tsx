@@ -20,7 +20,7 @@ export function PolicyPage({
   sections,
 }: PolicyPageProps) {
   return (
-    <div className="overflow-hidden">
+    <div>
       <section className="px-6 py-20 sm:px-10 sm:py-28 lg:px-12">
         <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
           <p className="text-xs uppercase tracking-[0.34em] text-stone-500">
@@ -69,7 +69,7 @@ export function PolicyPage({
 
       <section className="px-6 pb-24 pt-10 sm:px-10 sm:pb-32 lg:px-12">
         <div className="mx-auto w-full max-w-5xl border-t border-white/10 pt-10">
-          <p className="max-w-2xl text-sm leading-7 text-stone-500">
+          <p className="max-w-2xl break-words text-sm leading-7 text-stone-500 [overflow-wrap:anywhere]">
             Sombre is operated by {BUSINESS_DETAILS.legalName} (Business
             Registration Number {BUSINESS_DETAILS.registrationNumber}),{" "}
             {BUSINESS_DETAILS.address}. Questions about this policy can be sent

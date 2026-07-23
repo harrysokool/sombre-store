@@ -81,13 +81,13 @@ export function CheckoutOrderSummary({
                 )}
               </div>
 
-              <div className="flex flex-1 items-start justify-between gap-4">
-                <div className="space-y-1">
-                  <p className="font-display text-base font-normal leading-tight text-stone-100">
+              <div className="flex min-w-0 flex-1 items-start justify-between gap-4">
+                <div className="min-w-0 space-y-1">
+                  <p className="break-words font-display text-base font-normal leading-tight text-stone-100 [overflow-wrap:anywhere]">
                     {item.name}
                   </p>
                   {item.size_label ? (
-                    <p className="text-[0.6rem] uppercase tracking-[0.2em] text-stone-500">
+                    <p className="break-words text-[0.6rem] uppercase tracking-[0.2em] text-stone-500 [overflow-wrap:anywhere]">
                       {item.size_label}
                     </p>
                   ) : null}

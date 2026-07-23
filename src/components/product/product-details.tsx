@@ -12,11 +12,13 @@ const focusRing =
 
 function DetailRow({ term, value }: { term: string; value: string }) {
   return (
-    <div className="flex items-baseline justify-between gap-6 border-b border-white/10 py-4">
-      <dt className="text-[0.65rem] uppercase tracking-[0.24em] text-stone-500">
+    <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 border-b border-white/10 py-4">
+      <dt className="shrink-0 text-[0.65rem] uppercase tracking-[0.24em] text-stone-500">
         {term}
       </dt>
-      <dd className="text-sm text-stone-300">{value}</dd>
+      <dd className="min-w-0 break-words text-right text-sm text-stone-300 [overflow-wrap:anywhere]">
+        {value}
+      </dd>
     </div>
   );
 }
