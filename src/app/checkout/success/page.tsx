@@ -19,6 +19,30 @@ function formatStatus(status: string) {
   return status.replaceAll("_", " ");
 }
 
+// Masks a stored email for the public receipt: keeps the domain and only a hint
+// of the local part (e.g. "john@example.com" -> "j***n@example.com"). Written
+// defensively so unusual or invalid stored values never throw or over-expose.
+function maskEmail(email: string | null | undefined): string {
+  const value = typeof email === "string" ? email.trim() : "";
+  const atIndex = value.lastIndexOf("@");
+
+  // No usable local part or domain: reveal nothing.
+  if (atIndex <= 0 || atIndex === value.length - 1) {
+    return "***";
+  }
+
+  const local = value.slice(0, atIndex);
+  const domain = value.slice(atIndex + 1);
+
+  // Short local parts only ever reveal their first character.
+  const maskedLocal =
+    local.length <= 2
+      ? `${local[0]}***`
+      : `${local[0]}***${local[local.length - 1]}`;
+
+  return `${maskedLocal}@${domain}`;
+}
+
 export default async function CheckoutSuccessPage({
   searchParams,
 }: {
@@ -282,28 +306,23 @@ export default async function CheckoutSuccessPage({
 
             <div className="grid border-t border-white/10 lg:grid-cols-2 lg:divide-x lg:divide-white/10">
               <section
-                aria-labelledby="delivery-details-heading"
+                aria-labelledby="order-contact-heading"
                 className="py-10 lg:pr-16"
               >
                 <h2
-                  id="delivery-details-heading"
+                  id="order-contact-heading"
                   className="font-display text-2xl font-light text-stone-100 sm:text-3xl"
                 >
-                  Delivery details
+                  Order contact
                 </h2>
+                {/* Phone and the full shipping address are intentionally not
+                    shown here: the success URL is effectively a bearer link, so
+                    the public receipt exposes only the recipient name and a
+                    masked email. The complete details remain in Supabase and the
+                    protected admin area. */}
                 <address className="mt-7 space-y-1 break-words text-sm not-italic leading-7 text-stone-300 [overflow-wrap:anywhere]">
                   <p>{order.customer_name}</p>
-                  <p>{order.customer_email}</p>
-                  {order.customer_phone ? <p>{order.customer_phone}</p> : null}
-                  <p>{order.address_line_1}</p>
-                  {order.address_line_2 ? <p>{order.address_line_2}</p> : null}
-                  {order.district ? <p>{order.district}</p> : null}
-                  <p>
-                    {[order.city, order.postal_code]
-                      .filter((part) => Boolean(part))
-                      .join(", ")}
-                  </p>
-                  <p>{order.country}</p>
+                  <p>{maskEmail(order.customer_email)}</p>
                 </address>
               </section>
 
