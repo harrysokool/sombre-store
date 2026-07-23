@@ -4,8 +4,7 @@ import Link from "next/link";
 import { FormEvent, useRef, useState } from "react";
 
 import { CheckoutFormField } from "@/components/cart/checkout-form-field";
-import { CartProductImage } from "@/components/cart/cart-product-image";
-import { OrderSummary } from "@/components/cart/order-summary";
+import { CheckoutOrderSummary } from "@/components/cart/checkout-order-summary";
 import { useCartItems } from "@/hooks/use-cart-items";
 import { getCartItemCount, saveCheckoutCartSnapshot } from "@/lib/cart/cart";
 import type { CheckoutSessionPayload } from "@/lib/checkout/payload";
@@ -14,8 +13,12 @@ import {
   SHIPPING_COUNTRY,
   SHIPPING_FEE_HKD,
 } from "@/lib/checkout/shipping";
-import { getCartLineTotal, getCartSubtotal } from "@/lib/cart/math";
-import { formatPrice } from "@/lib/storefront/format-price";
+import { getCartSubtotal } from "@/lib/cart/math";
+
+const focusRing =
+  "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-stone-300 focus-visible:ring-offset-4 focus-visible:ring-offset-stone-950";
+
+const policyLinkClass = `text-stone-400 underline underline-offset-4 transition-colors hover:text-stone-200 ${focusRing}`;
 
 export function CheckoutPageContent() {
   const formRef = useRef<HTMLFormElement>(null);
@@ -87,50 +90,38 @@ export function CheckoutPageContent() {
     }
   }
 
+  const hasItems = resolvedCartItems.length > 0;
+
   return (
-    <section className="px-6 py-24 sm:px-10 sm:py-32 lg:px-12">
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-14">
-        <div className="max-w-2xl space-y-5">
-          <p className="text-xs uppercase tracking-[0.34em] text-stone-500">
+    <section className="px-6 py-20 sm:px-10 sm:py-28 lg:px-12">
+      <div className="mx-auto w-full max-w-7xl">
+        <header className="border-b border-white/10 pb-8">
+          <p className="text-[0.65rem] uppercase tracking-[0.42em] text-stone-500 sm:text-xs">
             Sombre
           </p>
-          <div className="space-y-4">
-            <h1 className="text-4xl font-medium tracking-[0.16em] text-stone-100 sm:text-6xl">
-              Checkout
-            </h1>
-            <p className="text-base leading-8 text-stone-400">
-              Enter your details, review your order, and complete payment
-              securely through Stripe.
-            </p>
-          </div>
-        </div>
+          <h1 className="mt-3 font-display text-4xl font-light leading-none text-stone-100 sm:text-6xl">
+            Checkout
+          </h1>
+        </header>
 
         {cartItems === null ? (
-          <div className="rounded-[2rem] border border-white/10 bg-white/[0.02] px-6 py-16 text-center">
-            <h2 className="text-2xl font-medium text-stone-100">
-              Loading checkout
-            </h2>
-            <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-stone-400">
-              Loading the products saved in your cart.
-            </p>
-          </div>
-        ) : resolvedCartItems.length > 0 ? (
-          <div className="grid gap-10 lg:grid-cols-[1.05fr_0.95fr]">
-            <div className="space-y-6 rounded-[2rem] border border-white/10 bg-white/[0.02] p-6 sm:p-8">
-              <div className="space-y-2">
-                <p className="text-xs uppercase tracking-[0.24em] text-stone-500">
-                  Customer Information
-                </p>
-                <h2 className="text-2xl font-medium text-stone-100">
-                  Shipping details
-                </h2>
-              </div>
+          <p className="py-24 text-center text-sm text-stone-500">
+            Loading your checkout&hellip;
+          </p>
+        ) : hasItems ? (
+          // items-start keeps the summary from stretching to the full row height,
+          // which would leave its sticky positioning no room to move.
+          <div className="mt-12 grid gap-12 lg:grid-cols-[1.4fr_1fr] lg:items-start lg:gap-16">
+            <div className="space-y-8">
+              <h2 className="font-display text-2xl font-light text-stone-100 sm:text-3xl">
+                Shipping details
+              </h2>
 
               <form
                 id="checkout-form"
                 ref={formRef}
                 onSubmit={handleSubmit}
-                className="grid gap-5 sm:grid-cols-2"
+                className="grid gap-6 sm:grid-cols-2"
               >
                 <CheckoutFormField
                   label="Full name"
@@ -138,7 +129,7 @@ export function CheckoutPageContent() {
                   type="text"
                   placeholder="Your full name"
                   required
-                  className="space-y-2 sm:col-span-2"
+                  className="space-y-2.5 sm:col-span-2"
                 />
 
                 <CheckoutFormField
@@ -162,7 +153,7 @@ export function CheckoutPageContent() {
                   type="text"
                   placeholder="Street address"
                   required
-                  className="space-y-2 sm:col-span-2"
+                  className="space-y-2.5 sm:col-span-2"
                 />
 
                 <CheckoutFormField
@@ -170,7 +161,7 @@ export function CheckoutPageContent() {
                   name="addressLine2"
                   type="text"
                   placeholder="Apartment, suite, or floor"
-                  className="space-y-2 sm:col-span-2"
+                  className="space-y-2.5 sm:col-span-2"
                 />
 
                 <CheckoutFormField
@@ -179,7 +170,7 @@ export function CheckoutPageContent() {
                   type="text"
                   placeholder="e.g. Wan Chai, Sha Tin, Tsuen Wan"
                   required
-                  className="space-y-2 sm:col-span-2"
+                  className="space-y-2.5 sm:col-span-2"
                 />
 
                 <CheckoutFormField
@@ -205,7 +196,7 @@ export function CheckoutPageContent() {
                   required
                   defaultValue={SHIPPING_COUNTRY}
                   readOnly
-                  className="space-y-2 sm:col-span-2"
+                  className="space-y-2.5 sm:col-span-2"
                 />
                 <p className="text-xs leading-6 text-stone-500 sm:col-span-2">
                   Sombre currently ships only to Hong Kong.
@@ -213,133 +204,81 @@ export function CheckoutPageContent() {
               </form>
             </div>
 
-            <div className="space-y-6">
-              <OrderSummary
-                eyebrow="Order Summary"
-                title="Secure checkout"
-                itemCount={itemCount}
-                subtotal={subtotal}
-                shippingFee={SHIPPING_FEE_HKD}
-                total={total}
-                className="rounded-[2rem] border border-white/10 bg-white/[0.02] p-6 sm:p-8"
-                contentClassName="space-y-6"
-                lineItems={
-                  <div className="space-y-4 border-t border-white/10 pt-6">
-                    {resolvedCartItems.map((item) => (
-                      <div
-                        key={item.id}
-                        className="flex items-center gap-4 border-b border-white/5 pb-4 last:border-b-0 last:pb-0"
-                      >
-                        <CartProductImage
-                          imageUrl={item.image_url}
-                          name={item.name}
-                          variant="checkout"
-                        />
+            <CheckoutOrderSummary
+              items={resolvedCartItems}
+              itemCount={itemCount}
+              subtotal={subtotal}
+              shippingFee={SHIPPING_FEE_HKD}
+              total={total}
+            >
+              <div className="space-y-5">
+                <button
+                  type="submit"
+                  form="checkout-form"
+                  disabled={isSubmitting}
+                  className={`w-full rounded-full bg-stone-100 px-6 py-4 text-xs uppercase tracking-[0.28em] text-stone-950 transition-colors hover:bg-white disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-stone-500 ${focusRing}`}
+                >
+                  {isSubmitting
+                    ? "Opening Stripe…"
+                    : "Continue to Payment"}
+                </button>
 
-                        <div className="flex flex-1 items-start justify-between gap-4">
-                          <div className="space-y-1">
-                            <p className="text-base font-medium text-stone-100">
-                              {item.name}
-                            </p>
-                            {item.size_label ? (
-                              <p className="text-xs uppercase tracking-[0.18em] text-stone-500">
-                                {item.size_label}
-                              </p>
-                            ) : null}
-                            <p className="text-sm text-stone-500">
-                              Qty {item.quantity}
-                            </p>
-                          </div>
-
-                          <p className="text-sm font-medium text-stone-200">
-                            {formatPrice(
-                              getCartLineTotal(item.price, item.quantity),
-                            )}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                }
-              >
-                <div className="space-y-4 pt-2">
-                  <button
-                    type="submit"
-                    form="checkout-form"
-                    disabled={isSubmitting}
-                    className="w-full rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm uppercase tracking-[0.22em] text-stone-100 transition-colors hover:border-white/20 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                {errorMessage ? (
+                  <p
+                    role="alert"
+                    className="rounded-lg border border-red-400/20 bg-red-400/5 px-4 py-3 text-center text-xs leading-6 text-red-300"
                   >
-                    {isSubmitting
-                      ? "Opening Stripe..."
-                      : "Continue to Secure Payment"}
-                  </button>
-
-                  {errorMessage ? (
-                    <p className="text-center text-xs leading-6 text-red-300">
-                      {errorMessage}
-                    </p>
-                  ) : null}
-
-                  <p className="text-center text-xs leading-6 text-stone-500">
-                    You will be redirected to Stripe Checkout to enter your
-                    payment details securely.
+                    {errorMessage}
                   </p>
+                ) : null}
 
-                  <p className="text-center text-xs leading-6 text-stone-500">
-                    By continuing you agree to our{" "}
-                    <Link
-                      href="/terms"
-                      className="text-stone-400 underline underline-offset-4 transition-colors hover:text-stone-200"
-                    >
-                      Terms and Conditions
-                    </Link>
-                    ,{" "}
-                    <Link
-                      href="/shipping-policy"
-                      className="text-stone-400 underline underline-offset-4 transition-colors hover:text-stone-200"
-                    >
-                      Shipping Policy
-                    </Link>
-                    ,{" "}
-                    <Link
-                      href="/refund-policy"
-                      className="text-stone-400 underline underline-offset-4 transition-colors hover:text-stone-200"
-                    >
-                      Return and Refund Policy
-                    </Link>
-                    , and{" "}
-                    <Link
-                      href="/privacy-policy"
-                      className="text-stone-400 underline underline-offset-4 transition-colors hover:text-stone-200"
-                    >
-                      Privacy Policy
-                    </Link>
-                    .
-                  </p>
+                <p className="text-center text-[0.7rem] leading-6 text-stone-500">
+                  You will be redirected to Stripe to enter your payment details
+                  securely. Sombre never stores your card.
+                </p>
 
-                  <Link
-                    href="/cart"
-                    className="inline-flex w-full items-center justify-center text-xs uppercase tracking-[0.22em] text-stone-500 transition-colors hover:text-stone-200"
-                  >
-                    Return to Cart
+                <p className="text-center text-[0.7rem] leading-6 text-stone-500">
+                  By continuing you agree to our{" "}
+                  <Link href="/terms" className={policyLinkClass}>
+                    Terms and Conditions
                   </Link>
-                </div>
-              </OrderSummary>
-            </div>
+                  ,{" "}
+                  <Link href="/shipping-policy" className={policyLinkClass}>
+                    Shipping Policy
+                  </Link>
+                  ,{" "}
+                  <Link href="/refund-policy" className={policyLinkClass}>
+                    Return and Refund Policy
+                  </Link>
+                  , and{" "}
+                  <Link href="/privacy-policy" className={policyLinkClass}>
+                    Privacy Policy
+                  </Link>
+                  .
+                </p>
+
+                <Link
+                  href="/cart"
+                  className={`flex w-full items-center justify-center py-1 text-xs uppercase tracking-[0.24em] text-stone-400 transition-colors hover:text-stone-100 ${focusRing}`}
+                >
+                  Return to Cart
+                </Link>
+              </div>
+            </CheckoutOrderSummary>
           </div>
         ) : (
-          <div className="rounded-[2rem] border border-white/10 bg-white/[0.02] px-6 py-16 text-center">
-            <h2 className="text-2xl font-medium text-stone-100">
+          <div className="mx-auto mt-24 max-w-lg text-center sm:mt-32">
+            <h2 className="font-display text-3xl font-light text-stone-200 sm:text-4xl">
               Your checkout is empty
             </h2>
-            <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-stone-400">
-              Add products to your cart before continuing to checkout.
+            <p className="mt-5 text-sm leading-8 text-stone-500">
+              Add a product to your cart before continuing to payment.
             </p>
             <Link
               href="/shop"
-              className="mt-6 inline-flex items-center text-sm uppercase tracking-[0.22em] text-stone-300 transition-colors hover:text-stone-100"
+              className={`mt-10 inline-block border-b border-stone-600 pb-1 text-xs uppercase tracking-[0.28em] text-stone-200 transition-colors hover:border-stone-300 hover:text-white ${focusRing}`}
             >
-              Continue Shopping
+              Explore the shop
             </Link>
           </div>
         )}
