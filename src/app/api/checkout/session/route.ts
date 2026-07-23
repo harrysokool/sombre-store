@@ -315,7 +315,7 @@ function parseCheckoutPayload(body: unknown): CheckoutPayloadResult {
 
 export async function POST(request: Request) {
   const clientIp = getClientIp(request) ?? "unknown";
-  const rateLimit = checkRateLimit(
+  const rateLimit = await checkRateLimit(
     `checkout-session:${clientIp}`,
     CHECKOUT_RATE_LIMIT,
   );
