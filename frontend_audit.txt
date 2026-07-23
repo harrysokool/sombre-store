@@ -1,0 +1,161 @@
+No code was modified. The frontend is broadly coherent, and the redesigned checkout outcomes, About, and Contact pages are among the strongest areas. The main launch blockers are legal/support configuration, followed by shared navigation/search accessibility and several responsive edge cases.
+Critical
+Public legal pages contain explicit launch placeholders.
+Routes: /terms, /privacy-policy, /shipping-policy, /refund-policy
+Evidence: every business value is bracketed placeholder text, including legal entity, registration number, address, emails, return window, courier, delivery timing, refund timing, and last-updated date. The source itself says these must be replaced before accepting orders: [business-details.ts (line 1)](/Users/harrysocool/Desktop/sombre/src/lib/legal/business-details.ts:1).
+These values are rendered directly in the legal-page header and footer: [policy-page.tsx (line 35)](/Users/harrysocool/Desktop/sombre/src/components/legal/policy-page.tsx:35).
+Fix: block production commerce until verified details are supplied. If launch must precede those details, do not publish policies that state unverified terms.
+
+Customers can be told to contact support when no verified contact channel exists.
+Routes: /checkout/success, /products/[slug], all legal pages, /contact
+Evidence:Refund-failure states say “Please contact us”: [success/page.tsx (line 99)](/Users/harrysocool/Desktop/sombre/src/app/checkout/success/page.tsx:99).
+Product pages promise support: [product-details.tsx (line 66)](/Users/harrysocool/Desktop/sombre/src/components/product/product-details.tsx:66).
+Legal pages direct customers to a placeholder email.
+Contact explicitly says there is no published email or form: [contact/page.tsx (line 32)](/Users/harrysocool/Desktop/sombre/src/app/contact/page.tsx:32).
+
+Impact: the worst case involves a confirmed payment and failed automatic refund, with no actionable recovery channel.
+Fix: configure and verify a monitored support channel before accepting payments, then make all recovery copy point to it. This remains blocked on business configuration.
+
+Important
+The search dialog is not keyboard-modal and does not manage focus correctly.
+Routes: all routes through the navbar search
+Evidence: it declares role="dialog" and aria-modal, but has no focus trap, Escape handler, body-scroll lock, or focus return. The full-screen backdrop is itself a focusable button outside the dialog: [product-search-panel.tsx (line 155)](/Users/harrysocool/Desktop/sombre/src/components/search/product-search-panel.tsx:155).
+Its loading, error, empty, and result states have no live-region semantics: [product-search-panel.tsx (line 203)](/Users/harrysocool/Desktop/sombre/src/components/search/product-search-panel.tsx:203).
+After one failed request, hasLoaded becomes true, so reopening search cannot retry without reloading the page: [product-search-panel.tsx (line 95)](/Users/harrysocool/Desktop/sombre/src/components/search/product-search-panel.tsx:95).
+It also retains the older rounded-dashboard visual treatment.
+Fix: match the drawer’s dialog behavior, add accessible status semantics and retry behavior, and restyle it with the current editorial system.
+
+The hidden navbar remains in the keyboard tab order.
+Routes: all sufficiently scrollable routes
+Evidence: scrolling down applies opacity, transform, blur, and pointer-events-none, but no inert, aria-hidden, or tab-order change: [navbar.tsx (line 130)](/Users/harrysocool/Desktop/sombre/src/components/layout/navbar.tsx:130).
+Impact: keyboard users can focus invisible menu, home, search, and cart controls.
+Fix: make the header inert while hidden, while ensuring an open drawer/search always restores it.
+
+Loading states on cart and checkout are not announced.
+Routes: /cart, /checkout
+Evidence: both render plain paragraphs without role="status", aria-live, or a containing aria-busy: [cart-page-content.tsx (line 63)](/Users/harrysocool/Desktop/sombre/src/components/cart/cart-page-content.tsx:63), [checkout-page-content.tsx (line 107)](/Users/harrysocool/Desktop/sombre/src/components/cart/checkout-page-content.tsx:107).
+/shop and /products/[slug] also have no route-level loading.tsx; slow Supabase responses have no page-specific loading presentation.
+Fix: add restrained status semantics and route loading states without changing data fetching.
+
+Checkout field requirements and server limits are not reflected in the form.
+Route: /checkout
+Evidence:Required and optional status is not visible in field labels. Some optional status exists only as placeholder text: [checkout-page-content.tsx (line 126)](/Users/harrysocool/Desktop/sombre/src/components/cart/checkout-page-content.tsx:126).
+The reusable field supports no maxLength, autoComplete, help text, or field-level error association: [checkout-form-field.tsx (line 1)](/Users/harrysocool/Desktop/sombre/src/components/cart/checkout-form-field.tsx:1).
+The API enforces specific limits from 32 to 254 characters: [session/route.ts (line 36)](/Users/harrysocool/Desktop/sombre/src/app/api/checkout/session/route.ts:36).
+API validation appears only as a summary alert, not associated with the relevant input: [checkout-page-content.tsx (line 226)](/Users/harrysocool/Desktop/sombre/src/components/cart/checkout-page-content.tsx:226).
+
+Fix: mirror existing server limits and requirements in presentation attributes, add autocomplete tokens, and associate validation messages without changing payloads or API rules.
+
+Long dynamic strings are not consistently protected outside the success page.
+Routes: /cart, /checkout, /products/[slug], search, /shop, legal pages
+Evidence:Cart’s second grid track and title container lack min-w-0/overflow-wrap:anywhere: [cart-line-item.tsx (line 49)](/Users/harrysocool/Desktop/sombre/src/components/cart/cart-line-item.tsx:49).
+Checkout summary product names have neither protection: [checkout-order-summary.tsx (line 84)](/Users/harrysocool/Desktop/sombre/src/components/cart/checkout-order-summary.tsx:84).
+Product detail values use a non-wrapping flex row: [product-details.tsx (line 13)](/Users/harrysocool/Desktop/sombre/src/components/product/product-details.tsx:13).
+Search result names are unconstrained: [product-search-panel.tsx (line 246)](/Users/harrysocool/Desktop/sombre/src/components/search/product-search-panel.tsx:246).
+Legal content uses overflow-hidden, which can conceal an overlong configured email or identifier: [policy-page.tsx (line 23)](/Users/harrysocool/Desktop/sombre/src/components/legal/policy-page.tsx:23).
+
+The redesigned success page handles order IDs, product names, emails, and addresses correctly with min-w-0 and overflow-wrap:anywhere: [success/page.tsx (line 204)](/Users/harrysocool/Desktop/sombre/src/app/checkout/success/page.tsx:204).
+Fix: apply the success-page wrapping pattern to all dynamic storefront data.
+
+There is no branded not-found or general customer error boundary.
+Routes: unknown URLs and unhandled server failures, particularly /products/[slug]
+Evidence: the build contains only Next’s generated /_not-found; rendered markup uses the default system-font “404 / This page could not be found” page. There is no src/app/not-found.tsx or general src/app/error.tsx.
+Only checkout success has a safe custom error boundary: [success/error.tsx (line 8)](/Users/harrysocool/Desktop/sombre/src/app/checkout/success/error.tsx:8).
+Fix: add branded, safe, non-technical not-found and error states with shop/home recovery links. Do not expose exception details.
+
+The legal pages still use the old typography.
+Routes: all legal pages
+Evidence: headings are sans-serif, medium-weight, letter-spaced rather than the Cormorant editorial system used by the redesigned routes: [policy-page.tsx (line 24)](/Users/harrysocool/Desktop/sombre/src/components/legal/policy-page.tsx:24).
+Fix: after legal content is verified, redesign only the shared PolicyPage presentation using the current gutters, serif hierarchy, and hairlines.
+
+Catalog positioning is inconsistent with the verified current inventory.
+Routes: /shop, footer, metadata, drawer
+Evidence:The current live shop returned five Maison Margiela Replica fragrances.
+Shop and footer claim perfume, body care, home fragrance, luxury brands, and independent brands: [shop.ts (line 72)](/Users/harrysocool/Desktop/sombre/src/lib/storefront/shop.ts:72), [footer.tsx (line 25)](/Users/harrysocool/Desktop/sombre/src/components/layout/footer.tsx:25).
+Global metadata claims “luxury fragrances and lifestyle products”: [layout.tsx (line 26)](/Users/harrysocool/Desktop/sombre/src/app/layout.tsx:26).
+Drawer links expose empty Body Care and Home Fragrance collections.
+
+Fix: describe the current fragrance edit truthfully, or wait until those categories are actually stocked.
+
+“Best Sellers” is not backed by bestseller data.
+Route: /shop?collection=best-sellers
+Evidence: the view deliberately returns every product because no ranking or bestseller flag exists: [shop.ts (line 213)](/Users/harrysocool/Desktop/sombre/src/lib/storefront/shop.ts:213).
+Fix: rename the route/link to a truthful collection now, or defer genuine bestseller ordering until verified sales data exists.
+
+Homepage hero preloads both breakpoint images.
+Route: /
+Evidence: both CSS-hidden Image elements use priority: [campaign-hero.tsx (line 35)](/Users/harrysocool/Desktop/sombre/src/components/home/campaign-hero.tsx:35).
+Rendered production HTML contained two separate image preload tags, one for model-3.jpg and one for model-1.jpg.
+Fix: use media-aware art direction so only the active hero asset is preloaded.
+
+The homepage tablet product layout becomes unnecessarily cramped at exactly 768px.Route: /
+Evidence: the carousel changes directly to a five-column grid at md/768px: [signature-showcase.tsx (line 35)](/Users/harrysocool/Desktop/sombre/src/components/home/signature-showcase.tsx:35).
+With 40px gutters and four 16px gaps, cards are about 125px wide, causing names such as “Replica Lazy Sunday Morning” to wrap across several lines.
+Fix: use two or three columns on tablet and reserve five columns for a larger breakpoint.
+
+The 320px shop image sizes declaration does not match its one-column layout.Route: /shop
+Evidence: below 360px the shop is one column, but the image still declares 45vw: [product-card.tsx (line 45)](/Users/harrysocool/Desktop/sombre/src/components/shop/product-card.tsx:45).
+At 320px the actual image is approximately 272px wide, while 45vw describes about 144px, risking an undersized candidate and visible softness.
+Fix: add a sub-360px one-column size before the existing breakpoints.
+
+Focus and tap-target styling is inconsistent in shared navigation and editorial links.Routes: all
+Evidence:Navbar, search, drawer close/back, cart quantity buttons, and cart indicator are 40×40 rather than at least 44×44: [navbar.tsx (line 147)](/Users/harrysocool/Desktop/sombre/src/components/layout/navbar.tsx:147), [nav-drawer.tsx (line 215)](/Users/harrysocool/Desktop/sombre/src/components/layout/nav-drawer.tsx:215), [cart-line-item.tsx (line 98)](/Users/harrysocool/Desktop/sombre/src/components/cart/cart-line-item.tsx:98).
+Footer, home CTAs, drawer policy links, shop filters, and several secondary actions have text-height hit areas.
+The search input explicitly removes its outline and replaces it with only a subtle border change: [product-search-panel.tsx (line 187)](/Users/harrysocool/Desktop/sombre/src/components/search/product-search-panel.tsx:187).
+
+Fix: establish one shared focus treatment and a minimum interactive area, allowing the visible artwork/text to remain restrained.
+
+The success page promises email updates although local transactional email is unconfigured.Route: /checkout/success
+Evidence: confirmed states say the email will be used for order updates: [success/page.tsx (line 87)](/Users/harrysocool/Desktop/sombre/src/app/checkout/success/page.tsx:87).
+Local configuration has no RESEND_API_KEY, EMAIL_FROM, reply-to, or seller notification value. The email layer silently skips sending when configuration is absent.
+Fix: verify production email delivery before retaining this promise, or use wording that does not guarantee outbound updates.
+
+Polish
+Homepage product cards invent “Eau de Toilette” when size_label is missing.
+Route: /
+Evidence: [signature-showcase.tsx (line 73)](/Users/harrysocool/Desktop/sombre/src/components/home/signature-showcase.tsx:73).
+Fix: omit the line when data is missing.
+
+Cart removal and decrement-to-zero have weak accessible feedback.
+Route: /cart
+Evidence: the decrement action removes an item at quantity one, and removing the focused row provides no announcement or focus destination: [cart-line-item.tsx (line 86)](/Users/harrysocool/Desktop/sombre/src/components/cart/cart-line-item.tsx:86).
+Fix: announce removal and move focus predictably.
+
+Source image formats do not match several filename extensions.
+Routes: /, /about
+Evidence: model-1.jpg and model-3.jpg contain PNG data; model-2.jpg contains AVIF; product .jpg files contain WebP. All returned 200 and Next Image decoded them, so this is not currently a broken-image issue.
+Fix: rename/re-encode assets for maintainability and predictable direct serving.
+
+Public /brands and /login routes remain old placeholder pages.
+These were outside the explicit route list and are not currently linked, but they are publicly buildable routes.
+Evidence: [brands/page.tsx (line 1)](/Users/harrysocool/Desktop/sombre/src/app/brands/page.tsx:1), [login/page.tsx (line 1)](/Users/harrysocool/Desktop/sombre/src/app/login/page.tsx:1), [page-placeholder.tsx (line 11)](/Users/harrysocool/Desktop/sombre/src/components/shared/page-placeholder.tsx:11).
+Fix: remove public exposure, redirect intentionally, or redesign when those routes enter scope.
+
+Verified as correct
+Cart, checkout, and Stripe Checkout use the same HK$50 shipping source; the API rebuilds the subtotal from current database prices before creating Stripe line items: [shipping.ts (line 1)](/Users/harrysocool/Desktop/sombre/src/lib/checkout/shipping.ts:1), [session/route.ts (line 438)](/Users/harrysocool/Desktop/sombre/src/app/api/checkout/session/route.ts:438).
+All audited hard-coded destinations resolved; no broken internal link was found.
+Checkout success preserves the distinctions between paid, no-payment-required, pending, delayed, persisted failed/canceled, missing order, partial order, refund states, loading, and errors.
+Receipt data is only used after Stripe/session/order matching; unverified or missing sessions display no customer/order data: [receipt.ts (line 121)](/Users/harrysocool/Desktop/sombre/src/lib/checkout/receipt.ts:121).
+Cart reconciliation happens only when the existing order-confirmed condition is true; the three-second timer and cleanup remain unchanged: [checkout-success-state-manager.tsx (line 21)](/Users/harrysocool/Desktop/sombre/src/components/cart/checkout-success-state-manager.tsx:21).
+Cancel actions are correct: retry goes to /checkout, return goes to /cart: [cancel/page.tsx (line 38)](/Users/harrysocool/Desktop/sombre/src/app/checkout/cancel/page.tsx:38).
+Sticky cart and checkout summaries start at top-28, clear of the approximately 80px navbar, and only activate from 1024px.
+No static horizontal-overflow problem was found in the redesigned About, Contact, success, or cancel layouts.
+Suggested fixing order
+Supply verified legal/business/support details and production email configuration.
+Resolve the paid-order/refund-failure support dead end.
+Add branded global not-found/error states.
+Repair search-dialog and hidden-navbar keyboard behavior.
+Correct checkout labels, limits, loading, and error association.
+Harden dynamic string wrapping and shared tap/focus targets.
+Correct catalog claims, “Best Sellers,” and unsupported fallback copy.
+Fix hero preloading, 768px product density, and 320px image sizing.
+Redesign the legal presentation after its content is approved.
+Deferred pending business or production information
+Legal entity, registration, address, policy dates, return window, courier, delivery/processing timings, refund timing, and return-shipping responsibility.
+A verified monitored support/privacy email and refund-escalation process.
+Production Resend sender, reply-to configuration, and deliverability testing.
+Genuine bestseller ranking.
+Brand approval for homepage performance claims such as how closely or how long fragrances wear.
+Live testing of paid, no_payment_required, asynchronous pending, refund, and webhook-delay branches requires safe Stripe test sessions and matching persisted orders.
+Checks completed: lint passed, TypeScript passed, production build passed, all audited routes returned expected HTTP statuses, all nine referenced local images returned 200, server logs showed no errors during those requests, and git diff --check/git status remained clean.
+The in-app browser’s URL policy did not permit localhost navigation, so browser-only pixel screenshots, real Tab traversal, client-console capture, and network-waterfall measurements at the five widths remain a follow-up check. Responsive findings above were verified from the exact 320/390/768/1024/1440 breakpoint behavior and rendered production HTML; I did not substitute another browser surface or alter the application to bypass that restriction.
