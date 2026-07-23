@@ -46,9 +46,10 @@ export function Navbar() {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isSearchOpen, setIsSearchOpen] = useState(false);
     const [isNavbarVisible, setIsNavbarVisible] = useState(true);
-    // Handed to the drawer so closing it returns focus to the control that
-    // opened it, rather than dropping the keyboard back at the top of the page.
+    // Handed to the drawer and search so closing either returns focus to the
+    // control that opened it, rather than dropping the keyboard at the top.
     const menuButtonRef = useRef<HTMLButtonElement>(null);
+    const searchButtonRef = useRef<HTMLButtonElement>(null);
     const [isAtPageTop, setIsAtPageTop] = useState(true);
     const previousScrollYRef = useRef(0);
 
@@ -174,6 +175,7 @@ export function Navbar() {
 
                         <div className="z-10 flex items-center justify-end gap-1">
                             <button
+                                ref={searchButtonRef}
                                 type="button"
                                 aria-label="Open search"
                                 aria-expanded={isSearchOpen}
@@ -195,7 +197,11 @@ export function Navbar() {
                 returnFocusRef={menuButtonRef}
             />
 
-            <ProductSearchPanel isOpen={isSearchOpen} onClose={closeSearch} />
+            <ProductSearchPanel
+                isOpen={isSearchOpen}
+                onClose={closeSearch}
+                returnFocusRef={searchButtonRef}
+            />
         </>
     );
 }
