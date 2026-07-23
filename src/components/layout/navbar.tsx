@@ -46,6 +46,9 @@ export function Navbar() {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isSearchOpen, setIsSearchOpen] = useState(false);
     const [isNavbarVisible, setIsNavbarVisible] = useState(true);
+    // Tracks whether keyboard focus currently sits on a header control, so the
+    // scroll-away logic never hides (and inert-ises) the bar out from under it.
+    const [isFocusWithinHeader, setIsFocusWithinHeader] = useState(false);
     // Handed to the drawer and search so closing either returns focus to the
     // control that opened it, rather than dropping the keyboard at the top.
     const menuButtonRef = useRef<HTMLButtonElement>(null);
@@ -98,7 +101,11 @@ export function Navbar() {
         };
     }, []);
 
-    const shouldShowNavbar = isMenuOpen || isSearchOpen || isNavbarVisible;
+    const shouldShowNavbar =
+        isMenuOpen || isSearchOpen || isNavbarVisible || isFocusWithinHeader;
+    // When the bar is hidden it must also leave the tab order and a11y tree, so
+    // keyboard and screen-reader users cannot reach its invisible controls.
+    const isHeaderHidden = !shouldShowNavbar;
     // An open panel always gets the solid bar so its controls stay readable.
     const isOverlayHeader =
         isHomePage && isAtPageTop && !isMenuOpen && !isSearchOpen;
@@ -129,6 +136,17 @@ export function Navbar() {
     return (
         <>
             <header
+                // `inert` while hidden keeps the off-screen bar out of the tab
+                // order and the accessibility tree; both are gated on the same
+                // flag as visibility, so a focused control is never inert-ised.
+                inert={isHeaderHidden}
+                aria-hidden={isHeaderHidden || undefined}
+                onFocus={() => setIsFocusWithinHeader(true)}
+                onBlur={(event) => {
+                    if (!event.currentTarget.contains(event.relatedTarget)) {
+                        setIsFocusWithinHeader(false);
+                    }
+                }}
                 className={`sticky top-0 z-30 transition-all duration-300 ease-out ${
                     isOverlayHeader
                         ? "border-b border-transparent bg-transparent"
