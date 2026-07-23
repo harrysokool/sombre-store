@@ -123,12 +123,17 @@ export function CheckoutPageContent() {
                 onSubmit={handleSubmit}
                 className="grid gap-6 sm:grid-cols-2"
               >
+                {/* maxLength values mirror the server rules in
+                    src/app/api/checkout/session/route.ts (CUSTOMER_FIELD_RULES)
+                    so the form and API agree on limits without changing them. */}
                 <CheckoutFormField
                   label="Full name"
                   name="fullName"
                   type="text"
                   placeholder="Your full name"
                   required
+                  maxLength={120}
+                  autoComplete="name"
                   className="space-y-2.5 sm:col-span-2"
                 />
 
@@ -138,6 +143,9 @@ export function CheckoutPageContent() {
                   type="email"
                   placeholder="you@example.com"
                   required
+                  maxLength={254}
+                  autoComplete="email"
+                  inputMode="email"
                 />
 
                 <CheckoutFormField
@@ -145,6 +153,9 @@ export function CheckoutPageContent() {
                   name="phone"
                   type="tel"
                   placeholder="Optional"
+                  maxLength={32}
+                  autoComplete="tel"
+                  inputMode="tel"
                 />
 
                 <CheckoutFormField
@@ -153,6 +164,8 @@ export function CheckoutPageContent() {
                   type="text"
                   placeholder="Street address"
                   required
+                  maxLength={200}
+                  autoComplete="address-line1"
                   className="space-y-2.5 sm:col-span-2"
                 />
 
@@ -161,6 +174,8 @@ export function CheckoutPageContent() {
                   name="addressLine2"
                   type="text"
                   placeholder="Apartment, suite, or floor"
+                  maxLength={200}
+                  autoComplete="address-line2"
                   className="space-y-2.5 sm:col-span-2"
                 />
 
@@ -170,6 +185,8 @@ export function CheckoutPageContent() {
                   type="text"
                   placeholder="e.g. Wan Chai, Sha Tin, Tsuen Wan"
                   required
+                  maxLength={85}
+                  autoComplete="address-level2"
                   className="space-y-2.5 sm:col-span-2"
                 />
 
@@ -179,6 +196,8 @@ export function CheckoutPageContent() {
                   type="text"
                   placeholder="City"
                   required
+                  maxLength={85}
+                  autoComplete="address-level1"
                 />
 
                 <CheckoutFormField
@@ -186,6 +205,9 @@ export function CheckoutPageContent() {
                   name="postalCode"
                   type="text"
                   placeholder="Optional"
+                  maxLength={32}
+                  autoComplete="postal-code"
+                  inputMode="numeric"
                 />
 
                 <CheckoutFormField
@@ -196,9 +218,14 @@ export function CheckoutPageContent() {
                   required
                   defaultValue={SHIPPING_COUNTRY}
                   readOnly
+                  autoComplete="country-name"
+                  describedBy="checkout-country-help"
                   className="space-y-2.5 sm:col-span-2"
                 />
-                <p className="text-xs leading-6 text-stone-500 sm:col-span-2">
+                <p
+                  id="checkout-country-help"
+                  className="text-xs leading-6 text-stone-500 sm:col-span-2"
+                >
                   Sombre currently ships only to Hong Kong.
                 </p>
               </form>
