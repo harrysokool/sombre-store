@@ -47,9 +47,11 @@ export function ProductCard({
               src={imageUrl}
               alt={imageAlt ?? `${name} product image`}
               fill
-              // Matches the 2 / 3 / 4 column grid below, so a phone never
-              // downloads a desktop-width candidate.
-              sizes="(min-width: 1280px) 22vw, (min-width: 768px) 30vw, 45vw"
+              // Matches the 1 / 2 / 3 / 4 column grid below, so a phone never
+              // downloads a desktop-width candidate — and the sub-360px single
+              // column is described at its true width (~85vw) rather than the
+              // two-column 45vw, which would pick a too-small, soft candidate.
+              sizes="(min-width: 1280px) 22vw, (min-width: 768px) 30vw, (min-width: 360px) 45vw, 85vw"
               className={`object-contain p-5 transition-transform duration-700 ease-out sm:p-7 md:group-hover:scale-[1.04] ${
                 isSoldOut ? "opacity-60" : ""
               }`}
