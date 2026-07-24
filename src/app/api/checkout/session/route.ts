@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 
 import type { CartItem } from "@/lib/cart/cart";
-import {
-  getCartItemCount,
-  MAX_CART_ITEM_QUANTITY,
-} from "@/lib/cart/cart";
+import { getCartItemCount } from "@/lib/cart/cart";
 import { getCartSubtotal } from "@/lib/cart/math";
+import {
+  getCartItemReferenceError,
+  hasDuplicateCartProductIds,
+  MAX_CHECKOUT_BODY_BYTES,
+} from "@/lib/checkout/cart-validation";
 import type {
   CheckoutCustomerDetails,
   CheckoutSessionPayload,
@@ -28,10 +30,6 @@ const DEVELOPMENT_SITE_URL = "http://localhost:3000";
 // genuine retries (cart edits, a declined card, a reloaded page) while blocking
 // scripted abuse of Stripe session creation.
 const CHECKOUT_RATE_LIMIT = { limit: 10, windowMs: 60_000 };
-
-// A valid cart payload is a few kilobytes at most. Reject anything larger
-// before parsing it as JSON.
-const MAX_CHECKOUT_BODY_BYTES = 16 * 1024;
 
 // These fields are copied into Stripe Checkout Session metadata, and Stripe
 // rejects any metadata value longer than 500 characters. Validating well below
@@ -63,12 +61,7 @@ const CUSTOMER_FIELD_RULES = [
   isRequired: boolean;
 }[];
 
-const MAX_PRODUCT_SLUG_LENGTH = 200;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-// Product IDs go straight into a Postgres uuid comparison, so a malformed ID
-// would otherwise surface as a database error instead of a validation message.
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type CheckoutPayloadResult =
   | { payload: CheckoutSessionPayload; error?: undefined }
@@ -133,36 +126,13 @@ function isOptionalString(value: unknown) {
 }
 
 function getCartItemError(value: unknown): string | null {
-  if (!value || typeof value !== "object") {
-    return "One or more cart items are invalid.";
+  const referenceError = getCartItemReferenceError(value);
+
+  if (referenceError) {
+    return referenceError;
   }
 
   const item = value as Record<string, unknown>;
-  const quantity = item.quantity;
-
-  if (typeof item.id !== "string" || !UUID_PATTERN.test(item.id.trim())) {
-    return "One or more cart items reference an unknown product.";
-  }
-
-  if (
-    typeof item.slug !== "string" ||
-    item.slug.trim().length === 0 ||
-    item.slug.trim().length > MAX_PRODUCT_SLUG_LENGTH
-  ) {
-    return "One or more cart items reference an unknown product.";
-  }
-
-  if (
-    typeof quantity !== "number" ||
-    !Number.isInteger(quantity) ||
-    quantity < 1
-  ) {
-    return "Cart quantities must be whole numbers of at least 1.";
-  }
-
-  if (quantity > MAX_CART_ITEM_QUANTITY) {
-    return `You can order at most ${MAX_CART_ITEM_QUANTITY} of each product.`;
-  }
 
   if (!isOptionalString(item.size_label) || !isOptionalString(item.image_url)) {
     return "One or more cart items have invalid product details.";
@@ -285,9 +255,7 @@ function parseCheckoutPayload(body: unknown): CheckoutPayloadResult {
 
   // Every entry passed validation above, so this narrows without dropping any.
   const cartItems = payload.cartItems.filter(isValidCartItem);
-  const productIds = cartItems.map((item) => item.id);
-
-  if (new Set(productIds).size !== productIds.length) {
+  if (hasDuplicateCartProductIds(cartItems)) {
     return { error: "Your cart lists the same product more than once." };
   }
 
