@@ -6,6 +6,7 @@ import { FormEvent, useRef, useState } from "react";
 import { CheckoutFormField } from "@/components/cart/checkout-form-field";
 import { CheckoutOrderSummary } from "@/components/cart/checkout-order-summary";
 import { useCartItems } from "@/hooks/use-cart-items";
+import { useCouponPreview } from "@/hooks/use-coupon-preview";
 import { getCartItemCount, saveCheckoutCartSnapshot } from "@/lib/cart/cart";
 import type { CheckoutSessionPayload } from "@/lib/checkout/payload";
 import {
@@ -14,6 +15,7 @@ import {
   SHIPPING_FEE_HKD,
 } from "@/lib/checkout/shipping";
 import { getCartSubtotal } from "@/lib/cart/math";
+import { formatPrice } from "@/lib/storefront/format-price";
 
 const focusRing =
   "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-stone-300 focus-visible:ring-offset-4 focus-visible:ring-offset-stone-950";
@@ -23,6 +25,13 @@ const policyLinkClass = `text-stone-400 underline underline-offset-4 transition-
 export function CheckoutPageContent() {
   const formRef = useRef<HTMLFormElement>(null);
   const { cartItems } = useCartItems();
+  const {
+    preview: couponPreview,
+    isLoading: isCouponLoading,
+    isReady: isCouponReady,
+    errorMessage: couponErrorMessage,
+    removeCoupon,
+  } = useCouponPreview(cartItems);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -34,7 +43,13 @@ export function CheckoutPageContent() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!formRef.current || resolvedCartItems.length === 0 || isSubmitting) {
+    if (
+      !formRef.current ||
+      resolvedCartItems.length === 0 ||
+      isSubmitting ||
+      isCouponLoading ||
+      !isCouponReady
+    ) {
       return;
     }
 
@@ -43,6 +58,7 @@ export function CheckoutPageContent() {
     const payload: CheckoutSessionPayload = {
       cartItems: resolvedCartItems,
       subtotal,
+      couponCode: couponPreview?.couponCode ?? null,
       customer: {
         fullName: String(formData.get("fullName") ?? "").trim(),
         email: String(formData.get("email") ?? "").trim(),
@@ -244,12 +260,65 @@ export function CheckoutPageContent() {
               subtotal={subtotal}
               shippingFee={SHIPPING_FEE_HKD}
               total={total}
+              couponPreview={couponPreview}
             >
               <div className="space-y-5">
+                {isCouponLoading ? (
+                  <p
+                    role="status"
+                    aria-live="polite"
+                    className="border-t border-white/10 pt-6 text-xs leading-6 text-stone-400"
+                  >
+                    Revalidating your coupon&hellip;
+                  </p>
+                ) : null}
+
+                {couponPreview ? (
+                  <section
+                    aria-label="Applied coupon"
+                    className="space-y-3 rounded-lg border border-emerald-400/20 bg-emerald-400/5 px-4 py-3"
+                  >
+                    <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0 space-y-1">
+                        <p className="break-words text-xs leading-6 text-emerald-200 [overflow-wrap:anywhere]">
+                          Coupon{" "}
+                          <span className="font-medium">
+                            {couponPreview.couponCode}
+                          </span>{" "}
+                          applied
+                        </p>
+                        <p className="text-xs leading-6 text-stone-300">
+                          Discount: −
+                          {formatPrice(couponPreview.discountMinor / 100)}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={removeCoupon}
+                        className={`self-start text-xs uppercase tracking-[0.2em] text-stone-300 underline decoration-stone-600 underline-offset-4 transition-colors hover:text-white sm:self-auto ${focusRing}`}
+                        aria-label={`Remove ${couponPreview.couponCode} coupon`}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </section>
+                ) : null}
+
+                {couponErrorMessage ? (
+                  <p
+                    role="alert"
+                    className="rounded-lg border border-red-400/20 bg-red-400/5 px-4 py-3 text-xs leading-6 text-red-300"
+                  >
+                    {couponErrorMessage}
+                  </p>
+                ) : null}
+
                 <button
                   type="submit"
                   form="checkout-form"
-                  disabled={isSubmitting}
+                  disabled={
+                    isSubmitting || isCouponLoading || !isCouponReady
+                  }
                   className={`w-full rounded-full bg-stone-100 px-6 py-4 text-xs uppercase tracking-[0.28em] text-stone-950 transition-colors hover:bg-white disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-stone-500 ${focusRing}`}
                 >
                   {isSubmitting

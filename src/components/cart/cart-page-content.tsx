@@ -1,10 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { type FormEvent, useState } from "react";
 
+import { CartCouponForm } from "@/components/cart/cart-coupon-form";
 import { CartLineItem } from "@/components/cart/cart-line-item";
 import { CartOrderSummary } from "@/components/cart/cart-order-summary";
 import { useCartItems } from "@/hooks/use-cart-items";
+import { useCouponPreview } from "@/hooks/use-coupon-preview";
 import {
   decrementCartItemQuantity,
   getCartItemCount,
@@ -19,6 +22,14 @@ const focusRing =
 
 export function CartPageContent() {
   const { cartItems, setCartItems } = useCartItems();
+  const {
+    preview: couponPreview,
+    isLoading: isCouponLoading,
+    errorMessage: couponErrorMessage,
+    applyCoupon,
+    removeCoupon,
+  } = useCouponPreview(cartItems);
+  const [couponCode, setCouponCode] = useState("");
 
   const resolvedCartItems = cartItems ?? [];
   const subtotal = getCartSubtotal(resolvedCartItems);
@@ -26,6 +37,21 @@ export function CartPageContent() {
   // Same source of truth as checkout: a flat fee plus subtotal. Nothing here is
   // computed differently from what the checkout session will charge.
   const total = getCheckoutTotal(subtotal);
+
+  async function handleCouponApply(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const preview = await applyCoupon(couponCode);
+
+    if (preview) {
+      setCouponCode(preview.couponCode);
+    }
+  }
+
+  function handleCouponRemove() {
+    removeCoupon();
+    setCouponCode("");
+  }
 
   function handleIncrement(itemId: string) {
     setCartItems(incrementCartItemQuantity(itemId));
@@ -92,7 +118,18 @@ export function CartPageContent() {
               subtotal={subtotal}
               shippingFee={SHIPPING_FEE_HKD}
               total={total}
-            />
+              couponPreview={couponPreview}
+            >
+              <CartCouponForm
+                code={couponCode}
+                onCodeChange={setCouponCode}
+                onApply={handleCouponApply}
+                onRemove={handleCouponRemove}
+                isLoading={isCouponLoading}
+                appliedCoupon={couponPreview}
+                errorMessage={couponErrorMessage}
+              />
+            </CartOrderSummary>
           </div>
         ) : (
           <div className="mx-auto mt-24 max-w-lg text-center sm:mt-32">

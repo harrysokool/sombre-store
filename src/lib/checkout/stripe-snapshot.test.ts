@@ -527,6 +527,31 @@ describe("buildStripeCheckoutOrderSnapshot", () => {
     ).toThrow("product lines do not match Session coupon totals");
   });
 
+  it("rejects duplicate Stripe line-item IDs", () => {
+    const lines = [
+      couponLine({ id: "li_duplicate" }),
+      couponLine({
+        id: "li_duplicate",
+        productId: PRODUCT_B_ID,
+        originalUnitCents: 50_000,
+        discountBasisPoints: 1_000,
+      }),
+    ];
+
+    expect(() =>
+      buildStripeCheckoutOrderSnapshot(couponSession(lines), lines),
+    ).toThrow("duplicate line-item IDs");
+  });
+
+  it("rejects discount metadata on a no-coupon Stripe line", () => {
+    const lines = [noCouponLine()];
+    expandedProduct(lines[0]).metadata.original_unit_minor = "100000";
+
+    expect(() =>
+      buildStripeCheckoutOrderSnapshot(noCouponSession(lines), lines),
+    ).toThrow("product discount metadata requires quote_version");
+  });
+
   it("rejects partial coupon metadata without the supported quote version", () => {
     const lines = [noCouponLine()];
     const session = noCouponSession(lines);

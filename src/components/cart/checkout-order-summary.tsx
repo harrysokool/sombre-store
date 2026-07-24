@@ -2,6 +2,7 @@ import Image from "next/image";
 import type { ReactNode } from "react";
 
 import type { CartItem } from "@/lib/cart/cart";
+import type { CouponPreviewResponse } from "@/lib/checkout/coupon-preview";
 import { getCartLineTotal } from "@/lib/cart/math";
 import { formatPrice } from "@/lib/storefront/format-price";
 
@@ -11,6 +12,7 @@ type CheckoutOrderSummaryProps = {
   subtotal: number;
   shippingFee: number;
   total: number;
+  couponPreview: CouponPreviewResponse | null;
   /** The action area (submit button, messages, links) rendered by the page,
       which owns the submit state and the form linkage. */
   children: ReactNode;
@@ -53,6 +55,7 @@ export function CheckoutOrderSummary({
   subtotal,
   shippingFee,
   total,
+  couponPreview,
   children,
 }: CheckoutOrderSummaryProps) {
   return (
@@ -103,13 +106,53 @@ export function CheckoutOrderSummary({
         </ul>
 
         <dl className="space-y-4 border-t border-white/10 pt-6">
-          <SummaryRow
-            label={`Subtotal · ${itemCount} ${itemCount === 1 ? "item" : "items"}`}
-            value={formatPrice(subtotal)}
-          />
-          <SummaryRow label="Shipping" value={formatPrice(shippingFee)} />
+          {couponPreview ? (
+            <>
+              <SummaryRow
+                label={`Original subtotal · ${itemCount} ${
+                  itemCount === 1 ? "item" : "items"
+                }`}
+                value={formatPrice(
+                  couponPreview.originalSubtotalMinor / 100,
+                )}
+              />
+              <SummaryRow
+                label="Discount"
+                value={`−${formatPrice(couponPreview.discountMinor / 100)}`}
+              />
+              <SummaryRow
+                label="Discounted subtotal"
+                value={formatPrice(
+                  couponPreview.discountedSubtotalMinor / 100,
+                )}
+              />
+              <SummaryRow
+                label="Shipping"
+                value={formatPrice(couponPreview.shippingMinor / 100)}
+              />
+            </>
+          ) : (
+            <>
+              <SummaryRow
+                label={`Subtotal · ${itemCount} ${
+                  itemCount === 1 ? "item" : "items"
+                }`}
+                value={formatPrice(subtotal)}
+              />
+              <SummaryRow
+                label="Shipping"
+                value={formatPrice(shippingFee)}
+              />
+            </>
+          )}
           <div className="border-t border-white/10 pt-4">
-            <SummaryRow label="Total" value={formatPrice(total)} emphasis />
+            <SummaryRow
+              label="Total"
+              value={formatPrice(
+                couponPreview ? couponPreview.totalMinor / 100 : total,
+              )}
+              emphasis
+            />
           </div>
         </dl>
 
