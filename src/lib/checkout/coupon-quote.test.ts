@@ -88,6 +88,32 @@ describe("assertCouponIsAvailable", () => {
     ).not.toThrow();
   });
 
+  it.each([
+    {
+      label: "no start",
+      startsAt: null,
+      expiresAt: "2026-08-01T00:00:00.000Z",
+    },
+    {
+      label: "no expiry",
+      startsAt: "2026-07-01T00:00:00.000Z",
+      expiresAt: null,
+    },
+    {
+      label: "no date boundaries",
+      startsAt: null,
+      expiresAt: null,
+    },
+  ])("accepts an active coupon with $label", ({ startsAt, expiresAt }) => {
+    expect(() =>
+      assertCouponIsAvailable(
+        { ...activeCoupon, startsAt, expiresAt },
+        "SOMBRE",
+        NOW,
+      ),
+    ).not.toThrow();
+  });
+
   it("rejects an inactive coupon", () => {
     expectCouponReason(
       () =>
@@ -347,6 +373,45 @@ describe("buildCouponPreviewQuote", () => {
           now: NOW,
         }),
       "unavailable",
+    );
+  });
+
+  it.each(["0", "-1", "100.01", "5.001", "not-a-number"])(
+    "maps invalid database percentage %j to unavailable",
+    (discountPercent) => {
+      expectCouponReason(
+        () =>
+          buildCouponPreviewQuote({
+            code: "SOMBRE",
+            coupon: activeCoupon,
+            assignments: [
+              { productId: PRODUCT_A_ID, discountPercent },
+            ],
+            products,
+            cartItems,
+            shippingCents: 5_000,
+            now: NOW,
+          }),
+        "unavailable",
+      );
+    },
+  );
+
+  it("maps a product list shorter than the submitted cart to cart_changed", () => {
+    expectCouponReason(
+      () =>
+        buildCouponPreviewQuote({
+          code: "SOMBRE",
+          coupon: activeCoupon,
+          assignments: [
+            { productId: PRODUCT_A_ID, discountPercent: "20" },
+          ],
+          products: [products[0]],
+          cartItems,
+          shippingCents: 5_000,
+          now: NOW,
+        }),
+      "cart_changed",
     );
   });
 });

@@ -41,6 +41,44 @@ function previewRequest() {
   });
 }
 
+function oversizedPreviewRequest() {
+  return new Request("http://localhost/api/checkout/coupon", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "content-length": String(16 * 1024 + 1),
+      "x-forwarded-for": "203.0.113.10",
+    },
+    body: "{}",
+  });
+}
+
+function successfulPreview() {
+  return {
+    couponCode: "SOMBRE",
+    quote: {
+      lines: [
+        {
+          productId: PRODUCT_ID,
+          quantity: 1,
+          originalUnitAmountCents: 100_000,
+          discountBasisPoints: 2_000,
+          unitDiscountCents: 20_000,
+          discountedUnitAmountCents: 80_000,
+          originalLineTotalCents: 100_000,
+          lineDiscountCents: 20_000,
+          discountedLineTotalCents: 80_000,
+        },
+      ],
+      originalSubtotalCents: 100_000,
+      discountTotalCents: 20_000,
+      discountedSubtotalCents: 80_000,
+      shippingCents: 5_000,
+      finalTotalCents: 85_000,
+    },
+  };
+}
+
 describe("POST /api/checkout/coupon", () => {
   beforeEach(() => {
     mocks.checkRateLimit.mockReset();
@@ -55,29 +93,7 @@ describe("POST /api/checkout/coupon", () => {
   });
 
   it("returns a no-store preview using the isolated rate-limit namespace", async () => {
-    mocks.loadCouponPreview.mockResolvedValue({
-      couponCode: "SOMBRE",
-      quote: {
-        lines: [
-          {
-            productId: PRODUCT_ID,
-            quantity: 1,
-            originalUnitAmountCents: 100_000,
-            discountBasisPoints: 2_000,
-            unitDiscountCents: 20_000,
-            discountedUnitAmountCents: 80_000,
-            originalLineTotalCents: 100_000,
-            lineDiscountCents: 20_000,
-            discountedLineTotalCents: 80_000,
-          },
-        ],
-        originalSubtotalCents: 100_000,
-        discountTotalCents: 20_000,
-        discountedSubtotalCents: 80_000,
-        shippingCents: 5_000,
-        finalTotalCents: 85_000,
-      },
-    });
+    mocks.loadCouponPreview.mockResolvedValue(successfulPreview());
 
     const response = await POST(previewRequest());
 
@@ -126,4 +142,47 @@ describe("POST /api/checkout/coupon", () => {
       message: "This coupon is invalid, expired, or unavailable.",
     });
   });
+
+  it.each([200, 400, 409, 413, 429, 503])(
+    "sets Cache-Control: no-store on status %i",
+    async (status) => {
+      let request = previewRequest();
+
+      switch (status) {
+        case 200:
+          mocks.loadCouponPreview.mockResolvedValue(successfulPreview());
+          break;
+        case 400:
+          mocks.loadCouponPreview.mockRejectedValue(
+            new CouponPreviewError("invalid_coupon"),
+          );
+          break;
+        case 409:
+          mocks.loadCouponPreview.mockRejectedValue(
+            new CouponPreviewError("cart_changed"),
+          );
+          break;
+        case 413:
+          request = oversizedPreviewRequest();
+          break;
+        case 429:
+          mocks.checkRateLimit.mockResolvedValue({
+            isAllowed: false,
+            remaining: 0,
+            retryAfterSeconds: 10,
+          });
+          break;
+        case 503:
+          mocks.loadCouponPreview.mockRejectedValue(
+            new CouponPreviewError("unavailable"),
+          );
+          break;
+      }
+
+      const response = await POST(request);
+
+      expect(response.status).toBe(status);
+      expect(response.headers.get("Cache-Control")).toBe("no-store");
+    },
+  );
 });
