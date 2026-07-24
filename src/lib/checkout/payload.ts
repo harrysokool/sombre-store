@@ -16,4 +16,5 @@ export type CheckoutSessionPayload = {
   cartItems: CartItem[];
   subtotal: number;
   customer: CheckoutCustomerDetails;
+  couponCode?: string | null;
 };

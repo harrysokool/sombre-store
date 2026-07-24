@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 
+import { formatHkdCentsForDatabase } from "@/lib/checkout/money";
+import {
+  buildStripeCheckoutOrderSnapshot,
+  formatBasisPointsForDatabase,
+  type StripeCheckoutOrderSnapshot,
+} from "@/lib/checkout/stripe-snapshot";
 import { sendOrderStatusEmails } from "@/lib/email/order-emails";
 import {
   describeRefundAmounts,
@@ -102,37 +108,6 @@ async function listAllCheckoutLineItems(sessionId: string) {
   );
 }
 
-function getOrderSubtotal(
-  session: Stripe.Checkout.Session,
-  lineItems: Stripe.LineItem[],
-) {
-  if (typeof session.amount_subtotal === "number") {
-    return session.amount_subtotal / 100;
-  }
-
-  return (
-    lineItems.reduce(
-      (total, lineItem) => total + (lineItem.amount_subtotal ?? 0),
-      0,
-    ) / 100
-  );
-}
-
-function getOrderShippingFee(session: Stripe.Checkout.Session) {
-  return (session.total_details?.amount_shipping ?? 0) / 100;
-}
-
-function getOrderTotal(
-  session: Stripe.Checkout.Session,
-  lineItems: Stripe.LineItem[],
-) {
-  if (typeof session.amount_total === "number") {
-    return session.amount_total / 100;
-  }
-
-  return getOrderSubtotal(session, lineItems) + getOrderShippingFee(session);
-}
-
 function getExpandedStripeProduct(
   product: string | Stripe.Product | Stripe.DeletedProduct | null | undefined,
 ) {
@@ -179,7 +154,7 @@ async function findOrderById(orderId: string) {
 
 async function insertPendingOrderFromSession(
   session: Stripe.Checkout.Session,
-  lineItems: Stripe.LineItem[],
+  snapshot: StripeCheckoutOrderSnapshot,
 ) {
   const supabase = createSupabaseServiceRoleClient();
   const metadata: Stripe.Metadata = session.metadata ?? {};
@@ -199,9 +174,18 @@ async function insertPendingOrderFromSession(
       city: metadata.city ?? "",
       postal_code: metadata.postal_code ?? "",
       country: metadata.country ?? "",
-      subtotal: getOrderSubtotal(session, lineItems),
-      shipping_fee: getOrderShippingFee(session),
-      total: getOrderTotal(session, lineItems),
+      coupon_code: snapshot.couponCode,
+      original_subtotal: formatHkdCentsForDatabase(
+        snapshot.originalSubtotalCents,
+      ),
+      discount_total: formatHkdCentsForDatabase(
+        snapshot.discountTotalCents,
+      ),
+      subtotal: formatHkdCentsForDatabase(
+        snapshot.discountedSubtotalCents,
+      ),
+      shipping_fee: formatHkdCentsForDatabase(snapshot.shippingCents),
+      total: formatHkdCentsForDatabase(snapshot.totalCents),
       currency: (session.currency ?? "hkd").toLowerCase(),
       // Keep the order unconfirmed until all of its line items are persisted.
       // A webhook retry can safely resume this pending row if a later write fails.
@@ -567,21 +551,39 @@ async function confirmOrderPaymentAndReduceStock(
 async function insertOrderItems(
   orderId: string,
   lineItems: Stripe.LineItem[],
+  snapshot: StripeCheckoutOrderSnapshot,
 ) {
   const supabase = createSupabaseServiceRoleClient();
+  const snapshotLineMap = new Map(
+    snapshot.lines.map((line) => [line.stripeLineItemId, line]),
+  );
 
   const items = lineItems.map((lineItem) => {
     const stripeProduct = getExpandedStripeProduct(lineItem.price?.product);
-    const quantity = lineItem.quantity ?? 1;
+    const snapshotLine = snapshotLineMap.get(lineItem.id);
+
+    if (!snapshotLine) {
+      throw new Error(
+        `Stripe line item ${lineItem.id} is missing from the validated snapshot.`,
+      );
+    }
 
     return {
       order_id: orderId,
       stripe_line_item_id: lineItem.id,
-      product_id: stripeProduct?.metadata.product_id || null,
+      product_id: snapshotLine.productId,
       product_name:
         lineItem.description ?? stripeProduct?.name ?? "Unknown product",
-      unit_price: (lineItem.amount_subtotal ?? 0) / quantity / 100,
-      quantity,
+      original_unit_price: formatHkdCentsForDatabase(
+        snapshotLine.originalUnitAmountCents,
+      ),
+      discount_percent: formatBasisPointsForDatabase(
+        snapshotLine.discountBasisPoints,
+      ),
+      unit_price: formatHkdCentsForDatabase(
+        snapshotLine.discountedUnitAmountCents,
+      ),
+      quantity: snapshotLine.quantity,
       size_label: stripeProduct?.description ?? null,
       image_url: stripeProduct?.images?.[0] ?? null,
     };
@@ -648,17 +650,18 @@ async function handleConfirmedCheckoutSession(
     return;
   }
 
-  const existingOrder = await findExistingOrder(session.id);
   const lineItems = await listAllCheckoutLineItems(session.id);
+  const snapshot = buildStripeCheckoutOrderSnapshot(session, lineItems);
+  const existingOrder = await findExistingOrder(session.id);
   const order =
-    existingOrder ?? (await insertPendingOrderFromSession(session, lineItems));
+    existingOrder ?? (await insertPendingOrderFromSession(session, snapshot));
 
   context.orderId = order.id;
 
   let persistedItems = await getPersistedOrderItemReferences(order.id);
 
   if (persistedItems.length === 0) {
-    await insertOrderItems(order.id, lineItems);
+    await insertOrderItems(order.id, lineItems, snapshot);
     persistedItems = await getPersistedOrderItemReferences(order.id);
   }
 

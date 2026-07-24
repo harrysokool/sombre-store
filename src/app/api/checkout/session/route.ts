@@ -8,6 +8,13 @@ import {
   hasDuplicateCartProductIds,
   MAX_CHECKOUT_BODY_BYTES,
 } from "@/lib/checkout/cart-validation";
+import { getCouponPublicError } from "@/lib/checkout/coupon-preview";
+import {
+  CouponPreviewError,
+  type BuiltCouponPreview,
+} from "@/lib/checkout/coupon-quote";
+import { loadCouponPreview } from "@/lib/checkout/coupons";
+import { assertDiscountQuoteInvariants } from "@/lib/checkout/discounts";
 import type {
   CheckoutCustomerDetails,
   CheckoutSessionPayload,
@@ -266,6 +273,15 @@ function parseCheckoutPayload(body: unknown): CheckoutPayloadResult {
     return { error: "Invalid checkout payload." };
   }
 
+  if (
+    payload.couponCode !== undefined &&
+    payload.couponCode !== null &&
+    (typeof payload.couponCode !== "string" ||
+      payload.couponCode.trim().length === 0)
+  ) {
+    return { error: "Coupon code must be non-empty text." };
+  }
+
   const { customer, error: customerError } = parseCustomer(payload.customer);
 
   if (!customer) {
@@ -277,8 +293,36 @@ function parseCheckoutPayload(body: unknown): CheckoutPayloadResult {
       cartItems,
       subtotal: payload.subtotal,
       customer,
+      couponCode: payload.couponCode as string | null | undefined,
     },
   };
+}
+
+function validateCouponPreview(
+  preview: BuiltCouponPreview,
+  cartItems: CartItem[],
+) {
+  assertDiscountQuoteInvariants(preview.quote);
+
+  if (
+    preview.quote.shippingCents !== SHIPPING_FEE_HKD_CENTS ||
+    preview.quote.discountTotalCents === 0 ||
+    preview.quote.lines.length !== cartItems.length
+  ) {
+    throw new CouponPreviewError("unavailable");
+  }
+
+  const lineMap = new Map(
+    preview.quote.lines.map((line) => [line.productId, line]),
+  );
+
+  for (const item of cartItems) {
+    const line = lineMap.get(item.id);
+
+    if (!line || line.quantity !== item.quantity) {
+      throw new CouponPreviewError("unavailable");
+    }
+  }
 }
 
 export async function POST(request: Request) {
@@ -413,26 +457,71 @@ export async function POST(request: Request) {
       );
     }
 
+    let couponPreview: BuiltCouponPreview | null = null;
+
+    if (payload.couponCode !== undefined && payload.couponCode !== null) {
+      try {
+        couponPreview = await loadCouponPreview({
+          code: payload.couponCode,
+          cartItems: payload.cartItems,
+        });
+        validateCouponPreview(couponPreview, validatedCartItems);
+      } catch (error) {
+        const publicError = getCouponPublicError(error);
+
+        return NextResponse.json(
+          { error: publicError.message },
+          { status: publicError.status },
+        );
+      }
+    }
+
+    const couponLineMap = new Map(
+      couponPreview?.quote.lines.map((line) => [line.productId, line]) ?? [],
+    );
+
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       customer_email: payload.customer.email,
       success_url: `${siteOrigin}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${siteOrigin}/checkout/cancel`,
-      line_items: validatedCartItems.map((item) => ({
-        quantity: item.quantity,
-        price_data: {
-          currency: "hkd",
-          unit_amount: Math.round(item.price * 100),
-          product_data: {
-            name: item.name,
-            description: item.size_label ?? undefined,
-            metadata: {
-              product_id: item.id,
-              product_slug: item.slug,
+      line_items: validatedCartItems.map((item) => {
+        const couponLine = couponLineMap.get(item.id);
+
+        return {
+          quantity: item.quantity,
+          price_data: {
+            currency: "hkd",
+            unit_amount:
+              couponLine?.discountedUnitAmountCents ??
+              Math.round(item.price * 100),
+            product_data: {
+              name: item.name,
+              description: item.size_label ?? undefined,
+              metadata: {
+                product_id: item.id,
+                product_slug: item.slug,
+                ...(couponLine
+                  ? {
+                      original_unit_minor: String(
+                        couponLine.originalUnitAmountCents,
+                      ),
+                      discount_basis_points: String(
+                        couponLine.discountBasisPoints,
+                      ),
+                      unit_discount_minor: String(
+                        couponLine.unitDiscountCents,
+                      ),
+                      discounted_unit_minor: String(
+                        couponLine.discountedUnitAmountCents,
+                      ),
+                    }
+                  : {}),
+              },
             },
           },
-        },
-      })),
+        };
+      }),
       shipping_options: [
         {
           shipping_rate_data: {
@@ -459,6 +548,23 @@ export async function POST(request: Request) {
         subtotal: calculatedSubtotal.toFixed(2),
         shipping_fee: SHIPPING_FEE_HKD.toFixed(2),
         total: calculatedTotal.toFixed(2),
+        ...(couponPreview
+          ? {
+              quote_version: "product-discount-v1",
+              coupon_code: couponPreview.couponCode,
+              original_subtotal_minor: String(
+                couponPreview.quote.originalSubtotalCents,
+              ),
+              discount_minor: String(
+                couponPreview.quote.discountTotalCents,
+              ),
+              discounted_subtotal_minor: String(
+                couponPreview.quote.discountedSubtotalCents,
+              ),
+              shipping_minor: String(couponPreview.quote.shippingCents),
+              total_minor: String(couponPreview.quote.finalTotalCents),
+            }
+          : {}),
       },
     });
 
