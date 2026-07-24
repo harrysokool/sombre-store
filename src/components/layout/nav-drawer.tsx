@@ -11,9 +11,10 @@ const primaryLinks = [
 const shopLinks = [
   { label: "Best Sellers", href: "/shop?collection=best-sellers" },
   { label: "New Arrivals", href: "/shop?collection=new-arrivals" },
-  { label: "Perfume", href: "/shop?category=perfume" },
-  { label: "Body Care", href: "/shop?category=body-care" },
-  { label: "Home Fragrance", href: "/shop?category=home-fragrance" },
+  { label: "Fragrance", href: "/shop?category=fragrance" },
+  { label: "Skincare", href: "/shop?category=skincare" },
+  { label: "Makeup", href: "/shop?category=makeup" },
+  { label: "Bath and Body", href: "/shop?category=bath-and-body" },
   { label: "All Products", href: "/shop" },
 ];
 

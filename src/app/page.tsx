@@ -10,7 +10,7 @@ import {
     type ProductListItemRow,
 } from "@/lib/storefront/shop";
 
-const maisonMargielaShopHref = "/shop?category=perfume&brand=maison-margiela";
+const maisonMargielaShopHref = "/shop?category=fragrance&brand=maison-margiela";
 
 export const dynamic = "force-dynamic";
 

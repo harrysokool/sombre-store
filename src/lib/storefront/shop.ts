@@ -74,37 +74,55 @@ const defaultShopView: ShopView = {
   eyebrow: "Curated Edit",
   title: "All Products",
   description:
-    "A focused selection of perfume, body care, and home fragrance from luxury and independent brands.",
+    "A focused selection of fragrance, skincare, makeup, and bath and body from luxury and independent brands.",
 };
 
 const categoryViews: Record<string, CategoryShopView> = {
-  perfume: {
+  fragrance: {
     type: "category",
-    categoryParam: "perfume",
-    categorySlug: "perfume",
+    categoryParam: "fragrance",
+    categorySlug: "fragrance",
     eyebrow: "Category",
-    title: "Perfume",
+    title: "Fragrance",
     description:
-      "Perfume from luxury and independent brands, selected for depth, balance, and daily wear.",
+      "Fragrance from luxury and independent brands, selected for depth, balance, and daily wear.",
   },
-  "body-care": {
+  skincare: {
     type: "category",
-    categoryParam: "body-care",
+    categoryParam: "skincare",
+    categorySlug: "skincare",
+    eyebrow: "Category",
+    title: "Skincare",
+    description:
+      "Skincare selected for gentle, effective everyday care.",
+  },
+  makeup: {
+    type: "category",
+    categoryParam: "makeup",
+    categorySlug: "makeup",
+    eyebrow: "Category",
+    title: "Makeup",
+    description:
+      "Makeup and colour cosmetics, coming to the Sombre edit.",
+  },
+  "bath-and-body": {
+    type: "category",
+    categoryParam: "bath-and-body",
     categorySlug: "bath-and-body",
     eyebrow: "Category",
-    title: "Body Care",
+    title: "Bath and Body",
     description:
-      "Body care selected for refined scent, texture, and everyday use.",
+      "Bath and body essentials selected for refined scent, texture, and everyday use.",
   },
-  "home-fragrance": {
-    type: "category",
-    categoryParam: "home-fragrance",
-    categorySlug: "home-fragrance",
-    eyebrow: "Category",
-    title: "Home Fragrance",
-    description:
-      "Candles and home scent pieces selected for calm, considered spaces.",
-  },
+};
+
+// Old category URLs from before the rebrand still resolve to the right view, so
+// a bookmarked or shared /shop?category=… link keeps its filter instead of
+// silently falling back to All Products.
+const categoryParamAliases: Record<string, string> = {
+  perfume: "fragrance",
+  "home-fragrance": "skincare",
+  "body-care": "bath-and-body",
 };
 
 const collectionViews: Record<string, ShopView & { type: "collection" }> = {
@@ -151,8 +169,12 @@ export function getSearchParamValue(value: string | string[] | undefined) {
 export function getShopView(params: ShopSearchParams): ShopView {
   const category = getSearchParamValue(params.category);
 
-  if (category && categoryViews[category]) {
-    return categoryViews[category];
+  if (category) {
+    const resolvedCategory = categoryParamAliases[category] ?? category;
+
+    if (categoryViews[resolvedCategory]) {
+      return categoryViews[resolvedCategory];
+    }
   }
 
   const collection = getSearchParamValue(params.collection);

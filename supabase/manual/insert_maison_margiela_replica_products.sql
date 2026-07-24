@@ -10,9 +10,9 @@ begin
   if not exists (
     select 1
     from public.categories
-    where slug = 'perfume'
+    where slug = 'fragrance'
   ) then
-    raise exception 'Required category "perfume" does not exist. Apply the catalog schema/seed before running this script.';
+    raise exception 'Required category "fragrance" does not exist. Apply the catalog schema/seed before running this script.';
   end if;
 end $$;
 
@@ -40,7 +40,7 @@ with brand as (
 category as (
   select id
   from public.categories
-  where slug = 'perfume'
+  where slug = 'fragrance'
 )
 insert into public.products (
   brand_id,

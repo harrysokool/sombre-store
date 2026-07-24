@@ -23,8 +23,8 @@ export function Footer() {
               Sombre
             </p>
             <p className="max-w-sm leading-7 text-stone-500">
-              A curated store for perfume, body care, and home fragrance from
-              luxury and independent brands.
+              A curated store for fragrance, skincare, makeup, and bath and body
+              from luxury and independent brands.
             </p>
           </div>
 

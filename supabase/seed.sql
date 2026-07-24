@@ -42,19 +42,24 @@ values
 insert into public.categories (name, slug, description)
 values
   (
-    'Perfume',
-    'perfume',
-    'Signature scents designed for daily wear and evening depth.'
+    'Fragrance',
+    'fragrance',
+    'Fragrance from luxury and independent brands, selected for depth, balance, and daily wear.'
   ),
   (
-    'Bath & Body',
+    'Skincare',
+    'skincare',
+    'Skincare selected for gentle, effective everyday care.'
+  ),
+  (
+    'Makeup',
+    'makeup',
+    'Makeup and colour cosmetics, coming to the Sombre edit.'
+  ),
+  (
+    'Bath and Body',
     'bath-and-body',
-    'Refined cleansing and body care essentials with elevated texture and scent.'
-  ),
-  (
-    'Home Fragrance',
-    'home-fragrance',
-    'Atmospheric objects for scenting quiet interiors.'
+    'Bath and body essentials selected for refined scent, texture, and everyday use.'
   );
 
 -- Products
@@ -87,7 +92,7 @@ from (
   values
     (
       'noct-atelier',
-      'perfume',
+      'fragrance',
       'Velvet Ember',
       'velvet-ember',
       'A concentrated perfume layered with black tea, cedar smoke, and softened amber for a quietly dramatic finish.',
@@ -99,7 +104,7 @@ from (
     ),
     (
       'noct-atelier',
-      'perfume',
+      'fragrance',
       'Dusk Veil',
       'dusk-veil',
       'A refined perfume with iris, pale suede, and mineral musk that settles close to the skin.',
@@ -135,7 +140,7 @@ from (
     ),
     (
       'lune-forme',
-      'home-fragrance',
+      'skincare',
       'Quiet Flame Candle',
       'quiet-flame-candle',
       'A slow-burning candle with labdanum, charred fig wood, and subtle clove for intimate interiors.',
