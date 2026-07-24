@@ -207,38 +207,59 @@ export function getBrandsForProducts(products: ProductListItem[]) {
   );
 }
 
-export function getVisibleProducts(
+// The products a view shows before any brand filter is applied, in the order
+// that view uses: catalog order for a category or the full edit, newest-first
+// for New Arrivals. Best Sellers has no sales/ranking data yet, so it shows the
+// full edit in catalog order rather than inventing an order.
+export function getScopedProducts(
   products: ProductListItem[],
   view: ShopView,
-  params: ShopSearchParams,
-) {
+): ProductListItem[] {
   if (view.type === "category") {
-    const categoryProducts = getCategoryProducts(products, view);
-    const brandSlug = getSearchParamValue(params.brand);
-
-    if (brandSlug) {
-      return categoryProducts.filter(
-        (product) => product.brand?.slug === brandSlug,
-      );
-    }
-
-    return categoryProducts;
+    return getCategoryProducts(products, view);
   }
 
   if (view.type === "collection" && view.collection === "new-arrivals") {
     return [...products].sort(
       (left, right) =>
-        new Date(right.created_at).getTime() - new Date(left.created_at).getTime(),
+        new Date(right.created_at).getTime() -
+        new Date(left.created_at).getTime(),
     );
   }
 
-  if (view.type === "collection" && view.collection === "best-sellers") {
-    // The current schema has no sales count or bestseller flag, so this view
-    // displays the full edit instead of inventing sales ranking.
-    return products;
+  return products;
+}
+
+// A brand filter is honoured only when the slug names a brand that actually has
+// an active product in the current scope. An unknown or out-of-scope slug — an
+// arbitrary value, or a real brand with nothing in the selected category — is
+// cleared to null, so the page falls back to all brands for the scope instead
+// of dead-ending, and no arbitrary query value is ever trusted.
+export function getValidBrandSlug(
+  brandParam: string | string[] | undefined,
+  scopedBrands: RelationName[],
+): string | null {
+  const brandSlug = getSearchParamValue(brandParam);
+
+  if (!brandSlug) {
+    return null;
   }
 
-  return products;
+  return scopedBrands.some((brand) => brand.slug === brandSlug)
+    ? brandSlug
+    : null;
+}
+
+// Applies a validated brand filter to a scoped product list, preserving order.
+export function getBrandFilteredProducts(
+  scopedProducts: ProductListItem[],
+  brandSlug: string | null,
+): ProductListItem[] {
+  if (!brandSlug) {
+    return scopedProducts;
+  }
+
+  return scopedProducts.filter((product) => product.brand?.slug === brandSlug);
 }
 
 export function getShopPageCopy(
@@ -321,32 +342,51 @@ export function getShopCategoryLinks(
   ];
 }
 
+// The URL for a view with no brand filter, used both for the "All Brands" reset
+// and as the base every brand link extends. Keeping the current view's own
+// parameter means clearing the brand never clears the category or collection.
+function getViewBaseHref(view: ShopView): string {
+  if (view.type === "category") {
+    return `/shop?category=${view.categoryParam}`;
+  }
+
+  if (view.type === "collection") {
+    return `/shop?collection=${view.collection}`;
+  }
+
+  return "/shop";
+}
+
 /**
- * Brand links for the current category. Returns an empty list unless the
- * category holds more than one brand, so a single-brand category never shows a
- * filter that cannot narrow anything.
+ * Brand links for the current view. `brands` is already scoped to the view — the
+ * brands with an active product in the selected category, or every brand in the
+ * catalog on the All view — so a brand is shown only where it has stock to show.
+ * The row is omitted when the scope has no brands. "All Brands" clears just the
+ * brand while keeping the current category or collection.
  */
 export function getShopBrandLinks(
   brands: RelationName[],
   view: ShopView,
-  params: ShopSearchParams,
+  selectedBrandSlug: string | null,
 ) {
-  if (view.type !== "category" || brands.length < 2) {
+  if (brands.length === 0) {
     return [];
   }
 
-  const selectedBrand = getSearchParamValue(params.brand);
+  const baseHref = getViewBaseHref(view);
+  const brandHref = (slug: string) =>
+    `${baseHref}${baseHref.includes("?") ? "&" : "?"}brand=${slug}`;
 
   return [
     {
       label: "All Brands",
-      href: `/shop?category=${view.categoryParam}`,
-      isActive: !selectedBrand,
+      href: baseHref,
+      isActive: !selectedBrandSlug,
     },
     ...brands.map((brand) => ({
       label: brand.name,
-      href: `/shop?category=${view.categoryParam}&brand=${brand.slug}`,
-      isActive: brand.slug === selectedBrand,
+      href: brandHref(brand.slug),
+      isActive: brand.slug === selectedBrandSlug,
     })),
   ];
 }

@@ -5,13 +5,14 @@ import { ShopCategoryNav } from "@/components/shop/shop-category-nav";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formatPrice } from "@/lib/storefront/format-price";
 import {
+  getBrandFilteredProducts,
   getBrandsForProducts,
-  getCategoryProducts,
+  getScopedProducts,
   getShopBrandLinks,
   getShopCategoryLinks,
   getShopPageCopy,
   getShopView,
-  getVisibleProducts,
+  getValidBrandSlug,
   normalizeProductListItem,
   type ProductListItem,
   type ProductListItemRow,
@@ -81,14 +82,19 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
   const params = searchParams ? await searchParams : {};
   const { products, hasError } = await getActiveProducts();
   const shopView = getShopView(params);
-  const categoryProducts =
-    shopView.type === "category" ? getCategoryProducts(products, shopView) : [];
-  const categoryBrands =
-    shopView.type === "category" ? getBrandsForProducts(categoryProducts) : [];
-  const visibleProducts = getVisibleProducts(products, shopView, params);
-  const pageCopy = getShopPageCopy(shopView, params, categoryBrands);
+  // Brands are derived from the active products in the current scope: a
+  // category's products on a category page, the whole active edit on All. So a
+  // brand only appears where it currently has an active product to show.
+  const scopedProducts = getScopedProducts(products, shopView);
+  const scopedBrands = getBrandsForProducts(scopedProducts);
+  const selectedBrandSlug = getValidBrandSlug(params.brand, scopedBrands);
+  const visibleProducts = getBrandFilteredProducts(
+    scopedProducts,
+    selectedBrandSlug,
+  );
+  const pageCopy = getShopPageCopy(shopView, params, scopedBrands);
   const categoryLinks = getShopCategoryLinks(products, shopView);
-  const brandLinks = getShopBrandLinks(categoryBrands, shopView, params);
+  const brandLinks = getShopBrandLinks(scopedBrands, shopView, selectedBrandSlug);
 
   return (
     <section className="px-6 py-20 sm:px-10 sm:py-28 lg:px-12">
