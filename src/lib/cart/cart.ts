@@ -1,6 +1,9 @@
+import { MAX_CART_ITEM_QUANTITY } from "./limits";
+
+export { MAX_CART_ITEM_QUANTITY } from "./limits";
+
 export const CART_STORAGE_KEY = "sombre-cart";
 export const CART_UPDATED_EVENT = "sombre-cart-updated";
-export const MAX_CART_ITEM_QUANTITY = 10;
 const CHECKOUT_SNAPSHOT_KEY_PREFIX = "sombre-checkout-session";
 
 export type CartItem = {
