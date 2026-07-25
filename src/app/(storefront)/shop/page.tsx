@@ -1,7 +1,9 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { ProductCard } from "@/components/shop/product-card";
 import { ShopCategoryNav } from "@/components/shop/shop-category-nav";
+import { getShopCanonicalPath } from "@/lib/seo/metadata";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formatPrice } from "@/lib/storefront/format-price";
 import {
@@ -24,6 +26,42 @@ export const dynamic = "force-dynamic";
 type ShopPageProps = {
   searchParams?: Promise<ShopSearchParams>;
 };
+
+/**
+ * Title, description, and canonical follow the current view.
+ *
+ * The canonical is the whole duplicate-content defence for this route: every
+ * brand filter, collection sort, `?view=all`, and arbitrary query string points
+ * back at either `/shop` or the one canonical URL for a recognised category.
+ * See `getShopCanonicalPath` for the policy itself.
+ */
+export async function generateMetadata({
+  searchParams,
+}: ShopPageProps): Promise<Metadata> {
+  const params = searchParams ? await searchParams : {};
+  const view = getShopView(params);
+  const canonical = getShopCanonicalPath(params);
+
+  // Only a recognised category earns its own title. Everything else keeps the
+  // shop's own title, matching the canonical it points at.
+  const isCanonicalCategory = view.type === "category";
+
+  return {
+    title: isCanonicalCategory ? view.title : "Shop",
+    description: isCanonicalCategory
+      ? view.description
+      : "Browse the full Sombre edit: fragrance, skincare, makeup, and bath and body from luxury and independent brands.",
+    alternates: { canonical },
+    openGraph: {
+      type: "website",
+      title: isCanonicalCategory ? view.title : "Shop",
+      description: isCanonicalCategory
+        ? view.description
+        : "Browse the full Sombre edit: fragrance, skincare, makeup, and bath and body from luxury and independent brands.",
+      url: canonical,
+    },
+  };
+}
 
 async function getActiveProducts() {
   try {

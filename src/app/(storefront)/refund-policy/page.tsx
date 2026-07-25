@@ -4,9 +4,10 @@ import { PolicyPage, type PolicySection } from "@/components/legal/policy-page";
 import { BUSINESS_DETAILS } from "@/lib/legal/business-details";
 
 export const metadata: Metadata = {
-  title: "Return and Refund Policy | Sombre",
+  title: "Return and Refund Policy",
   description:
     "How to return an order to Sombre and how refunds are processed.",
+  alternates: { canonical: "/refund-policy" },
 };
 
 const sections: PolicySection[] = [

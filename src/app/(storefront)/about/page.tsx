@@ -1,5 +1,13 @@
+import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
+
+export const metadata: Metadata = {
+  title: "About",
+  description:
+    "How the Sombre edit is chosen: mood, memory, and expression, with space for fragrance to mean something personal.",
+  alternates: { canonical: "/about" },
+};
 
 const focusRing =
   "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-stone-300 focus-visible:ring-offset-4 focus-visible:ring-offset-stone-950";

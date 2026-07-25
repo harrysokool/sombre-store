@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { CheckoutSuccessStateManager } from "@/components/cart/checkout-success-state-manager";
+import { privatePageMetadata } from "@/lib/seo/metadata";
 import {
   loadVerifiedCheckoutReceipt,
   type CheckoutReceiptItem,
@@ -13,16 +14,10 @@ import {
 import { formatPrice } from "@/lib/storefront/format-price";
 
 // The receipt is a private, per-session page reached via a bearer-like URL, so
-// keep it out of search indexes. Only the robots directive is set here — no
-// title/description/session data — so the Stripe Session ID is never exposed.
-export const metadata: Metadata = {
-  robots: {
-    index: false,
-    follow: false,
-    noarchive: true,
-    noimageindex: true,
-  },
-};
+// keep it out of search indexes. Only a static title and the robots directive
+// are set — no description or session data — so the Stripe Session ID and the
+// customer's order details are never exposed in metadata.
+export const metadata: Metadata = privatePageMetadata("Order status");
 
 type SuccessPageSearchParams =
   | Promise<{ session_id?: string }>

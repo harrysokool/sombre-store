@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { CampaignHero } from "@/components/home/campaign-hero";
@@ -11,6 +12,14 @@ import {
 } from "@/lib/storefront/shop";
 
 const maisonMargielaShopHref = "/shop?category=fragrance&brand=maison-margiela";
+
+// No `title` here on purpose: the home page inherits the root `default`, so it
+// renders as the clean brand line rather than "Home | Sombre".
+export const metadata: Metadata = {
+  description:
+    "Sombre is a curated edit of luxury and independent fragrance, skincare, makeup, and bath and body. Shipping across Hong Kong.",
+  alternates: { canonical: "/" },
+};
 
 export const dynamic = "force-dynamic";
 

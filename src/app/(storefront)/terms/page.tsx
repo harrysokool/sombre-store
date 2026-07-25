@@ -3,10 +3,12 @@ import type { Metadata } from "next";
 import { PolicyPage, type PolicySection } from "@/components/legal/policy-page";
 import { BUSINESS_DETAILS } from "@/lib/legal/business-details";
 
+// The root template appends " | Sombre", so the suffix is no longer written here.
 export const metadata: Metadata = {
-  title: "Terms and Conditions | Sombre",
+  title: "Terms and Conditions",
   description:
     "The terms that apply when you buy from the Sombre online store.",
+  alternates: { canonical: "/terms" },
 };
 
 const sections: PolicySection[] = [

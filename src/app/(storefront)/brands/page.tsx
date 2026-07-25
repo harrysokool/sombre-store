@@ -1,7 +1,15 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { normalizeProductRelation } from "@/lib/storefront/products";
+
+export const metadata: Metadata = {
+  title: "Brands",
+  description:
+    "The houses represented in the current Sombre edit, each with active products in stock.",
+  alternates: { canonical: "/brands" },
+};
 
 export const dynamic = "force-dynamic";
 

@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import { Cormorant_Garamond, Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
+import { SITE_NAME } from "@/lib/seo/metadata";
+import { getSiteUrl } from "@/lib/seo/site-url";
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -23,8 +26,22 @@ const cormorantGaramond = Cormorant_Garamond({
 });
 
 export const metadata: Metadata = {
-  title: "Sombre",
+  // Every relative canonical and Open Graph URL below is resolved against this,
+  // so it is the single place the public origin enters the metadata layer.
+  metadataBase: getSiteUrl(),
+  title: {
+    // Pages set a bare name ("Shop") and inherit the suffix. `default` is what
+    // the home page and any page without its own title render, kept as the
+    // plain brand line rather than "Sombre | Sombre".
+    default: "Sombre",
+    template: "%s | Sombre",
+  },
   description: "Curated luxury fragrances and lifestyle products.",
+  openGraph: {
+    type: "website",
+    siteName: SITE_NAME,
+    locale: "en_HK",
+  },
 };
 
 // Document shell only. The public navbar and footer belong to the

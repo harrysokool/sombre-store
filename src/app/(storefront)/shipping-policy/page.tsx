@@ -5,9 +5,10 @@ import { BUSINESS_DETAILS } from "@/lib/legal/business-details";
 import { SHIPPING_FEE_HKD } from "@/lib/checkout/shipping";
 
 export const metadata: Metadata = {
-  title: "Shipping Policy | Sombre",
+  title: "Shipping Policy",
   description:
     "Where Sombre ships, what delivery costs, and how long orders take to arrive.",
+  alternates: { canonical: "/shipping-policy" },
 };
 
 const sections: PolicySection[] = [

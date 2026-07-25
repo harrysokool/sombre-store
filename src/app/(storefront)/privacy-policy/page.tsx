@@ -4,9 +4,10 @@ import { PolicyPage, type PolicySection } from "@/components/legal/policy-page";
 import { BUSINESS_DETAILS } from "@/lib/legal/business-details";
 
 export const metadata: Metadata = {
-  title: "Privacy Policy | Sombre",
+  title: "Privacy Policy",
   description:
     "How Sombre collects, uses, and protects your personal information.",
+  alternates: { canonical: "/privacy-policy" },
 };
 
 const sections: PolicySection[] = [

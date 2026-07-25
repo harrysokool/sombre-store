@@ -1,15 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { privatePageMetadata } from "@/lib/seo/metadata";
+
 // A checkout outcome page, not public content, so keep it out of search indexes.
-export const metadata: Metadata = {
-  robots: {
-    index: false,
-    follow: false,
-    noarchive: true,
-    noimageindex: true,
-  },
-};
+export const metadata: Metadata = privatePageMetadata("Checkout canceled");
 
 const focusRing =
   "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-stone-300 focus-visible:ring-offset-4 focus-visible:ring-offset-stone-950";
