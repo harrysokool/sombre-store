@@ -63,11 +63,29 @@ function query(result: QueryResult = {}) {
 function supabaseWith(...queries: ReturnType<typeof query>[]) {
   const client = {
     from: vi.fn(),
+    rpc: vi.fn(),
   };
 
   for (const builder of queries) {
     client.from.mockReturnValueOnce(builder);
   }
+
+  mocks.createSupabase.mockReturnValue(client);
+  return client;
+}
+
+// Coupon edits go through one transactional RPC rather than a chain of
+// PostgREST requests, so these tests assert the call payload and how each
+// refusal reason is worded. The transaction itself is covered in
+// coupon-update-atomicity.test.ts.
+function supabaseWithRpc(result: QueryResult = {}) {
+  const client = {
+    from: vi.fn(),
+    rpc: vi.fn(async () => ({
+      data: result.data ?? null,
+      error: result.error ?? null,
+    })),
+  };
 
   mocks.createSupabase.mockReturnValue(client);
   return client;
@@ -255,23 +273,15 @@ describe("admin coupon management", () => {
     ]);
   });
 
-  it("updates active state and assignments, removes omitted products, and never touches orders", async () => {
-    const couponQuery = query({ data: { id: COUPON_ID } });
-    const existingQuery = query({
-      data: [{ product_id: PRODUCT_A }, { product_id: PRODUCT_B }],
+  it("sends the whole edit as one transactional RPC and never touches orders", async () => {
+    const client = supabaseWithRpc({
+      data: {
+        ok: true,
+        coupon_id: COUPON_ID,
+        assigned_product_count: 1,
+        removed_product_count: 1,
+      },
     });
-    const upsertQuery = query({ data: [{ product_id: PRODUCT_B }] });
-    const removeQuery = query({ data: [{ product_id: PRODUCT_A }] });
-    const updateQuery = query({ data: { id: COUPON_ID } });
-    // PRODUCT_B already existed, so no new product needs an active check and
-    // no "products" query runs at all.
-    const client = supabaseWith(
-      couponQuery,
-      existingQuery,
-      upsertQuery,
-      removeQuery,
-      updateQuery,
-    );
 
     await expect(
       updateAdminCoupon(
@@ -286,45 +296,29 @@ describe("admin coupon management", () => {
       ),
     ).resolves.toEqual({ ok: true, couponId: COUPON_ID });
 
-    expect(upsertQuery.upsert).toHaveBeenCalledWith(
-      [
-        {
-          discount_code_id: COUPON_ID,
-          product_id: PRODUCT_B,
-          discount_percent: "12.50",
-        },
-      ],
-      { onConflict: "discount_code_id,product_id" },
+    // One database round trip for the entire edit. Nothing can commit
+    // separately from anything else.
+    expect(client.rpc).toHaveBeenCalledTimes(1);
+    expect(client.from).not.toHaveBeenCalled();
+    expect(client.rpc).toHaveBeenCalledWith(
+      "update_discount_code_with_assignments",
+      {
+        p_discount_code_id: COUPON_ID,
+        p_is_active: false,
+        p_starts_at: null,
+        p_expires_at: null,
+        // PRODUCT_A is simply absent, which is how a removal is expressed.
+        p_assignments: [
+          { product_id: PRODUCT_B, discount_percent: "12.50" },
+        ],
+      },
     );
-    expect(removeQuery.in).toHaveBeenCalledWith("product_id", [PRODUCT_A]);
-    expect(updateQuery.update).toHaveBeenCalledWith({
-      is_active: false,
-      starts_at: null,
-      expires_at: null,
-    });
-    expect(client.from.mock.calls.map(([table]) => table)).not.toContain(
-      "orders",
-    );
-    expect(client.from).toHaveBeenCalledTimes(5);
   });
 
-  it("preserves an assignment to a since-deactivated product when saving an unrelated change", async () => {
-    const couponQuery = query({ data: { id: COUPON_ID } });
-    // PRODUCT_A and PRODUCT_B both already existed before this save, so
-    // neither needs an active check even though PRODUCT_A is now inactive.
-    const existingQuery = query({
-      data: [{ product_id: PRODUCT_A }, { product_id: PRODUCT_B }],
+  it("submits the full desired assignment set, including a since-deactivated product", async () => {
+    const client = supabaseWithRpc({
+      data: { ok: true, coupon_id: COUPON_ID, assigned_product_count: 2 },
     });
-    const upsertQuery = query({
-      data: [{ product_id: PRODUCT_A }, { product_id: PRODUCT_B }],
-    });
-    const updateQuery = query({ data: { id: COUPON_ID } });
-    const client = supabaseWith(
-      couponQuery,
-      existingQuery,
-      upsertQuery,
-      updateQuery,
-    );
 
     await expect(
       updateAdminCoupon(
@@ -332,6 +326,8 @@ describe("admin coupon management", () => {
         submission({
           code: undefined,
           isActive: false,
+          startsAt: "2026-08-01T09:00:00",
+          expiresAt: "2026-08-02T09:00:00",
           assignments: [
             { productId: PRODUCT_A, discountPercent: "20.00" },
             { productId: PRODUCT_B, discountPercent: "12.50" },
@@ -340,64 +336,92 @@ describe("admin coupon management", () => {
       ),
     ).resolves.toEqual({ ok: true, couponId: COUPON_ID });
 
-    expect(upsertQuery.upsert).toHaveBeenCalledWith(
-      [
-        {
-          discount_code_id: COUPON_ID,
-          product_id: PRODUCT_A,
-          discount_percent: "20.00",
-        },
-        {
-          discount_code_id: COUPON_ID,
-          product_id: PRODUCT_B,
-          discount_percent: "12.50",
-        },
-      ],
-      { onConflict: "discount_code_id,product_id" },
+    // PRODUCT_A stays in the payload even though it is no longer active. The
+    // RPC only requires a *newly added* assignment to be active, so an
+    // unrelated change never silently drops it.
+    expect(client.rpc).toHaveBeenCalledWith(
+      "update_discount_code_with_assignments",
+      {
+        p_discount_code_id: COUPON_ID,
+        p_is_active: false,
+        p_starts_at: "2026-08-01T01:00:00.000Z",
+        p_expires_at: "2026-08-02T01:00:00.000Z",
+        p_assignments: [
+          { product_id: PRODUCT_A, discount_percent: "20.00" },
+          { product_id: PRODUCT_B, discount_percent: "12.50" },
+        ],
+      },
     );
-    // Nothing was omitted from the submission, so no delete query ran and no
-    // "products" active-check query ran either.
-    expect(client.from.mock.calls.map(([table]) => table)).toEqual([
-      "discount_codes",
-      "discount_code_products",
-      "discount_code_products",
-      "discount_codes",
-    ]);
   });
 
-  it("still rejects a genuinely new inactive product added during an update", async () => {
-    const couponQuery = query({ data: { id: COUPON_ID } });
-    const existingQuery = query({ data: [{ product_id: PRODUCT_A }] });
-    // PRODUCT_B is newly added by this submission and is not returned as
-    // active, so the update must be rejected before any write.
-    const productsQuery = query({ data: [] });
-    const client = supabaseWith(
-      couponQuery,
-      existingQuery,
-      productsQuery,
-    );
+  it.each([
+    ["not_found", "That coupon no longer exists."],
+    [
+      "inactive_product",
+      "Only currently active products can be assigned to a coupon. No changes were saved.",
+    ],
+    [
+      "unknown_product",
+      "Only currently active products can be assigned to a coupon. No changes were saved.",
+    ],
+    [
+      "invalid_assignments",
+      "One of the selected products is not valid. No changes were saved.",
+    ],
+    [
+      "duplicate_product",
+      "One of the selected products is not valid. No changes were saved.",
+    ],
+    ["invalid_date_range", "Expiry must be later than the start date."],
+    [
+      "something_new",
+      "Coupon could not be updated. No changes were saved. Try again.",
+    ],
+  ])("words the %s refusal without leaking database detail", async (
+    reason,
+    message,
+  ) => {
+    supabaseWithRpc({ data: { ok: false, reason } });
 
     await expect(
       updateAdminCoupon(
         COUPON_ID,
         submission({
           code: undefined,
-          assignments: [
-            { productId: PRODUCT_A, discountPercent: "20.00" },
-            { productId: PRODUCT_B, discountPercent: "10.00" },
-          ],
+          assignments: [{ productId: PRODUCT_A, discountPercent: "20.00" }],
+        }),
+      ),
+    ).resolves.toEqual({ ok: false, error: message });
+  });
+
+  it("reports a failed transaction as saving nothing and hides the driver error", async () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+
+    supabaseWithRpc({
+      error: {
+        code: "23503",
+        message:
+          'insert or update on table "discount_code_products" violates foreign key constraint',
+        details: "Key (product_id)=(...) is not present in table \"products\".",
+      },
+    });
+
+    await expect(
+      updateAdminCoupon(
+        COUPON_ID,
+        submission({
+          code: undefined,
+          assignments: [{ productId: PRODUCT_A, discountPercent: "20.00" }],
         }),
       ),
     ).resolves.toEqual({
       ok: false,
-      error: "Only currently active products can be assigned to a coupon.",
+      error: "Coupon could not be updated. No changes were saved. Try again.",
     });
-    expect(productsQuery.in).toHaveBeenCalledWith("id", [PRODUCT_B]);
-    expect(client.from.mock.calls.map(([table]) => table)).toEqual([
-      "discount_codes",
-      "discount_code_products",
-      "products",
-    ]);
+
+    consoleError.mockRestore();
   });
 
   it("counts both active and inactive assignments in the admin coupon list", async () => {

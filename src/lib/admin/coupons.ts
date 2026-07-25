@@ -80,6 +80,40 @@ export type AdminCouponMutationResult =
   | { ok: true; couponId: string }
   | { ok: false; error: string };
 
+// Mirrors every key update_discount_code_with_assignments can return.
+// Success carries the counts; a refusal carries a reason, and the
+// unknown_product and inactive_product refusals also name the products that
+// caused it. Those ids are deliberately not shown to the admin — the wording
+// below stays generic — but the field is declared so the shape is honest.
+type CouponUpdateRpcResult = {
+  ok?: boolean;
+  reason?: string;
+  coupon_id?: string;
+  assigned_product_count?: number;
+  removed_product_count?: number;
+  product_ids?: string[];
+};
+
+// The RPC refuses with a machine-readable reason. Anything it does not
+// recognise falls through to the generic message, so an internal detail can
+// never be rendered into the admin form.
+function describeCouponUpdateRefusal(result: CouponUpdateRpcResult | null) {
+  switch (result?.reason) {
+    case "not_found":
+      return "That coupon no longer exists.";
+    case "unknown_product":
+    case "inactive_product":
+      return "Only currently active products can be assigned to a coupon. No changes were saved.";
+    case "invalid_assignments":
+    case "duplicate_product":
+      return "One of the selected products is not valid. No changes were saved.";
+    case "invalid_date_range":
+      return "Expiry must be later than the start date.";
+    default:
+      return "Coupon could not be updated. No changes were saved. Try again.";
+  }
+}
+
 async function assertAdmin() {
   const adminUser = await getAdminUser();
 
@@ -577,138 +611,41 @@ export async function updateAdminCoupon(
     return validated;
   }
 
+  // One RPC, one transaction. Coupon fields, added assignments, changed
+  // percentages, and removed assignments all commit together or not at all,
+  // so a failed save can never leave a live discount changed behind an error
+  // message. Existence, active-product, and range checks live in the RPC
+  // because the database is the authority; the validation above only spares a
+  // round trip and produces the friendlier wording.
   const supabase = createSupabaseServiceRoleClient();
-  const { data: coupon, error: couponLookupError } = await supabase
-    .from("discount_codes")
-    .select("id")
-    .eq("id", couponId)
-    .maybeSingle<{ id: string }>();
-
-  if (couponLookupError) {
-    console.error("Failed to load coupon before update", couponLookupError);
-    return {
-      ok: false,
-      error: "Coupon could not be loaded. Try again.",
-    };
-  }
-
-  if (!coupon) {
-    return { ok: false, error: "That coupon no longer exists." };
-  }
-
-  const { data: existingAssignments, error: existingAssignmentsError } =
-    await supabase
-      .from("discount_code_products")
-      .select("product_id")
-      .eq("discount_code_id", couponId)
-      .returns<{ product_id: string }[]>();
-
-  if (existingAssignmentsError) {
-    console.error(
-      "Failed to load existing coupon assignments",
-      existingAssignmentsError,
-    );
-    return {
-      ok: false,
-      error: "Coupon products could not be updated. Try again.",
-    };
-  }
-
-  const existingProductIds = new Set(
-    (existingAssignments ?? []).map((assignment) => assignment.product_id),
-  );
-  const productIds = validated.value.assignments.map(
-    (assignment) => assignment.productId,
+  const { data, error } = await supabase.rpc(
+    "update_discount_code_with_assignments",
+    {
+      p_discount_code_id: couponId,
+      p_is_active: validated.value.isActive,
+      p_starts_at: validated.value.startsAt,
+      p_expires_at: validated.value.expiresAt,
+      // The complete desired set. The RPC removes any assignment missing
+      // from it, so omitting a product is how a removal is expressed.
+      p_assignments: validated.value.assignments.map((assignment) => ({
+        product_id: assignment.productId,
+        discount_percent: assignment.discountPercent,
+      })),
+    },
   );
 
-  // An assignment that already existed is preserved even if its product has
-  // since gone inactive, so saving an unrelated change (dates, active state)
-  // never silently drops it. Only a genuinely new assignment has to point at
-  // a currently active product.
-  const newProductIds = productIds.filter(
-    (productId) => !existingProductIds.has(productId),
-  );
-  const newProductsAreActive = await validateActiveProducts(
-    newProductIds,
-    supabase,
-  );
-
-  if (newProductsAreActive === null) {
+  if (error) {
+    console.error("Failed to update coupon", error);
     return {
       ok: false,
-      error: "Coupon products could not be validated. Try again.",
+      error: "Coupon could not be updated. No changes were saved. Try again.",
     };
   }
 
-  if (!newProductsAreActive) {
-    return {
-      ok: false,
-      error: "Only currently active products can be assigned to a coupon.",
-    };
-  }
+  const result = (data ?? null) as CouponUpdateRpcResult | null;
 
-  if (validated.value.assignments.length > 0) {
-    const { error: upsertError } = await supabase
-      .from("discount_code_products")
-      .upsert(
-        validated.value.assignments.map((assignment) => ({
-          discount_code_id: couponId,
-          product_id: assignment.productId,
-          discount_percent: assignment.discountPercent,
-        })),
-        { onConflict: "discount_code_id,product_id" },
-      )
-      .select("product_id")
-      .returns<{ product_id: string }[]>();
-
-    if (upsertError) {
-      console.error("Failed to save coupon assignments", upsertError);
-      return {
-        ok: false,
-        error: "Coupon products could not be updated. Try again.",
-      };
-    }
-  }
-
-  const removedProductIds = (existingAssignments ?? [])
-    .map((assignment) => assignment.product_id)
-    .filter((productId) => !productIds.includes(productId));
-
-  if (removedProductIds.length > 0) {
-    const { error: removeError } = await supabase
-      .from("discount_code_products")
-      .delete()
-      .eq("discount_code_id", couponId)
-      .in("product_id", removedProductIds)
-      .select("product_id")
-      .returns<{ product_id: string }[]>();
-
-    if (removeError) {
-      console.error("Failed to remove coupon assignments", removeError);
-      return {
-        ok: false,
-        error: "Coupon products could not be updated. Try again.",
-      };
-    }
-  }
-
-  const { data: updatedCoupon, error: couponError } = await supabase
-    .from("discount_codes")
-    .update({
-      is_active: validated.value.isActive,
-      starts_at: validated.value.startsAt,
-      expires_at: validated.value.expiresAt,
-    })
-    .eq("id", couponId)
-    .select("id")
-    .maybeSingle<{ id: string }>();
-
-  if (couponError || !updatedCoupon) {
-    console.error("Failed to update coupon", couponError);
-    return {
-      ok: false,
-      error: "Coupon could not be updated. Try again.",
-    };
+  if (!result?.ok) {
+    return { ok: false, error: describeCouponUpdateRefusal(result) };
   }
 
   return { ok: true, couponId };
