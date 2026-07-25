@@ -22,6 +22,11 @@ const focusRing =
 
 const policyLinkClass = `text-stone-400 underline underline-offset-4 transition-colors hover:text-stone-200 ${focusRing}`;
 
+// How long to wait after handing the browser a Stripe URL before offering a
+// manual link. Long enough that a working redirect always wins the race, short
+// enough that a customer left sitting on this page is not stranded.
+const REDIRECT_FALLBACK_DELAY_MS = 2500;
+
 export function CheckoutPageContent() {
   const formRef = useRef<HTMLFormElement>(null);
   const { cartItems } = useCartItems();
@@ -34,6 +39,16 @@ export function CheckoutPageContent() {
   } = useCouponPreview(cartItems);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Set only once a Stripe Session exists but the browser has not left this
+  // page. Rendering it offers a way forward without inviting a second payment.
+  const [stalledRedirectUrl, setStalledRedirectUrl] = useState<string | null>(
+    null,
+  );
+  // The real double-submit guard. `isSubmitting` drives the disabled state, but
+  // it is React state and is not guaranteed to have flushed before a second
+  // submit event is dispatched; this ref is updated synchronously, so a rapid
+  // second submission is rejected outright.
+  const isCheckoutLockedRef = useRef(false);
 
   const resolvedCartItems = cartItems ?? [];
   const itemCount = getCartItemCount(resolvedCartItems);
@@ -42,6 +57,12 @@ export function CheckoutPageContent() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    // Checked before anything else and never reset once a Stripe Session
+    // exists, so no repeat submission can reach Session creation.
+    if (isCheckoutLockedRef.current) {
+      return;
+    }
 
     if (
       !formRef.current ||
@@ -52,6 +73,8 @@ export function CheckoutPageContent() {
     ) {
       return;
     }
+
+    isCheckoutLockedRef.current = true;
 
     const formData = new FormData(formRef.current);
 
@@ -72,10 +95,17 @@ export function CheckoutPageContent() {
       },
     };
 
-    try {
-      setIsSubmitting(true);
-      setErrorMessage(null);
+    setIsSubmitting(true);
+    setErrorMessage(null);
 
+    // Phase 1 — create the Stripe Session.
+    //
+    // Nothing chargeable exists yet, so every failure in here is safe to
+    // surface and safe to retry. This is the only phase that may release the
+    // lock or show a checkout error.
+    let session: { sessionId: string; url: string };
+
+    try {
       const response = await fetch("/api/checkout/session", {
         method: "POST",
         headers: {
@@ -94,8 +124,7 @@ export function CheckoutPageContent() {
         throw new Error(data.error ?? "Could not start Stripe Checkout.");
       }
 
-      saveCheckoutCartSnapshot(data.sessionId, resolvedCartItems);
-      window.location.assign(data.url);
+      session = { sessionId: data.sessionId, url: data.url };
     } catch (error) {
       setErrorMessage(
         error instanceof Error
@@ -103,7 +132,47 @@ export function CheckoutPageContent() {
           : "Could not start Stripe Checkout.",
       );
       setIsSubmitting(false);
+      isCheckoutLockedRef.current = false;
+      return;
     }
+
+    // A payable Stripe Session now exists.
+    //
+    // Past this line the lock is never released and no failure message is
+    // shown. Reporting "checkout failed" here would be untrue and would push
+    // the customer into creating a second Session for the same cart.
+
+    // Phase 2 — persist the snapshot, deliberately separated from Session
+    // creation. Its result cannot block the redirect: losing it only means the
+    // cart is left alone after payment instead of being reduced, which is
+    // recoverable. A duplicate payment is not.
+    //
+    // The storage layer already guarantees this cannot throw. It is wrapped
+    // anyway, because this is the exact boundary the original bug crossed: a
+    // throw here would abort the redirect and strand the customer with a live
+    // Session, and that must not depend on a promise made in another module.
+    try {
+      saveCheckoutCartSnapshot(session.sessionId, resolvedCartItems);
+    } catch {
+      // Deliberately swallowed. Cart cleanup after payment is the only
+      // casualty, and reconciliation already treats a missing snapshot as
+      // "leave the cart alone".
+    }
+
+    // Phase 3 — hand off to Stripe.
+    try {
+      window.location.assign(session.url);
+    } catch {
+      // Navigation refused outright: offer the link immediately.
+      setStalledRedirectUrl(session.url);
+      return;
+    }
+
+    // `assign` can also fail by simply doing nothing. If this page is still
+    // here shortly afterwards, surface the same manual link.
+    window.setTimeout(() => {
+      setStalledRedirectUrl(session.url);
+    }, REDIRECT_FALLBACK_DELAY_MS);
   }
 
   const hasItems = resolvedCartItems.length > 0;
@@ -326,7 +395,32 @@ export function CheckoutPageContent() {
                     : "Continue to Payment"}
                 </button>
 
-                {errorMessage ? (
+                {/* Shown only when a Stripe Session already exists and the
+                    browser stayed on this page. It deliberately reads as
+                    "continue", never "try again": the payment attempt is
+                    already open on Stripe's side. */}
+                {stalledRedirectUrl ? (
+                  <div
+                    role="status"
+                    aria-live="polite"
+                    className="space-y-3 rounded-lg border border-amber-400/20 bg-amber-400/5 px-4 py-3 text-center text-xs leading-6 text-amber-200"
+                  >
+                    <p>
+                      Your secure Stripe payment page is ready, but this browser
+                      did not open it automatically. Continue with the link
+                      below — do not start checkout again, or you may be charged
+                      twice.
+                    </p>
+                    <a
+                      href={stalledRedirectUrl}
+                      className={`inline-block underline underline-offset-4 hover:text-amber-100 ${focusRing}`}
+                    >
+                      Continue to secure payment
+                    </a>
+                  </div>
+                ) : null}
+
+                {errorMessage && !stalledRedirectUrl ? (
                   <p
                     role="alert"
                     className="rounded-lg border border-red-400/20 bg-red-400/5 px-4 py-3 text-center text-xs leading-6 text-red-300"

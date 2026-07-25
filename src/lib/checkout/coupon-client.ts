@@ -1,4 +1,9 @@
 import type { CartItem } from "@/lib/cart/cart";
+import {
+  readStoredText,
+  removeStoredValue,
+  writeStoredText,
+} from "@/lib/cart/storage";
 
 import { normalizeCouponCode } from "./coupon-quote";
 import type { CouponPreviewResponse } from "./coupon-preview";
@@ -100,56 +105,49 @@ export async function requestCouponPreview(
 }
 
 export function readStoredCouponCode() {
-  if (typeof window === "undefined") {
+  const stored = readStoredText(COUPON_STORAGE_KEY, "session");
+
+  if (stored.status !== "ok") {
     return null;
   }
+
+  let normalizedCode: string;
 
   try {
-    const storedCode = window.sessionStorage.getItem(COUPON_STORAGE_KEY);
-
-    if (!storedCode) {
-      return null;
-    }
-
-    const normalizedCode = normalizeCouponCode(storedCode);
-
-    if (storedCode !== normalizedCode) {
-      window.sessionStorage.removeItem(COUPON_STORAGE_KEY);
-      return null;
-    }
-
-    return normalizedCode;
+    normalizedCode = normalizeCouponCode(stored.value);
   } catch {
+    removeStoredValue(COUPON_STORAGE_KEY, "session");
     return null;
   }
+
+  // Only an already-normalized value is trusted. Anything else was not written
+  // by this app in a form it recognises, so it is discarded rather than used.
+  if (stored.value !== normalizedCode) {
+    removeStoredValue(COUPON_STORAGE_KEY, "session");
+    return null;
+  }
+
+  return normalizedCode;
 }
 
 export function storeCouponCode(code: string) {
-  if (typeof window === "undefined") {
+  let normalizedCode: string;
+
+  try {
+    normalizedCode = normalizeCouponCode(code);
+  } catch {
     return;
   }
 
-  try {
-    const normalizedCode = normalizeCouponCode(code);
-
-    if (code !== normalizedCode) {
-      return;
-    }
-
-    window.sessionStorage.setItem(COUPON_STORAGE_KEY, normalizedCode);
-  } catch {
-    // Storage can be unavailable in privacy-restricted browser contexts.
+  if (code !== normalizedCode) {
+    return;
   }
+
+  // A failed write is ignored: the coupon is a convenience that is revalidated
+  // server-side anyway, and losing it must never block checkout.
+  writeStoredText(COUPON_STORAGE_KEY, normalizedCode, "session");
 }
 
 export function clearStoredCouponCode() {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  try {
-    window.sessionStorage.removeItem(COUPON_STORAGE_KEY);
-  } catch {
-    // Removing an optional convenience value must never block checkout.
-  }
+  removeStoredValue(COUPON_STORAGE_KEY, "session");
 }

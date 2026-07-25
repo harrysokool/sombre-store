@@ -99,6 +99,58 @@ describe("CheckoutSuccessStateManager pending-confirmation notice", () => {
     expect(screen.queryByText(PAUSED_TEXT)).toBeNull();
   });
 
+  // shouldCleanupCart is computed on the server from the verified order, never
+  // from the success URL. These cover the other side of that gate: anything
+  // short of a confirmed order must leave the cart completely alone.
+  it.each([
+    ["a pending payment still being confirmed", true],
+    ["a failed, canceled, or unverified payment", false],
+  ])("never reconciles the cart for %s", (_label, shouldRefresh) => {
+    render(
+      <CheckoutSuccessStateManager
+        shouldCleanupCart={false}
+        shouldRefresh={shouldRefresh}
+        sessionId="cs_test_unconfirmed"
+      />,
+    );
+
+    expect(mocks.reconcileCartWithCheckoutSession).not.toHaveBeenCalled();
+  });
+
+  it("does not reconcile without a session id, even when the order is confirmed", () => {
+    render(
+      <CheckoutSuccessStateManager
+        shouldCleanupCart={true}
+        shouldRefresh={false}
+        sessionId=""
+      />,
+    );
+
+    expect(mocks.reconcileCartWithCheckoutSession).not.toHaveBeenCalled();
+  });
+
+  it("only ever reconciles the session it was given", () => {
+    render(
+      <CheckoutSuccessStateManager
+        shouldCleanupCart={true}
+        shouldRefresh={false}
+        sessionId="cs_test_confirmed"
+      />,
+    );
+
+    // A re-render can call this again — the mocked router is a fresh object
+    // each time, which is what re-triggers the effect. That is safe because
+    // the snapshot is consumed on the first pass; see the repeat-reconcile
+    // test in src/lib/cart/cart-storage.test.ts. What matters here is that no
+    // other session id is ever passed.
+    for (const call of mocks.reconcileCartWithCheckoutSession.mock.calls) {
+      expect(call).toEqual(["cs_test_confirmed"]);
+    }
+    expect(
+      mocks.reconcileCartWithCheckoutSession.mock.calls.length,
+    ).toBeGreaterThan(0);
+  });
+
   it("replaces the no-refresh notice with the paused notice once the poll budget is spent (timeout)", () => {
     const { rerender } = render(
       <CheckoutSuccessStateManager

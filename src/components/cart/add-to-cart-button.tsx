@@ -7,6 +7,7 @@ import {
   CART_UPDATED_EVENT,
   getCartItemQuantityLimit,
   getCartItems,
+  isCartStorageChange,
 } from "@/lib/cart/cart";
 
 type AddToCartButtonProps = {
@@ -44,14 +45,20 @@ export function AddToCartButton({ product }: AddToCartButtonProps) {
       setQuantityInCart(line?.quantity ?? 0);
     }
 
+    function handleStorage(event: StorageEvent) {
+      if (isCartStorageChange(event)) {
+        syncFromCart();
+      }
+    }
+
     syncFromCart();
 
     window.addEventListener(CART_UPDATED_EVENT, syncFromCart);
-    window.addEventListener("storage", syncFromCart);
+    window.addEventListener("storage", handleStorage);
 
     return () => {
       window.removeEventListener(CART_UPDATED_EVENT, syncFromCart);
-      window.removeEventListener("storage", syncFromCart);
+      window.removeEventListener("storage", handleStorage);
     };
   }, [product.id]);
 

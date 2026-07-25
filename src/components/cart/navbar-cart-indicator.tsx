@@ -4,9 +4,9 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import {
-  CART_STORAGE_KEY,
   CART_UPDATED_EVENT,
   getCartItemCount,
+  isCartStorageChange,
 } from "@/lib/cart/cart";
 
 function CartIcon() {
@@ -38,7 +38,9 @@ export function NavbarCartIndicator() {
     }
 
     function handleStorage(event: StorageEvent) {
-      if (event.key === CART_STORAGE_KEY) {
+      // Also covers a null key, which is the browser reporting that the whole
+      // storage area was cleared in another tab.
+      if (isCartStorageChange(event)) {
         refreshCount();
       }
     }

@@ -1,4 +1,9 @@
 import { MAX_CART_ITEM_QUANTITY } from "./limits";
+import {
+  readStoredJson,
+  removeStoredValue,
+  writeStoredJson,
+} from "./storage";
 
 export { MAX_CART_ITEM_QUANTITY } from "./limits";
 
@@ -51,37 +56,74 @@ export function getCartItemQuantityLimit(
   );
 }
 
+/**
+ * Rejects anything that is not an array outright, so a stored object, string,
+ * or number can never be mistaken for a cart. Within a real array, individual
+ * items that fail validation are dropped rather than condemning the whole
+ * cart — one corrupt line should not lose the rest.
+ */
+function parseCartItems(value: unknown): CartItem[] | null {
+  if (!Array.isArray(value)) {
+    return null;
+  }
+
+  return value.filter(isCartItem);
+}
+
+/**
+ * The cart as it is actually persisted.
+ *
+ * Every failure — storage blocked, quota exhausted, malformed JSON, a value
+ * that is not an array — resolves to an empty cart. That is deliberately the
+ * same answer as "no cart yet": it is the only state that cannot mislead the
+ * customer or the server, and it keeps every surface that calls this rendering
+ * instead of throwing.
+ */
 export function getCartItems(): CartItem[] {
-  if (typeof window === "undefined") {
-    return [];
-  }
+  const stored = readStoredJson(CART_STORAGE_KEY, parseCartItems);
 
-  const rawCart = window.localStorage.getItem(CART_STORAGE_KEY);
-
-  if (!rawCart) {
-    return [];
-  }
-
-  try {
-    const parsedCart = JSON.parse(rawCart);
-
-    if (!Array.isArray(parsedCart)) {
-      return [];
-    }
-
-    return parsedCart.filter(isCartItem);
-  } catch {
-    return [];
-  }
+  return stored.status === "ok" ? stored.value : [];
 }
 
 export function getCartItemCount(items: CartItem[] = getCartItems()) {
   return items.reduce((total, item) => total + item.quantity, 0);
 }
 
+/**
+ * Whether a `storage` event should make cart surfaces re-read.
+ *
+ * Takes `unknown` because listeners are shared with in-page CustomEvents and
+ * because event data arriving from another tab is not worth trusting. An event
+ * whose shape is unrecognised falls through to re-reading: the read is guarded
+ * and cheap, so a needless resync is always safer than missing a real change.
+ */
+export function isCartStorageChange(event: unknown) {
+  if (!event || typeof event !== "object" || !("key" in event)) {
+    return true;
+  }
+
+  const { key } = event as { key: unknown };
+
+  // A null key is the browser reporting that the whole area was cleared, which
+  // does affect the cart.
+  return key === null || key === CART_STORAGE_KEY;
+}
+
+/**
+ * Persists the cart and tells every surface to re-read.
+ *
+ * The event is dispatched even when the write failed, and that is the point:
+ * listeners re-read from storage, so the UI settles on what is actually saved
+ * rather than on an optimistic value that would silently vanish at checkout.
+ */
 function saveCartItems(items: CartItem[]) {
-  window.localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(items));
-  window.dispatchEvent(new CustomEvent(CART_UPDATED_EVENT));
+  const persisted = writeStoredJson(CART_STORAGE_KEY, items);
+
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent(CART_UPDATED_EVENT));
+  }
+
+  return persisted;
 }
 
 function getCheckoutSnapshotStorageKey(sessionId: string) {
@@ -181,70 +223,69 @@ export function clearCartItems() {
   return updateCartItems(() => []);
 }
 
+/**
+ * Records which quantities were sent to a Stripe Checkout Session, so the cart
+ * can later be reduced by exactly that much and nothing more.
+ *
+ * Returns whether the snapshot persisted. It never throws, because the caller
+ * runs this immediately after a Stripe Session has been created: at that point
+ * a thrown error would be indistinguishable from "checkout failed" and would
+ * push the customer into paying twice. A lost snapshot only costs the cart
+ * cleanup below, which is recoverable; a duplicate Session is not.
+ */
 export function saveCheckoutCartSnapshot(sessionId: string, items: CartItem[]) {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  window.localStorage.setItem(
-    getCheckoutSnapshotStorageKey(sessionId),
-    JSON.stringify(items),
-  );
+  return writeStoredJson(getCheckoutSnapshotStorageKey(sessionId), items);
 }
 
+/**
+ * Subtracts a confirmed Session's quantities from the cart.
+ *
+ * Only ever called for an order the server has already verified as confirmed —
+ * the success URL alone is never treated as proof. Even then, the snapshot is
+ * what proves *which* quantities belonged to that Session.
+ *
+ * Without a usable snapshot there is no such proof, so the cart is returned
+ * untouched. Leaving a few already-purchased items behind is a visible,
+ * correctable annoyance; clearing items the customer never bought is silent
+ * data loss, so the ambiguity always resolves toward keeping the cart.
+ */
 export function reconcileCartWithCheckoutSession(sessionId: string) {
-  if (typeof window === "undefined") {
+  const snapshotKey = getCheckoutSnapshotStorageKey(sessionId);
+  const stored = readStoredJson(snapshotKey, parseCartItems);
+
+  // empty, invalid, or unavailable all mean the same thing here: the purchased
+  // quantities cannot be proven, so nothing is removed. `readStoredJson` has
+  // already cleared an invalid value.
+  if (stored.status !== "ok") {
     return getCartItems();
   }
 
-  const snapshot = window.localStorage.getItem(
-    getCheckoutSnapshotStorageKey(sessionId),
+  const checkoutQuantities = new Map(
+    stored.value.map((item) => [item.id, item.quantity]),
   );
 
-  if (!snapshot) {
-    return getCartItems();
-  }
+  const reconciledItems = updateCartItems((currentItems) =>
+    currentItems.flatMap((currentItem) => {
+      const purchasedQuantity = checkoutQuantities.get(currentItem.id);
 
-  try {
-    const parsedSnapshot = JSON.parse(snapshot);
+      if (!purchasedQuantity) {
+        return [currentItem];
+      }
 
-    if (!Array.isArray(parsedSnapshot)) {
-      window.localStorage.removeItem(getCheckoutSnapshotStorageKey(sessionId));
-      return getCartItems();
-    }
+      if (currentItem.quantity <= purchasedQuantity) {
+        return [];
+      }
 
-    const checkoutItems = parsedSnapshot.filter(isCartItem);
+      return [
+        {
+          ...currentItem,
+          quantity: currentItem.quantity - purchasedQuantity,
+        },
+      ];
+    }),
+  );
 
-    const reconciledItems = updateCartItems((currentItems) => {
-      const checkoutQuantities = new Map(
-        checkoutItems.map((item) => [item.id, item.quantity]),
-      );
+  removeStoredValue(snapshotKey);
 
-      return currentItems.flatMap((currentItem) => {
-        const purchasedQuantity = checkoutQuantities.get(currentItem.id);
-
-        if (!purchasedQuantity) {
-          return [currentItem];
-        }
-
-        if (currentItem.quantity <= purchasedQuantity) {
-          return [];
-        }
-
-        return [
-          {
-            ...currentItem,
-            quantity: currentItem.quantity - purchasedQuantity,
-          },
-        ];
-      });
-    });
-
-    window.localStorage.removeItem(getCheckoutSnapshotStorageKey(sessionId));
-
-    return reconciledItems;
-  } catch {
-    window.localStorage.removeItem(getCheckoutSnapshotStorageKey(sessionId));
-    return getCartItems();
-  }
+  return reconciledItems;
 }
