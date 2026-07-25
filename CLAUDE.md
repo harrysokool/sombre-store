@@ -10,9 +10,30 @@ The frontend uses the Next.js App Router with server-rendered catalog pages, a `
 
 `/admin` is a real protected area using Supabase Auth. `/admin/login` is its authentication flow. The public `/login` route is a separate placeholder, and `/brands` is also a public placeholder.
 
-Implemented code is not proof of production readiness or runtime verification.
+## 2. Project status
 
-## 2. Technology stack
+Code is ready for Stripe test-mode runtime testing. Production launch configuration is not complete. Nothing below has been runtime-verified against live Stripe, Supabase, or Resend services — only code-level review and mocked-test coverage.
+
+**Coupon system** — implemented end to end: cart coupon input, checkout revalidation, server-authoritative pricing, Stripe metadata, webhook persistence, order snapshots, receipt/email/admin display, and private admin coupon management.
+
+**Admin platform** — implemented: standalone admin layout (no storefront navigation or footer), responsive order and coupon lists (desktop tables, mobile cards), admin authentication, fulfilment controls, coupon creation and editing, and status badges.
+
+**Remaining before launch:**
+
+- Stripe test-mode runtime flows (payment, delayed payment, webhook replay/concurrency, full and partial refunds, paid oversell)
+- production Supabase configuration
+- live Stripe keys and webhook endpoint
+- Resend domain and sender verification
+- Upstash credentials for shared rate limiting
+- legal/business placeholders (`src/lib/legal/business-details.ts`)
+- production domain and DNS
+- CSP and HSTS (`next.config.ts`)
+- monitoring and error alerts
+- admin visibility for unresolved webhook failures and unsent emails — the Supabase views `unresolved_webhook_failures` (from `supabase/migrations/20260721040000_add_webhook_failure_tracking.sql`) and `unsent_order_emails` (from `supabase/migrations/20260722010000_add_order_email_delivery.sql`) already exist but have no dedicated admin page yet
+- a production test order
+- soft launch
+
+## 3. Technology stack
 
 - Next.js 16 App Router, React 19, and TypeScript 5
 - Tailwind CSS 4
@@ -20,8 +41,15 @@ Implemented code is not proof of production readiness or runtime verification.
 - Stripe Checkout and signed webhooks
 - Resend transactional email
 - Upstash Redis rate limiting with an in-memory fallback
+- Vitest and React Testing Library for automated tests
 
-## 3. Important repository locations
+## 4. Testing
+
+Vitest and React Testing Library tests cover: checkout validation, coupon calculations and preview, Stripe Checkout Session pricing, webhook snapshots and idempotency, stock reduction and restoration, refund handling, receipts and emails, admin orders and coupon management, and responsive admin components.
+
+`npm test` passes 390 tests across 28 files as of this update (2026-07-25) — re-run to confirm before relying on this count, since it will drift as tests are added. Passing tests verify logic against mocked inputs; they are not a substitute for the Stripe test-mode runtime flows listed in Project status.
+
+## 5. Important repository locations
 
 - `src/app/` — storefront, checkout, public pages, admin routes, and API routes
 - `src/app/api/checkout/session/route.ts` — server validation and Stripe Checkout creation
@@ -38,7 +66,7 @@ Implemented code is not proof of production readiness or runtime verification.
 - `supabase/manual/` — deliberate catalog SQL outside automatic migrations
 - `public/images/products/` — local product and campaign assets
 
-## 4. Critical system invariants
+## 6. Critical system invariants
 
 1. Product prices, supported shipping, stock validation, subtotal, and total are controlled and recalculated by the server. Never trust browser cart values as the charging authority.
 2. Checkout Session creation validates the guest payload and creates Stripe Checkout only; it does not create an order.
@@ -56,22 +84,18 @@ Implemented code is not proof of production readiness or runtime verification.
 14. Applied migrations are immutable. Add a new migration for every database change.
 15. Use `.env.example` as the environment-variable source of truth. Only `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` may use the `NEXT_PUBLIC_` prefix; all credentials, service keys, tokens, and hash secrets remain server-only.
 
-## 5. Current limitations
+## 7. Current limitations
 
-- Legal business details, support contacts, policy dates, delivery commitments, and return terms are placeholders and must be verified before real payments.
-- Real email delivery is disabled until valid Resend sender configuration is provided.
-- Production deployment and operational monitoring are not complete or verified.
-- Stripe payment, delayed-payment, refund, email, and multi-instance Upstash paths still require runtime testing in the intended environment.
 - Checkout currently supports Hong Kong only, uses a flat HK$50 shipping fee, and does not configure Stripe automatic tax.
 - Admin access is intentionally limited to one configured Supabase Auth email.
 - `/login` and `/brands` remain public placeholders; `/admin/login` is the real operator sign-in.
-- There is no configured automated test suite.
 
-## 6. Development and verification commands
+## 8. Development and verification commands
 
 ```bash
 npm install
 npm run dev
+npm test
 npm run lint
 npx tsc --noEmit
 npm run build
@@ -82,7 +106,7 @@ git diff -- CLAUDE.md
 
 For local Stripe test webhooks, run `stripe listen --forward-to localhost:3000/api/stripe/webhook` separately and use that listener's endpoint secret only in local server configuration.
 
-## 7. Rules for modifying the repository
+## 9. Rules for modifying the repository
 
 1. Inspect existing code before editing and make the smallest focused change.
 2. Do not change payment, stock, refund, admin, database, email, or customer-data behavior unless explicitly required.
