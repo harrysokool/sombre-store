@@ -65,7 +65,7 @@ export default async function EditAdminCouponPage({
         >
           &larr; All coupons
         </Link>
-        <h1 className="break-words text-3xl font-medium tracking-[0.08em] text-stone-100 [overflow-wrap:anywhere]">
+        <h1 className="break-words text-2xl font-medium tracking-[0.08em] text-stone-100 [overflow-wrap:anywhere] sm:text-3xl">
           {data.coupon.code_normalized}
         </h1>
         <p className="text-sm leading-6 text-stone-400">

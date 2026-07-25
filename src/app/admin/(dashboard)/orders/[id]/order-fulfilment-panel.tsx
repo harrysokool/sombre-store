@@ -6,6 +6,7 @@ import {
   updateOrderFulfilment,
   type FulfilmentActionState,
 } from "@/app/admin/actions";
+import { StatusBadge } from "@/components/admin/status-badge";
 import {
   FULFILMENT_STATUSES,
   isFulfilmentTransitionAllowed,
@@ -145,9 +146,11 @@ export function OrderFulfilmentPanel({
         <h3 className="text-xs uppercase tracking-[0.24em] text-stone-500">
           Fulfilment
         </h3>
-        <span className="inline-flex whitespace-nowrap rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs tracking-[0.08em] text-stone-200">
-          {FULFILMENT_LABELS[status]}
-        </span>
+        <StatusBadge
+          kind="fulfilment"
+          value={status}
+          label={FULFILMENT_LABELS[status]}
+        />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Cormorant_Garamond, Geist, Geist_Mono } from "next/font/google";
-import { AppShell } from "@/components/layout/app-shell";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -28,6 +27,8 @@ export const metadata: Metadata = {
   description: "Curated luxury fragrances and lifestyle products.",
 };
 
+// Document shell only. The public navbar and footer belong to the
+// `(storefront)` route group, so admin routes are not wrapped in shop chrome.
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -39,7 +40,7 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} ${cormorantGaramond.variable} h-full antialiased`}
     >
       <body className="min-h-full bg-stone-950 text-stone-100">
-        <AppShell>{children}</AppShell>
+        {children}
       </body>
     </html>
   );

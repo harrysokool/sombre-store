@@ -38,7 +38,7 @@ export default async function NewAdminCouponPage() {
         >
           &larr; All coupons
         </Link>
-        <h1 className="text-3xl font-medium tracking-[0.08em] text-stone-100">
+        <h1 className="text-2xl font-medium tracking-[0.08em] text-stone-100 sm:text-3xl">
           New coupon
         </h1>
       </div>

@@ -11,23 +11,23 @@ export default async function AdminLoginPage() {
     redirect("/admin");
   }
 
+  // The standalone frame (centring and page padding) comes from the login
+  // layout, so this page renders the card alone.
   return (
-    <section className="px-6 py-24 sm:px-10 sm:py-32 lg:px-12">
-      <div className="mx-auto w-full max-w-md space-y-8 rounded-[2rem] border border-white/10 bg-white/[0.02] px-6 py-10 sm:px-8">
-        <div className="space-y-3 text-center">
-          <p className="text-xs uppercase tracking-[0.34em] text-stone-500">
-            Sombre
-          </p>
-          <h1 className="text-3xl font-medium tracking-[0.14em] text-stone-100">
-            Admin Sign In
-          </h1>
-          <p className="text-sm leading-6 text-stone-400">
-            This area is restricted to the store operator.
-          </p>
-        </div>
-
-        <AdminLoginForm />
+    <section className="w-full space-y-8 rounded-[2rem] border border-white/10 bg-white/[0.02] px-5 py-10 sm:px-8">
+      <div className="space-y-3 text-center">
+        <p className="text-xs uppercase tracking-[0.34em] text-stone-500">
+          Sombre
+        </p>
+        <h1 className="text-2xl font-medium tracking-[0.14em] text-stone-100 sm:text-3xl">
+          Admin Sign In
+        </h1>
+        <p className="text-sm leading-6 text-stone-400">
+          This area is restricted to the store operator.
+        </p>
       </div>
+
+      <AdminLoginForm />
     </section>
   );
 }

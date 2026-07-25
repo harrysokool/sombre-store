@@ -2,7 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { OrderFulfilmentPanel } from "@/app/admin/(dashboard)/orders/[id]/order-fulfilment-panel";
+import { StatusBadge } from "@/components/admin/status-badge";
 import { getFulfilmentBlockReason } from "@/lib/admin/fulfilment-rules";
+import type { StatusKind } from "@/lib/admin/status-tone";
 import { getAdminOrder } from "@/lib/admin/orders";
 import {
   getDiscountedOrderDisplay,
@@ -37,6 +39,26 @@ function Field({ label, value }: { label: string; value: string }) {
       <p className="break-words text-sm leading-6 text-stone-200 [overflow-wrap:anywhere]">
         {value}
       </p>
+    </div>
+  );
+}
+
+// Same shape as Field, but the value carries a tone as well as its word.
+function StatusField({
+  label,
+  kind,
+  value,
+}: {
+  label: string;
+  kind: StatusKind;
+  value: string;
+}) {
+  return (
+    <div className="min-w-0 space-y-2">
+      <p className="text-xs uppercase tracking-[0.24em] text-stone-500">
+        {label}
+      </p>
+      <StatusBadge kind={kind} value={value} />
     </div>
   );
 }
@@ -100,19 +122,22 @@ export default async function AdminOrderDetailPage({
         </p>
       </div>
 
-      <div className="grid gap-4 rounded-2xl border border-white/10 bg-white/[0.02] px-5 py-6 sm:grid-cols-3 sm:px-6">
-        <Field
+      <div className="grid gap-5 rounded-2xl border border-white/10 bg-white/[0.02] px-5 py-6 sm:grid-cols-3 sm:px-6">
+        <StatusField
           label="Payment status"
-          value={order.payment_status.replaceAll("_", " ")}
+          kind="payment"
+          value={order.payment_status}
         />
-        <Field
+        <StatusField
           label="Order status"
-          value={order.order_status.replaceAll("_", " ")}
+          kind="order"
+          value={order.order_status}
         />
         {order.refund_status ? (
-          <Field
+          <StatusField
             label="Refund status"
-            value={order.refund_status.replaceAll("_", " ")}
+            kind="refund"
+            value={order.refund_status}
           />
         ) : null}
       </div>
