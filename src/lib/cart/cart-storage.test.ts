@@ -9,6 +9,7 @@ import {
   clearCartItems,
   getCartItemCount,
   getCartItems,
+  incrementCartItemQuantity,
   isCartStorageChange,
   reconcileCartWithCheckoutSession,
   saveCheckoutCartSnapshot,
@@ -238,9 +239,32 @@ describe("cart browser storage safety", () => {
 
       addItemToCart(cartItem(PRODUCT_A, 1));
 
+      // Exactly one dispatch per mutation, success or failure — never zero
+      // (the UI must still resync) and never more than one (nothing here
+      // retries or fans out a single write into repeated notifications).
       expect(listener).toHaveBeenCalledTimes(1);
       // The read is the source of truth, and it never saw the write.
       expect(getCartItems()).toEqual([]);
+
+      window.removeEventListener(CART_UPDATED_EVENT, listener);
+    });
+
+    it("dispatches exactly once per mutation even across a run of independent failures", () => {
+      installStorage({
+        onSet() {
+          throw quotaError();
+        },
+      });
+      const listener = vi.fn();
+      window.addEventListener(CART_UPDATED_EVENT, listener);
+
+      addItemToCart(cartItem(PRODUCT_A, 1));
+      incrementCartItemQuantity(PRODUCT_A);
+      clearCartItems();
+
+      // Three mutations, three notifications — a failing write never causes
+      // extra retries or extra dispatches to pile up.
+      expect(listener).toHaveBeenCalledTimes(3);
 
       window.removeEventListener(CART_UPDATED_EVENT, listener);
     });
@@ -281,6 +305,79 @@ describe("cart browser storage safety", () => {
 
       expect(getCartItems()).toEqual([]);
       expect(store.get(CART_STORAGE_KEY)).toBe("[]");
+    });
+  });
+
+  describe("event flow cannot loop", () => {
+    it("never dispatches the update event from a read", () => {
+      store.set(CART_STORAGE_KEY, JSON.stringify([cartItem(PRODUCT_A, 1)]));
+      const listener = vi.fn();
+      window.addEventListener(CART_UPDATED_EVENT, listener);
+
+      getCartItems();
+      getCartItems();
+      getCartItemCount();
+
+      expect(listener).not.toHaveBeenCalled();
+
+      window.removeEventListener(CART_UPDATED_EVENT, listener);
+    });
+
+    it("never dispatches the update event from a read of malformed or blocked storage", () => {
+      store.set(CART_STORAGE_KEY, "{not json");
+      const listener = vi.fn();
+      window.addEventListener(CART_UPDATED_EVENT, listener);
+
+      getCartItems();
+
+      installBlockedStorage();
+      getCartItems();
+
+      expect(listener).not.toHaveBeenCalled();
+
+      window.removeEventListener(CART_UPDATED_EVENT, listener);
+    });
+
+    it("cannot cascade: a listener that re-reads on update triggers no further write or dispatch", () => {
+      // Mirrors every real consumer (navbar, add-to-cart, useCartItems): each
+      // one reacts to CART_UPDATED_EVENT purely by calling a read. If a read
+      // ever triggered a write, this would recurse; it does not, by
+      // construction, but this is the regression test for that guarantee.
+      let dispatchCount = 0;
+      const listener = vi.fn(() => {
+        dispatchCount += 1;
+        getCartItems();
+        getCartItemCount();
+      });
+      window.addEventListener(CART_UPDATED_EVENT, listener);
+
+      addItemToCart(cartItem(PRODUCT_A, 1));
+
+      expect(dispatchCount).toBe(1);
+      expect(listener).toHaveBeenCalledTimes(1);
+
+      window.removeEventListener(CART_UPDATED_EVENT, listener);
+    });
+
+    it("multiple listeners re-reading on the same event do not multiply writes", () => {
+      const setSpy = vi.fn();
+      installStorage({ onSet: setSpy });
+
+      const listeners = [vi.fn(getCartItems), vi.fn(getCartItems), vi.fn(getCartItems)];
+      listeners.forEach((listener) =>
+        window.addEventListener(CART_UPDATED_EVENT, listener),
+      );
+
+      addItemToCart(cartItem(PRODUCT_A, 1));
+
+      // One mutation, one underlying setItem call, regardless of how many
+      // surfaces are subscribed and re-reading in response.
+      expect(setSpy).toHaveBeenCalledTimes(1);
+      listeners.forEach((listener) => expect(listener).toHaveBeenCalledTimes(1));
+
+      listeners.forEach((listener) =>
+        window.removeEventListener(CART_UPDATED_EVENT, listener),
+      );
     });
   });
 
