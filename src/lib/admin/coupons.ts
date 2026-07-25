@@ -40,6 +40,10 @@ export type AdminCouponProduct = {
 export type AdminCouponAssignment = {
   product_id: string;
   discount_percent: number | string;
+  product_name: string;
+  product_slug: string;
+  product_price: number | string;
+  is_active: boolean;
 };
 
 export type AdminCouponEditorData = {
@@ -368,28 +372,80 @@ export async function getAdminCoupon(
     return null;
   }
 
-  const [assignmentsResult, productsResult] = await Promise.all([
-    supabase
-      .from("discount_code_products")
-      .select("product_id, discount_percent")
-      .eq("discount_code_id", coupon.id)
-      .returns<AdminCouponAssignment[]>(),
+  const { data: rawAssignments, error: rawAssignmentsError } = await supabase
+    .from("discount_code_products")
+    .select("product_id, discount_percent")
+    .eq("discount_code_id", coupon.id)
+    .returns<{ product_id: string; discount_percent: number | string }[]>();
+
+  if (rawAssignmentsError) {
+    throw new Error("Coupon details could not be loaded.");
+  }
+
+  const assignedProductIds = (rawAssignments ?? []).map(
+    (assignment) => assignment.product_id,
+  );
+
+  type AssignedProductRow = AdminCouponProduct & { is_active: boolean };
+
+  const [activeProductsResult, assignedProductsResult] = await Promise.all([
     supabase
       .from("products")
       .select("id, name, slug, price")
       .eq("is_active", true)
       .order("name", { ascending: true })
       .returns<AdminCouponProduct[]>(),
+    assignedProductIds.length > 0
+      ? supabase
+          .from("products")
+          .select("id, name, slug, price, is_active")
+          .in("id", assignedProductIds)
+          .returns<AssignedProductRow[]>()
+      : Promise.resolve({ data: [] as AssignedProductRow[], error: null }),
   ]);
 
-  if (assignmentsResult.error || productsResult.error) {
+  if (activeProductsResult.error || assignedProductsResult.error) {
     throw new Error("Coupon details could not be loaded.");
   }
 
+  // Assigned products are looked up without the is_active filter so a
+  // product that has since gone inactive still has a name, slug, and price
+  // to show on the edit page instead of silently disappearing from view.
+  const assignedProductMap = new Map(
+    (assignedProductsResult.data ?? []).map((product) => [
+      product.id,
+      product,
+    ]),
+  );
+
+  const assignments: AdminCouponAssignment[] = (rawAssignments ?? [])
+    .map((assignment) => {
+      const product = assignedProductMap.get(assignment.product_id);
+
+      // A cascading delete removes the assignment row along with its
+      // product, so this only guards against an unexpected inconsistency
+      // rather than a state this app can otherwise produce.
+      if (!product) {
+        return null;
+      }
+
+      return {
+        product_id: assignment.product_id,
+        discount_percent: assignment.discount_percent,
+        product_name: product.name,
+        product_slug: product.slug,
+        product_price: product.price,
+        is_active: product.is_active,
+      };
+    })
+    .filter((assignment): assignment is AdminCouponAssignment =>
+      assignment !== null,
+    );
+
   return {
     coupon,
-    assignments: assignmentsResult.data ?? [],
-    products: productsResult.data ?? [],
+    assignments,
+    products: activeProductsResult.data ?? [],
   };
 }
 
@@ -540,25 +596,6 @@ export async function updateAdminCoupon(
     return { ok: false, error: "That coupon no longer exists." };
   }
 
-  const productIds = validated.value.assignments.map(
-    (assignment) => assignment.productId,
-  );
-  const productsAreActive = await validateActiveProducts(productIds, supabase);
-
-  if (productsAreActive === null) {
-    return {
-      ok: false,
-      error: "Coupon products could not be validated. Try again.",
-    };
-  }
-
-  if (!productsAreActive) {
-    return {
-      ok: false,
-      error: "Only currently active products can be assigned to a coupon.",
-    };
-  }
-
   const { data: existingAssignments, error: existingAssignmentsError } =
     await supabase
       .from("discount_code_products")
@@ -574,6 +611,39 @@ export async function updateAdminCoupon(
     return {
       ok: false,
       error: "Coupon products could not be updated. Try again.",
+    };
+  }
+
+  const existingProductIds = new Set(
+    (existingAssignments ?? []).map((assignment) => assignment.product_id),
+  );
+  const productIds = validated.value.assignments.map(
+    (assignment) => assignment.productId,
+  );
+
+  // An assignment that already existed is preserved even if its product has
+  // since gone inactive, so saving an unrelated change (dates, active state)
+  // never silently drops it. Only a genuinely new assignment has to point at
+  // a currently active product.
+  const newProductIds = productIds.filter(
+    (productId) => !existingProductIds.has(productId),
+  );
+  const newProductsAreActive = await validateActiveProducts(
+    newProductIds,
+    supabase,
+  );
+
+  if (newProductsAreActive === null) {
+    return {
+      ok: false,
+      error: "Coupon products could not be validated. Try again.",
+    };
+  }
+
+  if (!newProductsAreActive) {
+    return {
+      ok: false,
+      error: "Only currently active products can be assigned to a coupon.",
     };
   }
 

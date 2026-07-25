@@ -8,6 +8,7 @@ export const dynamic = "force-dynamic";
 
 function formatOrderDate(value: string) {
   return new Date(value).toLocaleString("en-HK", {
+    timeZone: "Asia/Hong_Kong",
     year: "numeric",
     month: "short",
     day: "numeric",

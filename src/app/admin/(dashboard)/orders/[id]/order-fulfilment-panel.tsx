@@ -43,7 +43,9 @@ function Field({ label, value }: { label: string; value: string }) {
       <p className="text-xs uppercase tracking-[0.24em] text-stone-500">
         {label}
       </p>
-      <p className="text-sm leading-6 text-stone-200">{value}</p>
+      <p className="break-words text-sm leading-6 text-stone-200 [overflow-wrap:anywhere]">
+        {value}
+      </p>
     </div>
   );
 }

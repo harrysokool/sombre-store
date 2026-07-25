@@ -183,4 +183,50 @@ describe("admin saved discount display", () => {
     expect(screen.queryByText("Original subtotal")).toBeNull();
     expect(screen.queryByText("Discounted subtotal")).toBeNull();
   });
+
+  it("formats the order date in Hong Kong time regardless of the host timezone", async () => {
+    // 2026-07-24T20:00:00Z is still 2026-07-24 in UTC, but already
+    // 2026-07-25 04:00 in Asia/Hong_Kong (UTC+8). Asserting on the shifted
+    // day proves the explicit timeZone option is applied, not just en-HK's
+    // locale formatting under whatever timezone the test host happens to run in.
+    mocks.getAdminOrder.mockResolvedValue({
+      order: adminOrder({ created_at: "2026-07-24T20:00:00.000Z" }),
+      items: [adminItem()],
+      hasUnresolvedRefundReview: false,
+    });
+
+    render(
+      await AdminOrderDetailPage({
+        params: Promise.resolve({ id: ORDER_ID }),
+      }),
+    );
+
+    expect(screen.getByText(/25 July 2026/)).toBeInTheDocument();
+  });
+
+  it("wraps a long refund reference instead of letting it overflow", async () => {
+    mocks.getAdminOrder.mockResolvedValue({
+      order: adminOrder({
+        order_status: "refunded",
+        refund_status: "succeeded",
+        refund_id:
+          "re_1AbCdEfGhIjKlMnOpQrStUvWxYzAbCdEfGhIjKlMnOpQrStUvWxYz",
+        refunded_at: "2026-07-24T12:00:00.000Z",
+      }),
+      items: [adminItem()],
+      hasUnresolvedRefundReview: false,
+    });
+
+    render(
+      await AdminOrderDetailPage({
+        params: Promise.resolve({ id: ORDER_ID }),
+      }),
+    );
+
+    const refundReference = screen.getByText(
+      "re_1AbCdEfGhIjKlMnOpQrStUvWxYzAbCdEfGhIjKlMnOpQrStUvWxYz",
+    );
+    expect(refundReference.className).toContain("break-words");
+    expect(refundReference.className).toContain("overflow-wrap:anywhere");
+  });
 });

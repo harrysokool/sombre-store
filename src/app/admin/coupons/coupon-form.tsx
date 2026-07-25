@@ -36,6 +36,15 @@ type CouponFormProps = {
   initialAssignments?: AdminCouponAssignment[];
 };
 
+type AssignmentRow = {
+  productId: string;
+  productName: string;
+  productSlug: string;
+  productPrice: number | string;
+  isActive: boolean;
+  discountPercent: string;
+};
+
 export function CouponForm({
   mode,
   couponId,
@@ -52,15 +61,19 @@ export function CouponForm({
     action,
     initialActionState,
   );
-  const [assignmentPercentages, setAssignmentPercentages] = useState<
-    Record<string, string>
-  >(() =>
-    Object.fromEntries(
-      initialAssignments.map((assignment) => [
-        assignment.product_id,
-        String(assignment.discount_percent),
-      ]),
-    ),
+  // Keyed by product ID so an assignment to a product that has since gone
+  // inactive keeps its own name, price, and active flag even though it no
+  // longer appears in the active `products` list. Every row here is
+  // submitted on save; only `removeProduct` should ever drop one.
+  const [assignments, setAssignments] = useState<AssignmentRow[]>(() =>
+    initialAssignments.map((assignment) => ({
+      productId: assignment.product_id,
+      productName: assignment.product_name,
+      productSlug: assignment.product_slug,
+      productPrice: assignment.product_price,
+      isActive: assignment.is_active,
+      discountPercent: String(assignment.discount_percent),
+    })),
   );
   const [productToAdd, setProductToAdd] = useState("");
 
@@ -68,31 +81,55 @@ export function CouponForm({
     () => new Map(products.map((product) => [product.id, product])),
     [products],
   );
-  const selectedProducts = Object.keys(assignmentPercentages)
-    .map((productId) => productMap.get(productId))
-    .filter((product): product is AdminCouponProduct => Boolean(product));
+  const assignedProductIds = useMemo(
+    () => new Set(assignments.map((assignment) => assignment.productId)),
+    [assignments],
+  );
+  // Only ever sourced from `products` (active products), so an inactive
+  // product can never be added here.
   const availableProducts = products.filter(
-    (product) => !(product.id in assignmentPercentages),
+    (product) => !assignedProductIds.has(product.id),
   );
 
   function addProduct() {
-    if (!productToAdd || productToAdd in assignmentPercentages) {
+    if (!productToAdd || assignedProductIds.has(productToAdd)) {
       return;
     }
 
-    setAssignmentPercentages((current) => ({
+    const product = productMap.get(productToAdd);
+
+    if (!product) {
+      return;
+    }
+
+    setAssignments((current) => [
       ...current,
-      [productToAdd]: "10.00",
-    }));
+      {
+        productId: product.id,
+        productName: product.name,
+        productSlug: product.slug,
+        productPrice: product.price,
+        isActive: true,
+        discountPercent: "10.00",
+      },
+    ]);
     setProductToAdd("");
   }
 
   function removeProduct(productId: string) {
-    setAssignmentPercentages((current) => {
-      const next = { ...current };
-      delete next[productId];
-      return next;
-    });
+    setAssignments((current) =>
+      current.filter((assignment) => assignment.productId !== productId),
+    );
+  }
+
+  function setDiscountPercent(productId: string, value: string) {
+    setAssignments((current) =>
+      current.map((assignment) =>
+        assignment.productId === productId
+          ? { ...assignment, discountPercent: value }
+          : assignment,
+      ),
+    );
   }
 
   return (
@@ -188,8 +225,8 @@ export function CouponForm({
             </p>
           </div>
           <p className="text-xs text-stone-500">
-            {selectedProducts.length}{" "}
-            {selectedProducts.length === 1 ? "product" : "products"} assigned
+            {assignments.length}{" "}
+            {assignments.length === 1 ? "product" : "products"} assigned
           </p>
         </div>
 
@@ -224,22 +261,35 @@ export function CouponForm({
           <p className="rounded-2xl border border-white/10 px-4 py-5 text-sm text-stone-500">
             No active products are available.
           </p>
-        ) : null}
+        ) : (
+          <p className="rounded-2xl border border-white/10 px-4 py-5 text-sm text-stone-500">
+            Every active product is already assigned to this coupon.
+          </p>
+        )}
 
-        {selectedProducts.length > 0 ? (
+        {assignments.length > 0 ? (
           <div className="space-y-3">
-            {selectedProducts.map((product) => (
+            {assignments.map((assignment) => (
               <div
-                key={product.id}
+                key={assignment.productId}
                 className="grid min-w-0 gap-4 rounded-2xl border border-white/10 px-4 py-4 sm:grid-cols-[minmax(0,1fr)_10rem_auto] sm:items-end"
               >
-                <input type="hidden" name="productId" value={product.id} />
+                <input
+                  type="hidden"
+                  name="productId"
+                  value={assignment.productId}
+                />
                 <div className="min-w-0 space-y-1">
                   <p className="break-words text-sm text-stone-100 [overflow-wrap:anywhere]">
-                    {product.name}
+                    {assignment.productName}
+                    {!assignment.isActive ? (
+                      <span className="ml-2 inline-flex rounded-full border border-amber-400/20 bg-amber-400/5 px-2 py-0.5 align-middle text-[0.65rem] uppercase tracking-[0.12em] text-amber-200/90">
+                        Inactive product
+                      </span>
+                    ) : null}
                   </p>
                   <p className="text-xs text-stone-500">
-                    Current price {formatPrice(product.price)}
+                    Current price {formatPrice(assignment.productPrice)}
                   </p>
                 </div>
                 <label className="space-y-2">
@@ -248,14 +298,15 @@ export function CouponForm({
                   </span>
                   <input
                     type="number"
-                    name={`discount:${product.id}`}
-                    value={assignmentPercentages[product.id]}
+                    name={`discount:${assignment.productId}`}
+                    value={assignment.discountPercent}
                     onChange={(event) =>
-                      setAssignmentPercentages((current) => ({
-                        ...current,
-                        [product.id]: event.target.value,
-                      }))
+                      setDiscountPercent(
+                        assignment.productId,
+                        event.target.value,
+                      )
                     }
+                    aria-label={`Discount percentage for ${assignment.productName}`}
                     min="0.01"
                     max="100"
                     step="0.01"
@@ -266,10 +317,10 @@ export function CouponForm({
                 </label>
                 <button
                   type="button"
-                  onClick={() => removeProduct(product.id)}
+                  onClick={() => removeProduct(assignment.productId)}
                   disabled={isPending}
                   className={`${secondaryButtonClassName} whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50`}
-                  aria-label={`Remove ${product.name} assignment`}
+                  aria-label={`Remove ${assignment.productName} assignment`}
                 >
                   Remove
                 </button>

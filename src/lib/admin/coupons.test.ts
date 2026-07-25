@@ -17,6 +17,7 @@ vi.mock("@/lib/supabase/service-role", () => ({
 
 import {
   createAdminCoupon,
+  getAdminCoupon,
   listAdminCoupons,
   updateAdminCoupon,
   validateAdminCouponSubmission,
@@ -256,16 +257,16 @@ describe("admin coupon management", () => {
 
   it("updates active state and assignments, removes omitted products, and never touches orders", async () => {
     const couponQuery = query({ data: { id: COUPON_ID } });
-    const productsQuery = query({ data: [{ id: PRODUCT_B }] });
     const existingQuery = query({
       data: [{ product_id: PRODUCT_A }, { product_id: PRODUCT_B }],
     });
     const upsertQuery = query({ data: [{ product_id: PRODUCT_B }] });
     const removeQuery = query({ data: [{ product_id: PRODUCT_A }] });
     const updateQuery = query({ data: { id: COUPON_ID } });
+    // PRODUCT_B already existed, so no new product needs an active check and
+    // no "products" query runs at all.
     const client = supabaseWith(
       couponQuery,
-      productsQuery,
       existingQuery,
       upsertQuery,
       removeQuery,
@@ -304,5 +305,203 @@ describe("admin coupon management", () => {
     expect(client.from.mock.calls.map(([table]) => table)).not.toContain(
       "orders",
     );
+    expect(client.from).toHaveBeenCalledTimes(5);
+  });
+
+  it("preserves an assignment to a since-deactivated product when saving an unrelated change", async () => {
+    const couponQuery = query({ data: { id: COUPON_ID } });
+    // PRODUCT_A and PRODUCT_B both already existed before this save, so
+    // neither needs an active check even though PRODUCT_A is now inactive.
+    const existingQuery = query({
+      data: [{ product_id: PRODUCT_A }, { product_id: PRODUCT_B }],
+    });
+    const upsertQuery = query({
+      data: [{ product_id: PRODUCT_A }, { product_id: PRODUCT_B }],
+    });
+    const updateQuery = query({ data: { id: COUPON_ID } });
+    const client = supabaseWith(
+      couponQuery,
+      existingQuery,
+      upsertQuery,
+      updateQuery,
+    );
+
+    await expect(
+      updateAdminCoupon(
+        COUPON_ID,
+        submission({
+          code: undefined,
+          isActive: false,
+          assignments: [
+            { productId: PRODUCT_A, discountPercent: "20.00" },
+            { productId: PRODUCT_B, discountPercent: "12.50" },
+          ],
+        }),
+      ),
+    ).resolves.toEqual({ ok: true, couponId: COUPON_ID });
+
+    expect(upsertQuery.upsert).toHaveBeenCalledWith(
+      [
+        {
+          discount_code_id: COUPON_ID,
+          product_id: PRODUCT_A,
+          discount_percent: "20.00",
+        },
+        {
+          discount_code_id: COUPON_ID,
+          product_id: PRODUCT_B,
+          discount_percent: "12.50",
+        },
+      ],
+      { onConflict: "discount_code_id,product_id" },
+    );
+    // Nothing was omitted from the submission, so no delete query ran and no
+    // "products" active-check query ran either.
+    expect(client.from.mock.calls.map(([table]) => table)).toEqual([
+      "discount_codes",
+      "discount_code_products",
+      "discount_code_products",
+      "discount_codes",
+    ]);
+  });
+
+  it("still rejects a genuinely new inactive product added during an update", async () => {
+    const couponQuery = query({ data: { id: COUPON_ID } });
+    const existingQuery = query({ data: [{ product_id: PRODUCT_A }] });
+    // PRODUCT_B is newly added by this submission and is not returned as
+    // active, so the update must be rejected before any write.
+    const productsQuery = query({ data: [] });
+    const client = supabaseWith(
+      couponQuery,
+      existingQuery,
+      productsQuery,
+    );
+
+    await expect(
+      updateAdminCoupon(
+        COUPON_ID,
+        submission({
+          code: undefined,
+          assignments: [
+            { productId: PRODUCT_A, discountPercent: "20.00" },
+            { productId: PRODUCT_B, discountPercent: "10.00" },
+          ],
+        }),
+      ),
+    ).resolves.toEqual({
+      ok: false,
+      error: "Only currently active products can be assigned to a coupon.",
+    });
+    expect(productsQuery.in).toHaveBeenCalledWith("id", [PRODUCT_B]);
+    expect(client.from.mock.calls.map(([table]) => table)).toEqual([
+      "discount_codes",
+      "discount_code_products",
+      "products",
+    ]);
+  });
+
+  it("counts both active and inactive assignments in the admin coupon list", async () => {
+    supabaseWith(
+      query({
+        data: [
+          {
+            id: COUPON_ID,
+            code_normalized: "SOMBRE",
+            is_active: true,
+            starts_at: null,
+            expires_at: null,
+            created_at: "2026-07-24T00:00:00.000Z",
+            updated_at: "2026-07-24T00:00:00.000Z",
+          },
+        ],
+      }),
+      query({
+        // Two assignment rows are returned regardless of whether their
+        // product is still active — the count query never filters on it.
+        data: [
+          { discount_code_id: COUPON_ID },
+          { discount_code_id: COUPON_ID },
+        ],
+      }),
+    );
+
+    await expect(listAdminCoupons()).resolves.toMatchObject([
+      { assigned_product_count: 2 },
+    ]);
+  });
+
+  it("loads a coupon's assignments including a since-deactivated product", async () => {
+    const couponQuery = query({
+      data: {
+        id: COUPON_ID,
+        code_normalized: "SOMBRE",
+        is_active: true,
+        starts_at: null,
+        expires_at: null,
+        created_at: "2026-07-24T00:00:00.000Z",
+        updated_at: "2026-07-24T00:00:00.000Z",
+      },
+    });
+    const rawAssignmentsQuery = query({
+      data: [
+        { product_id: PRODUCT_A, discount_percent: "20.00" },
+        { product_id: PRODUCT_B, discount_percent: "5.00" },
+      ],
+    });
+    const activeProductsQuery = query({
+      data: [
+        { id: PRODUCT_B, name: "Product B", slug: "product-b", price: "500.00" },
+      ],
+    });
+    const assignedProductsQuery = query({
+      data: [
+        {
+          id: PRODUCT_A,
+          name: "Product A",
+          slug: "product-a",
+          price: "1000.00",
+          is_active: false,
+        },
+        {
+          id: PRODUCT_B,
+          name: "Product B",
+          slug: "product-b",
+          price: "500.00",
+          is_active: true,
+        },
+      ],
+    });
+    supabaseWith(
+      couponQuery,
+      rawAssignmentsQuery,
+      activeProductsQuery,
+      assignedProductsQuery,
+    );
+
+    const result = await getAdminCoupon(COUPON_ID);
+
+    expect(result?.assignments).toEqual([
+      {
+        product_id: PRODUCT_A,
+        discount_percent: "20.00",
+        product_name: "Product A",
+        product_slug: "product-a",
+        product_price: "1000.00",
+        is_active: false,
+      },
+      {
+        product_id: PRODUCT_B,
+        discount_percent: "5.00",
+        product_name: "Product B",
+        product_slug: "product-b",
+        product_price: "500.00",
+        is_active: true,
+      },
+    ]);
+    // The "add a product" list only ever comes from the active-products
+    // query, so a deactivated product can never be (re-)added.
+    expect(result?.products).toEqual([
+      { id: PRODUCT_B, name: "Product B", slug: "product-b", price: "500.00" },
+    ]);
   });
 });

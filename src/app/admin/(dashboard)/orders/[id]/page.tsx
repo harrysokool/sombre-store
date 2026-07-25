@@ -21,7 +21,11 @@ const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function formatTimestamp(value: string | null) {
-  return value ? new Date(value).toLocaleString("en-HK") : null;
+  return value
+    ? new Date(value).toLocaleString("en-HK", {
+        timeZone: "Asia/Hong_Kong",
+      })
+    : null;
 }
 
 function Field({ label, value }: { label: string; value: string }) {
@@ -30,7 +34,9 @@ function Field({ label, value }: { label: string; value: string }) {
       <p className="text-xs uppercase tracking-[0.24em] text-stone-500">
         {label}
       </p>
-      <p className="text-sm leading-6 text-stone-200">{value}</p>
+      <p className="break-words text-sm leading-6 text-stone-200 [overflow-wrap:anywhere]">
+        {value}
+      </p>
     </div>
   );
 }
@@ -84,6 +90,7 @@ export default async function AdminOrderDetailPage({
         </h2>
         <p className="text-sm text-stone-400">
           {new Date(order.created_at).toLocaleString("en-HK", {
+            timeZone: "Asia/Hong_Kong",
             year: "numeric",
             month: "long",
             day: "numeric",
@@ -118,7 +125,9 @@ export default async function AdminOrderDetailPage({
           {order.refunded_at ? (
             <Field
               label="Refunded at"
-              value={new Date(order.refunded_at).toLocaleString("en-HK")}
+              value={new Date(order.refunded_at).toLocaleString("en-HK", {
+                timeZone: "Asia/Hong_Kong",
+              })}
             />
           ) : null}
         </div>
