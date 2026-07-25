@@ -2,7 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { CheckoutSuccessStateManager } from "@/components/cart/checkout-success-state-manager";
-import { loadVerifiedCheckoutReceipt } from "@/lib/checkout/receipt";
+import {
+  loadVerifiedCheckoutReceipt,
+  type CheckoutReceiptItem,
+} from "@/lib/checkout/receipt";
+import {
+  getDiscountedOrderDisplay,
+  getDiscountedOrderItemDisplay,
+} from "@/lib/orders/discount-snapshots";
 import { formatPrice } from "@/lib/storefront/format-price";
 
 // The receipt is a private, per-session page reached via a bearer-like URL, so
@@ -56,6 +63,69 @@ function maskEmail(email: string | null | undefined): string {
   return `${maskedLocal}@${domain}`;
 }
 
+function ReceiptItem({ item }: { item: CheckoutReceiptItem }) {
+  const discount = getDiscountedOrderItemDisplay(item);
+  const lineTotal = discount
+    ? discount.finalLineTotal
+    : Number(item.unit_price) * item.quantity;
+
+  return (
+    <li className="flex min-w-0 items-start justify-between gap-5 py-6 sm:gap-10">
+      <div className="min-w-0 space-y-1.5">
+        <p className="break-words font-display text-xl leading-tight text-stone-100 [overflow-wrap:anywhere] sm:text-2xl">
+          {item.product_name}
+        </p>
+        {item.size_label ? (
+          <p className="break-words text-[0.65rem] uppercase tracking-[0.2em] text-stone-500 [overflow-wrap:anywhere]">
+            {item.size_label}
+          </p>
+        ) : null}
+        <p className="text-xs text-stone-500">Quantity {item.quantity}</p>
+        {discount ? (
+          <dl className="mt-3 grid gap-x-6 gap-y-2 text-xs sm:grid-cols-2">
+            <div className="flex gap-2">
+              <dt className="text-stone-500">Original unit price</dt>
+              <dd className="text-stone-300">
+                {formatPrice(discount.originalUnitPrice)}
+              </dd>
+            </div>
+            <div className="flex gap-2">
+              <dt className="text-stone-500">
+                Discount percentage
+              </dt>
+              <dd className="text-stone-300">
+                {discount.discountPercent}
+              </dd>
+            </div>
+            <div className="flex gap-2">
+              <dt className="text-stone-500">Final unit price</dt>
+              <dd className="text-stone-300">
+                {formatPrice(discount.finalUnitPrice)}
+              </dd>
+            </div>
+            <div className="flex gap-2">
+              <dt className="text-stone-500">Line discount</dt>
+              <dd className="text-stone-300">
+                −{formatPrice(discount.lineDiscount)}
+              </dd>
+            </div>
+          </dl>
+        ) : null}
+      </div>
+      <p className="shrink-0 text-right text-sm text-stone-200">
+        {discount ? (
+          <span className="mb-1 block text-[0.6rem] uppercase tracking-[0.16em] text-stone-500">
+            Final line total
+          </span>
+        ) : (
+          <span className="sr-only">Line total </span>
+        )}
+        {formatPrice(lineTotal)}
+      </p>
+    </li>
+  );
+}
+
 export default async function CheckoutSuccessPage({
   searchParams,
 }: {
@@ -74,6 +144,9 @@ export default async function CheckoutSuccessPage({
         };
   const { isVerifiedSession, order, orderItems, stripePaymentStatus } =
     receiptLookup;
+  const orderDiscount = order
+    ? getDiscountedOrderDisplay(order)
+    : null;
   const isPaymentConfirmed =
     isConfirmedPaymentStatus(stripePaymentStatus) &&
     isConfirmedPaymentStatus(order?.payment_status ?? null);
@@ -287,27 +360,7 @@ export default async function CheckoutSuccessPage({
               {orderItems.length > 0 ? (
                 <ul className="mt-8 divide-y divide-white/10 border-t border-white/10">
                   {orderItems.map((item) => (
-                    <li
-                      key={item.id}
-                      className="flex min-w-0 items-start justify-between gap-5 py-6 sm:gap-10"
-                    >
-                      <div className="min-w-0 space-y-1.5">
-                        <p className="break-words font-display text-xl leading-tight text-stone-100 [overflow-wrap:anywhere] sm:text-2xl">
-                          {item.product_name}
-                        </p>
-                        {item.size_label ? (
-                          <p className="break-words text-[0.65rem] uppercase tracking-[0.2em] text-stone-500 [overflow-wrap:anywhere]">
-                            {item.size_label}
-                          </p>
-                        ) : null}
-                        <p className="text-xs text-stone-500">
-                          Quantity {item.quantity}
-                        </p>
-                      </div>
-                      <p className="shrink-0 text-sm text-stone-200">
-                        {formatPrice(Number(item.unit_price) * item.quantity)}
-                      </p>
-                    </li>
+                    <ReceiptItem key={item.id} item={item} />
                   ))}
                 </ul>
               ) : (
@@ -350,28 +403,73 @@ export default async function CheckoutSuccessPage({
                   Order total
                 </h2>
                 <dl className="mt-7 space-y-5">
-                  <div className="flex items-baseline justify-between gap-5">
-                    <dt className="text-xs uppercase tracking-[0.2em] text-stone-500">
-                      Subtotal
-                    </dt>
-                    <dd className="shrink-0 text-sm text-stone-300">
-                      {formatPrice(order.subtotal)}
-                    </dd>
-                  </div>
+                  {orderDiscount ? (
+                    <>
+                      <div className="flex items-baseline justify-between gap-5">
+                        <dt className="text-xs uppercase tracking-[0.2em] text-stone-500">
+                          Original subtotal
+                        </dt>
+                        <dd className="shrink-0 text-sm text-stone-300">
+                          {formatPrice(orderDiscount.originalSubtotal)}
+                        </dd>
+                      </div>
+                      <div className="flex items-baseline justify-between gap-5">
+                        <dt className="text-xs uppercase tracking-[0.2em] text-stone-500">
+                          Coupon
+                        </dt>
+                        <dd className="min-w-0 break-words text-right text-sm text-stone-300 [overflow-wrap:anywhere]">
+                          {orderDiscount.couponCode}
+                        </dd>
+                      </div>
+                      <div className="flex items-baseline justify-between gap-5">
+                        <dt className="text-xs uppercase tracking-[0.2em] text-stone-500">
+                          Discount
+                        </dt>
+                        <dd className="shrink-0 text-sm text-stone-300">
+                          −{formatPrice(orderDiscount.discountTotal)}
+                        </dd>
+                      </div>
+                      <div className="flex items-baseline justify-between gap-5">
+                        <dt className="text-xs uppercase tracking-[0.2em] text-stone-500">
+                          Discounted subtotal
+                        </dt>
+                        <dd className="shrink-0 text-sm text-stone-300">
+                          {formatPrice(
+                            orderDiscount.discountedSubtotal,
+                          )}
+                        </dd>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex items-baseline justify-between gap-5">
+                      <dt className="text-xs uppercase tracking-[0.2em] text-stone-500">
+                        Subtotal
+                      </dt>
+                      <dd className="shrink-0 text-sm text-stone-300">
+                        {formatPrice(order.subtotal)}
+                      </dd>
+                    </div>
+                  )}
                   <div className="flex items-baseline justify-between gap-5">
                     <dt className="text-xs uppercase tracking-[0.2em] text-stone-500">
                       Shipping
                     </dt>
                     <dd className="shrink-0 text-sm text-stone-300">
-                      {formatPrice(order.shipping_fee)}
+                      {formatPrice(
+                        orderDiscount
+                          ? orderDiscount.shipping
+                          : order.shipping_fee,
+                      )}
                     </dd>
                   </div>
                   <div className="flex items-baseline justify-between gap-5 border-t border-white/10 pt-5">
                     <dt className="text-xs uppercase tracking-[0.2em] text-stone-300">
-                      Total
+                      {orderDiscount ? "Total paid" : "Total"}
                     </dt>
                     <dd className="shrink-0 text-xl font-light text-stone-100">
-                      {formatPrice(order.total)}
+                      {formatPrice(
+                        orderDiscount ? orderDiscount.total : order.total,
+                      )}
                     </dd>
                   </div>
                 </dl>

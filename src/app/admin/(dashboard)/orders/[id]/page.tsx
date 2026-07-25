@@ -4,6 +4,10 @@ import { notFound } from "next/navigation";
 import { OrderFulfilmentPanel } from "@/app/admin/(dashboard)/orders/[id]/order-fulfilment-panel";
 import { getFulfilmentBlockReason } from "@/lib/admin/fulfilment-rules";
 import { getAdminOrder } from "@/lib/admin/orders";
+import {
+  getDiscountedOrderDisplay,
+  getDiscountedOrderItemDisplay,
+} from "@/lib/orders/discount-snapshots";
 import { formatPrice } from "@/lib/storefront/format-price";
 import { requireAdminUser } from "@/lib/supabase/admin-auth";
 
@@ -50,6 +54,7 @@ export default async function AdminOrderDetailPage({
   }
 
   const { order, items, hasUnresolvedRefundReview } = result;
+  const orderDiscount = getDiscountedOrderDisplay(order);
   const fulfilmentBlockReason = getFulfilmentBlockReason({
     paymentStatus: order.payment_status,
     orderStatus: order.order_status,
@@ -136,25 +141,82 @@ export default async function AdminOrderDetailPage({
         </h3>
         {items.length > 0 ? (
           <div className="divide-y divide-white/10">
-            {items.map((item) => (
-              <div
-                key={item.id}
-                className="flex items-start justify-between gap-6 py-4 first:pt-0 last:pb-0"
-              >
-                <div className="space-y-1">
-                  <p className="text-sm text-stone-100">{item.product_name}</p>
-                  {item.size_label ? (
-                    <p className="text-xs text-stone-500">{item.size_label}</p>
-                  ) : null}
-                  <p className="text-xs uppercase tracking-[0.18em] text-stone-400">
-                    Quantity {item.quantity} &times; {formatPrice(item.unit_price)}
+            {items.map((item) => {
+              const discount = getDiscountedOrderItemDisplay(item);
+              const lineTotal = discount
+                ? discount.finalLineTotal
+                : Number(item.unit_price) * item.quantity;
+
+              return (
+                <div
+                  key={item.id}
+                  className="flex min-w-0 items-start justify-between gap-6 py-4 first:pt-0 last:pb-0"
+                >
+                  <div className="min-w-0 space-y-1">
+                    <p className="break-words text-sm text-stone-100 [overflow-wrap:anywhere]">
+                      {item.product_name}
+                    </p>
+                    {item.size_label ? (
+                      <p className="break-words text-xs text-stone-500 [overflow-wrap:anywhere]">
+                        {item.size_label}
+                      </p>
+                    ) : null}
+                    <p className="text-xs uppercase tracking-[0.18em] text-stone-400">
+                      Quantity {item.quantity}
+                      {discount
+                        ? null
+                        : ` × ${formatPrice(item.unit_price)}`}
+                    </p>
+                    {discount ? (
+                      <dl className="mt-3 grid gap-x-5 gap-y-1.5 text-xs sm:grid-cols-2">
+                        <div className="flex gap-2">
+                          <dt className="text-stone-500">
+                            Original unit price
+                          </dt>
+                          <dd className="text-stone-300">
+                            {formatPrice(discount.originalUnitPrice)}
+                          </dd>
+                        </div>
+                        <div className="flex gap-2">
+                          <dt className="text-stone-500">
+                            Discount percentage
+                          </dt>
+                          <dd className="text-stone-300">
+                            {discount.discountPercent}
+                          </dd>
+                        </div>
+                        <div className="flex gap-2">
+                          <dt className="text-stone-500">
+                            Final unit price
+                          </dt>
+                          <dd className="text-stone-300">
+                            {formatPrice(discount.finalUnitPrice)}
+                          </dd>
+                        </div>
+                        <div className="flex gap-2">
+                          <dt className="text-stone-500">
+                            Line discount
+                          </dt>
+                          <dd className="text-stone-300">
+                            −{formatPrice(discount.lineDiscount)}
+                          </dd>
+                        </div>
+                      </dl>
+                    ) : null}
+                  </div>
+                  <p className="shrink-0 text-right text-sm text-stone-200">
+                    {discount ? (
+                      <span className="mb-1 block text-[0.6rem] uppercase tracking-[0.16em] text-stone-500">
+                        Final line total
+                      </span>
+                    ) : (
+                      <span className="sr-only">Line total </span>
+                    )}
+                    {formatPrice(lineTotal)}
                   </p>
                 </div>
-                <p className="shrink-0 text-sm text-stone-200">
-                  {formatPrice(Number(item.unit_price) * item.quantity)}
-                </p>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <p className="text-sm text-stone-400">No line items recorded.</p>
@@ -170,8 +232,8 @@ export default async function AdminOrderDetailPage({
             <p>{order.customer_name}</p>
             <p>{order.customer_email}</p>
             {order.customer_phone ? <p>{order.customer_phone}</p> : null}
-            {addressLines.map((line) => (
-              <p key={line}>{line}</p>
+            {addressLines.map((line, index) => (
+              <p key={`${index}-${line}`}>{line}</p>
             ))}
           </address>
           {order.district ? null : (
@@ -182,28 +244,71 @@ export default async function AdminOrderDetailPage({
         </div>
 
         <div className="space-y-3">
+          {orderDiscount ? (
+            <>
+              <div className="flex items-center justify-between gap-4">
+                <p className="text-xs uppercase tracking-[0.18em] text-stone-500">
+                  Original subtotal
+                </p>
+                <p className="text-sm text-stone-200">
+                  {formatPrice(orderDiscount.originalSubtotal)}
+                </p>
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <p className="text-xs uppercase tracking-[0.18em] text-stone-500">
+                  Coupon
+                </p>
+                <p className="min-w-0 break-words text-right text-sm text-stone-200 [overflow-wrap:anywhere]">
+                  {orderDiscount.couponCode}
+                </p>
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <p className="text-xs uppercase tracking-[0.18em] text-stone-500">
+                  Discount
+                </p>
+                <p className="text-sm text-stone-200">
+                  −{formatPrice(orderDiscount.discountTotal)}
+                </p>
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <p className="text-xs uppercase tracking-[0.18em] text-stone-500">
+                  Discounted subtotal
+                </p>
+                <p className="text-sm text-stone-200">
+                  {formatPrice(orderDiscount.discountedSubtotal)}
+                </p>
+              </div>
+            </>
+          ) : (
+            <div className="flex items-center justify-between gap-4">
+              <p className="text-xs uppercase tracking-[0.18em] text-stone-500">
+                Subtotal
+              </p>
+              <p className="text-sm text-stone-200">
+                {formatPrice(order.subtotal)}
+              </p>
+            </div>
+          )}
           <div className="flex items-center justify-between gap-4">
             <p className="text-xs uppercase tracking-[0.18em] text-stone-500">
-              Subtotal
+              Shipping
             </p>
             <p className="text-sm text-stone-200">
-              {formatPrice(order.subtotal)}
-            </p>
-          </div>
-          <div className="flex items-center justify-between gap-4">
-            <p className="text-xs uppercase tracking-[0.18em] text-stone-500">
-              Shipping fee
-            </p>
-            <p className="text-sm text-stone-200">
-              {formatPrice(order.shipping_fee)}
+              {formatPrice(
+                orderDiscount
+                  ? orderDiscount.shipping
+                  : order.shipping_fee,
+              )}
             </p>
           </div>
           <div className="flex items-center justify-between gap-4 border-t border-white/10 pt-3">
             <p className="text-xs uppercase tracking-[0.18em] text-stone-300">
-              Total
+              {orderDiscount ? "Total paid" : "Total"}
             </p>
             <p className="text-base font-medium text-stone-100">
-              {formatPrice(order.total)}
+              {formatPrice(
+                orderDiscount ? orderDiscount.total : order.total,
+              )}
             </p>
           </div>
         </div>

@@ -1,10 +1,19 @@
 import { formatPrice } from "@/lib/storefront/format-price";
+import {
+  getDiscountedOrderDisplay,
+  getDiscountedOrderItemDisplay,
+} from "@/lib/orders/discount-snapshots";
 
 export type OrderEmailItem = {
   product_name: string;
   size_label: string | null;
   unit_price: number | string;
+  original_unit_price: number | string | null;
+  discount_percent: number | string | null;
   quantity: number;
+  original_line_total: number | string | null;
+  discount_amount: number | string | null;
+  discounted_line_total: number | string | null;
 };
 
 export type OrderEmailOrder = {
@@ -19,6 +28,9 @@ export type OrderEmailOrder = {
   city: string;
   postal_code: string | null;
   country: string;
+  coupon_code: string | null;
+  original_subtotal: number | string | null;
+  discount_total: number | string | null;
   subtotal: number | string;
   shipping_fee: number | string;
   total: number | string;
@@ -76,15 +88,24 @@ function renderItemsHtml(items: OrderEmailItem[]) {
       const size = item.size_label
         ? `<div style="color:#78716c;font-size:13px;">${escapeHtml(item.size_label)}</div>`
         : "";
+      const discount = getDiscountedOrderItemDisplay(item);
+      const pricing = discount
+        ? `<div style="color:#78716c;font-size:13px;">Quantity ${item.quantity}</div>
+    <div style="color:#78716c;font-size:13px;">Original unit ${formatPrice(discount.originalUnitPrice)} · ${escapeHtml(discount.discountPercent)} off</div>
+    <div style="color:#78716c;font-size:13px;">Final unit ${formatPrice(discount.finalUnitPrice)} · Line discount −${formatPrice(discount.lineDiscount)}</div>`
+        : `<div style="color:#78716c;font-size:13px;">Quantity ${item.quantity} &times; ${formatPrice(item.unit_price)}</div>`;
+      const lineTotal = discount
+        ? discount.finalLineTotal
+        : getLineTotal(item);
 
       return `<tr>
   <td style="padding:12px 0;border-bottom:1px solid #e7e5e4;">
     <div style="color:#1c1917;">${escapeHtml(item.product_name)}</div>
     ${size}
-    <div style="color:#78716c;font-size:13px;">Quantity ${item.quantity} &times; ${formatPrice(item.unit_price)}</div>
+    ${pricing}
   </td>
   <td style="padding:12px 0;border-bottom:1px solid #e7e5e4;text-align:right;color:#1c1917;white-space:nowrap;">
-    ${formatPrice(getLineTotal(item))}
+    ${formatPrice(lineTotal)}
   </td>
 </tr>`;
     })
@@ -99,7 +120,16 @@ function renderItemsText(items: OrderEmailItem[]) {
   return items
     .map((item) => {
       const size = item.size_label ? ` (${item.size_label})` : "";
-      return `- ${item.product_name}${size} x${item.quantity} — ${formatPrice(getLineTotal(item))}`;
+      const discount = getDiscountedOrderItemDisplay(item);
+
+      if (!discount) {
+        return `- ${item.product_name}${size} x${item.quantity} — ${formatPrice(getLineTotal(item))}`;
+      }
+
+      return `- ${item.product_name}${size} x${item.quantity} — ${formatPrice(discount.finalLineTotal)}
+  Original unit: ${formatPrice(discount.originalUnitPrice)}
+  Discount: ${discount.discountPercent} (−${formatPrice(discount.lineDiscount)} line)
+  Final unit: ${formatPrice(discount.finalUnitPrice)}`;
     })
     .join("\n");
 }
@@ -110,18 +140,47 @@ function renderTotalsHtml(order: OrderEmailOrder) {
   <td style="padding:6px 0;text-align:right;color:#1c1917;${isStrong ? "font-weight:600;" : ""}">${value}</td>
 </tr>`;
 
+  const discount = getDiscountedOrderDisplay(order);
+
+  if (!discount) {
+    return [
+      row("Subtotal", formatPrice(order.subtotal)),
+      row("Shipping", formatPrice(order.shipping_fee)),
+      row("Total", formatPrice(order.total), true),
+    ].join("\n");
+  }
+
   return [
-    row("Subtotal", formatPrice(order.subtotal)),
-    row("Shipping", formatPrice(order.shipping_fee)),
-    row("Total", formatPrice(order.total), true),
+    row("Original subtotal", formatPrice(discount.originalSubtotal)),
+    row("Coupon", escapeHtml(discount.couponCode)),
+    row("Discount", `−${formatPrice(discount.discountTotal)}`),
+    row(
+      "Discounted subtotal",
+      formatPrice(discount.discountedSubtotal),
+    ),
+    row("Shipping", formatPrice(discount.shipping)),
+    row("Total paid", formatPrice(discount.total), true),
   ].join("\n");
 }
 
 function renderTotalsText(order: OrderEmailOrder) {
+  const discount = getDiscountedOrderDisplay(order);
+
+  if (!discount) {
+    return [
+      `Subtotal: ${formatPrice(order.subtotal)}`,
+      `Shipping: ${formatPrice(order.shipping_fee)}`,
+      `Total: ${formatPrice(order.total)}`,
+    ].join("\n");
+  }
+
   return [
-    `Subtotal: ${formatPrice(order.subtotal)}`,
-    `Shipping: ${formatPrice(order.shipping_fee)}`,
-    `Total: ${formatPrice(order.total)}`,
+    `Original subtotal: ${formatPrice(discount.originalSubtotal)}`,
+    `Coupon: ${discount.couponCode}`,
+    `Discount: −${formatPrice(discount.discountTotal)}`,
+    `Discounted subtotal: ${formatPrice(discount.discountedSubtotal)}`,
+    `Shipping: ${formatPrice(discount.shipping)}`,
+    `Total paid: ${formatPrice(discount.total)}`,
   ].join("\n");
 }
 

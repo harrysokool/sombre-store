@@ -5,9 +5,9 @@ import { requireAdminUser } from "@/lib/supabase/admin-auth";
 
 export const dynamic = "force-dynamic";
 
-// Every route in this group is gated here. The data layer in
-// src/lib/admin/orders.ts re-checks independently, so no order data can be read
-// even if a future page forgets this layout.
+// Every route in this group is gated here. The admin data layers re-check
+// independently, so private data cannot be read even if a future page forgets
+// this layout.
 export default async function AdminDashboardLayout({
   children,
 }: {
@@ -23,12 +23,26 @@ export default async function AdminDashboardLayout({
             <p className="text-xs uppercase tracking-[0.34em] text-stone-500">
               Sombre Admin
             </p>
-            <Link
-              href="/admin"
-              className="text-3xl font-medium tracking-[0.14em] text-stone-100 transition-colors hover:text-white"
-            >
-              Orders
-            </Link>
+            <nav aria-label="Admin">
+              <ul className="flex flex-wrap items-center gap-x-6 gap-y-2">
+                <li>
+                  <Link
+                    href="/admin"
+                    className="text-xl font-medium tracking-[0.14em] text-stone-100 transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30 sm:text-2xl"
+                  >
+                    Orders
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/admin/coupons"
+                    className="text-xl font-medium tracking-[0.14em] text-stone-400 transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30 sm:text-2xl"
+                  >
+                    Coupons
+                  </Link>
+                </li>
+              </ul>
+            </nav>
           </div>
 
           <div className="flex items-center gap-4">

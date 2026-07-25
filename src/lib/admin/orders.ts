@@ -22,6 +22,9 @@ export type AdminOrderDetail = AdminOrderListItem & {
   city: string;
   postal_code: string | null;
   country: string;
+  coupon_code: string | null;
+  original_subtotal: number | string | null;
+  discount_total: number | string | null;
   subtotal: number | string;
   shipping_fee: number | string;
   refund_status: string | null;
@@ -39,13 +42,18 @@ export type AdminOrderItem = {
   product_name: string;
   size_label: string | null;
   unit_price: number | string;
+  original_unit_price: number | string | null;
+  discount_percent: number | string | null;
   quantity: number;
+  original_line_total: number | string | null;
+  discount_amount: number | string | null;
+  discounted_line_total: number | string | null;
 };
 
 const ORDER_LIST_COLUMNS =
   "id, created_at, customer_name, customer_email, total, currency, payment_status, order_status, fulfilment_status";
 
-const ORDER_DETAIL_COLUMNS = `${ORDER_LIST_COLUMNS}, customer_phone, address_line_1, address_line_2, district, city, postal_code, country, subtotal, shipping_fee, refund_status, refund_id, refunded_at, courier, tracking_number, shipped_at, delivered_at, fulfilment_updated_at`;
+const ORDER_DETAIL_COLUMNS = `${ORDER_LIST_COLUMNS}, customer_phone, address_line_1, address_line_2, district, city, postal_code, country, coupon_code, original_subtotal, discount_total, subtotal, shipping_fee, refund_status, refund_id, refunded_at, courier, tracking_number, shipped_at, delivered_at, fulfilment_updated_at`;
 
 // Orders hold private customer data, so every read here re-checks the admin
 // gate itself rather than trusting the caller to have done it. Throws instead of
@@ -96,7 +104,9 @@ export async function getAdminOrder(orderId: string) {
 
   const { data: items, error: itemsError } = await supabase
     .from("order_items")
-    .select("id, product_name, size_label, unit_price, quantity")
+    .select(
+      "id, product_name, size_label, unit_price, original_unit_price, discount_percent, quantity, original_line_total, discount_amount, discounted_line_total",
+    )
     .eq("order_id", order.id)
     .order("created_at", { ascending: true })
     .returns<AdminOrderItem[]>();

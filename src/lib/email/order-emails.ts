@@ -29,7 +29,7 @@ type PlannedEmail = {
 };
 
 const ORDER_EMAIL_COLUMNS =
-  "id, created_at, customer_email, customer_name, customer_phone, address_line_1, address_line_2, district, city, postal_code, country, subtotal, shipping_fee, total, order_status";
+  "id, created_at, customer_email, customer_name, customer_phone, address_line_1, address_line_2, district, city, postal_code, country, coupon_code, original_subtotal, discount_total, subtotal, shipping_fee, total, order_status";
 
 async function loadOrderForEmail(orderId: string) {
   const supabase = createSupabaseServiceRoleClient();
@@ -50,7 +50,9 @@ async function loadOrderItemsForEmail(orderId: string) {
   const supabase = createSupabaseServiceRoleClient();
   const { data, error } = await supabase
     .from("order_items")
-    .select("product_name, size_label, unit_price, quantity")
+    .select(
+      "product_name, size_label, unit_price, original_unit_price, discount_percent, quantity, original_line_total, discount_amount, discounted_line_total",
+    )
     .eq("order_id", orderId)
     .order("created_at", { ascending: true })
     .returns<OrderEmailItem[]>();

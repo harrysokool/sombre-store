@@ -19,6 +19,9 @@ type PersistedOrder = {
   order_status: string;
   refund_id: string | null;
   refund_status: string | null;
+  coupon_code: string | null;
+  original_subtotal: number | string | null;
+  discount_total: number | string | null;
   subtotal: number | string;
   shipping_fee: number | string;
   total: number | string;
@@ -35,8 +38,13 @@ export type CheckoutReceiptItem = {
   id: string;
   product_name: string;
   unit_price: number | string;
+  original_unit_price: number | string | null;
+  discount_percent: number | string | null;
   quantity: number;
   size_label: string | null;
+  original_line_total: number | string | null;
+  discount_amount: number | string | null;
+  discounted_line_total: number | string | null;
 };
 
 export type CheckoutReceiptLookup = {
@@ -85,6 +93,9 @@ function toCheckoutReceiptOrder(order: PersistedOrder): CheckoutReceiptOrder {
     order_status: order.order_status,
     refund_id: order.refund_id,
     refund_status: order.refund_status,
+    coupon_code: order.coupon_code,
+    original_subtotal: order.original_subtotal,
+    discount_total: order.discount_total,
     subtotal: order.subtotal,
     shipping_fee: order.shipping_fee,
     total: order.total,
@@ -131,7 +142,7 @@ export async function loadVerifiedCheckoutReceipt(
   const { data, error } = await supabase
     .from("orders")
     .select(
-      "id, created_at, customer_email, customer_name, customer_phone, address_line_1, address_line_2, district, city, postal_code, country, payment_status, order_status, refund_id, refund_status, subtotal, shipping_fee, total, currency, stripe_payment_intent_id",
+      "id, created_at, customer_email, customer_name, customer_phone, address_line_1, address_line_2, district, city, postal_code, country, payment_status, order_status, refund_id, refund_status, coupon_code, original_subtotal, discount_total, subtotal, shipping_fee, total, currency, stripe_payment_intent_id",
     )
     .eq("stripe_session_id", session.id)
     .maybeSingle<PersistedOrder>();
@@ -164,7 +175,12 @@ export async function loadVerifiedCheckoutReceipt(
       orderId: data.id,
       stripeSessionId: session.id,
     });
-    return invalidReceiptLookup();
+    return {
+      isVerifiedSession: true,
+      order: null,
+      orderItems: [],
+      stripePaymentStatus: session.payment_status,
+    };
   }
 
   const order = toCheckoutReceiptOrder(data);
@@ -177,7 +193,9 @@ export async function loadVerifiedCheckoutReceipt(
   ) {
     const { data: persistedItems, error: itemsError } = await supabase
       .from("order_items")
-      .select("id, product_name, unit_price, quantity, size_label")
+      .select(
+        "id, product_name, unit_price, original_unit_price, discount_percent, quantity, size_label, original_line_total, discount_amount, discounted_line_total",
+      )
       .eq("order_id", order.id)
       .order("created_at", { ascending: true })
       .returns<CheckoutReceiptItem[]>();
