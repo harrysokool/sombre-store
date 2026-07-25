@@ -15,10 +15,13 @@ export const SITE_NAME = "Sombre";
  * Applied to every page that must never appear in search results: carts,
  * checkout, order outcomes, and the whole admin area.
  *
- * `robots.ts` disallows these paths too, but a `Disallow` rule only asks a
- * crawler not to fetch a URL — it does not remove a URL that was discovered
- * some other way (a shared link, an inbound link, a browser toolbar). The page
- * metadata is what actually keeps it out of an index, so both are set.
+ * This is the *only* thing keeping those pages out of an index, and it works
+ * precisely because `robots.ts` does not disallow them. A crawler has to fetch
+ * a page to read its `noindex`; a `Disallow` would block the fetch and leave a
+ * URL discovered elsewhere listed as a bare link with no way to remove it. See
+ * the comment in `src/app/robots.ts` for the full layering.
+ *
+ * Access control for admin content is Supabase Auth, separately and always.
  */
 export const PRIVATE_ROBOTS: Metadata["robots"] = {
   index: false,

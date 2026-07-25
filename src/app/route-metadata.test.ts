@@ -172,6 +172,49 @@ describe("route metadata", () => {
     });
   });
 
+  // The two halves have to hold together: a noindex that a crawler is blocked
+  // from fetching does nothing, and a crawlable page with no noindex gets
+  // indexed. Asserting them as a pair is what stops a future change to either
+  // file from silently reintroducing the conflict.
+  describe("private routes are crawlable AND noindex", () => {
+    it.each([
+      ["cart", "./(storefront)/cart/page", "/cart"],
+      ["checkout", "./(storefront)/checkout/page", "/checkout"],
+      [
+        "checkout success",
+        "./(storefront)/checkout/success/page",
+        "/checkout/success",
+      ],
+      [
+        "checkout cancel",
+        "./(storefront)/checkout/cancel/page",
+        "/checkout/cancel",
+      ],
+      ["admin sign in", "./admin/login/layout", "/admin/login"],
+      ["admin dashboard", "./admin/(dashboard)/layout", "/admin"],
+    ])("%s", async (_label, modulePath, urlPath) => {
+      const [{ metadata }, { default: robots }] = await Promise.all([
+        import(modulePath),
+        import("./robots"),
+      ]);
+
+      const rule = robots().rules;
+      const first = Array.isArray(rule) ? rule[0] : rule;
+      const disallow = first.disallow;
+      const blocked = Array.isArray(disallow)
+        ? disallow
+        : disallow
+          ? [disallow]
+          : [];
+
+      // Crawlable, so the instruction below can actually be read...
+      expect(blocked.some((path) => urlPath.startsWith(path))).toBe(false);
+      // ...and carrying the instruction.
+      expect(robotsOf(metadata).index).toBe(false);
+      expect(robotsOf(metadata).follow).toBe(false);
+    });
+  });
+
   describe("the unfinished public login route", () => {
     // Asserted against the filesystem rather than a failed import, so the test
     // states the actual intent: the route is gone, not merely unimportable.
