@@ -19,6 +19,10 @@ vi.mock("@/app/admin/actions", () => ({
   signOutAdmin: mocks.signOutAdmin,
 }));
 
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/admin",
+}));
+
 vi.mock("next/link", () => ({
   default: ({ children, href, ...props }: ComponentProps<"a">) => (
     <a href={href} {...props}>

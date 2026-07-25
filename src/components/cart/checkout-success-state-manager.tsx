@@ -86,8 +86,25 @@ export function CheckoutSuccessStateManager({
   }, [router, sessionId, shouldCleanupCart, shouldRefresh]);
 
   // Only while the order is still in a refreshing state (and not being cleaned
-  // up as confirmed) does the paused-updates notice make sense.
-  if (hasReachedPollLimit && shouldRefresh && !shouldCleanupCart) {
+  // up as confirmed) does either notice below make sense: one while polling is
+  // still active, the other once the poll budget above has been spent.
+  if (shouldRefresh && !shouldCleanupCart) {
+    if (hasReachedPollLimit) {
+      return (
+        <div
+          role="status"
+          aria-live="polite"
+          className="mx-auto mb-12 max-w-3xl border border-white/10 px-6 py-5 text-center sm:mb-16"
+        >
+          <p className="text-sm leading-7 text-stone-400">
+            Automatic updates have paused. Your payment may still be
+            processing, so you can refresh this page later to check for the
+            latest status.
+          </p>
+        </div>
+      );
+    }
+
     return (
       <div
         role="status"
@@ -95,8 +112,8 @@ export function CheckoutSuccessStateManager({
         className="mx-auto mb-12 max-w-3xl border border-white/10 px-6 py-5 text-center sm:mb-16"
       >
         <p className="text-sm leading-7 text-stone-400">
-          Automatic updates have paused. Your payment may still be processing,
-          so you can refresh this page later to check for the latest status.
+          Please do not refresh or close this page. Your payment is being
+          confirmed.
         </p>
       </div>
     );

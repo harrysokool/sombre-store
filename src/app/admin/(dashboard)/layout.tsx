@@ -1,6 +1,5 @@
-import Link from "next/link";
-
 import { signOutAdmin } from "@/app/admin/actions";
+import { AdminNav } from "@/components/admin/admin-nav";
 import { requireAdminUser } from "@/lib/supabase/admin-auth";
 
 export const dynamic = "force-dynamic";
@@ -23,26 +22,7 @@ export default async function AdminDashboardLayout({
             <p className="text-xs uppercase tracking-[0.34em] text-stone-500">
               Sombre Admin
             </p>
-            <nav aria-label="Admin">
-              <ul className="flex flex-wrap items-center gap-x-6 gap-y-2">
-                <li>
-                  <Link
-                    href="/admin"
-                    className="text-xl font-medium tracking-[0.14em] text-stone-100 transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30 sm:text-2xl"
-                  >
-                    Orders
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    href="/admin/coupons"
-                    className="text-xl font-medium tracking-[0.14em] text-stone-400 transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30 sm:text-2xl"
-                  >
-                    Coupons
-                  </Link>
-                </li>
-              </ul>
-            </nav>
+            <AdminNav />
           </div>
 
           <div className="flex min-w-0 flex-wrap items-center gap-3 sm:gap-4">
