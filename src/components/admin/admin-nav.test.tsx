@@ -39,9 +39,11 @@ describe("AdminNav active link", () => {
 
     const orders = screen.getByRole("link", { name: "Orders" });
     const coupons = screen.getByRole("link", { name: "Coupons" });
+    const operations = screen.getByRole("link", { name: "Operations" });
 
     expect(orders).toHaveAttribute("aria-current", "page");
     expect(coupons).not.toHaveAttribute("aria-current");
+    expect(operations).not.toHaveAttribute("aria-current");
   });
 
   it("marks Orders active on an order detail route", () => {
@@ -49,8 +51,24 @@ describe("AdminNav active link", () => {
 
     const orders = screen.getByRole("link", { name: "Orders" });
     const coupons = screen.getByRole("link", { name: "Coupons" });
+    const operations = screen.getByRole("link", { name: "Operations" });
 
     expect(orders).toHaveAttribute("aria-current", "page");
+    expect(coupons).not.toHaveAttribute("aria-current");
+    expect(operations).not.toHaveAttribute("aria-current");
+  });
+
+  it("marks Operations active on the operations page", () => {
+    renderAt("/admin/operations");
+
+    const orders = screen.getByRole("link", { name: "Orders" });
+    const coupons = screen.getByRole("link", { name: "Coupons" });
+    const operations = screen.getByRole("link", { name: "Operations" });
+
+    expect(operations).toHaveAttribute("aria-current", "page");
+    // `/admin/operations` must not be mistaken for `/admin/orders`, and it is
+    // not the `/admin` order list either.
+    expect(orders).not.toHaveAttribute("aria-current");
     expect(coupons).not.toHaveAttribute("aria-current");
   });
 
@@ -82,6 +100,7 @@ describe("AdminNav active link", () => {
     "/admin/coupons",
     "/admin/coupons/new",
     "/admin/coupons/11111111-1111-4111-8111-111111111111",
+    "/admin/operations",
   ])("keeps exactly one link active on %s", (pathname) => {
     renderAt(pathname);
 
@@ -92,7 +111,7 @@ describe("AdminNav active link", () => {
     expect(active).toHaveLength(1);
   });
 
-  it("keeps both nav destinations and their labels regardless of route", () => {
+  it("keeps every nav destination and label regardless of route", () => {
     renderAt("/admin/coupons");
 
     expect(screen.getByRole("link", { name: "Orders" })).toHaveAttribute(
@@ -102,6 +121,10 @@ describe("AdminNav active link", () => {
     expect(screen.getByRole("link", { name: "Coupons" })).toHaveAttribute(
       "href",
       "/admin/coupons",
+    );
+    expect(screen.getByRole("link", { name: "Operations" })).toHaveAttribute(
+      "href",
+      "/admin/operations",
     );
   });
 });

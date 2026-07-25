@@ -39,6 +39,13 @@ const EXPECTED: Array<[StatusKind, string, StatusTone]> = [
 
   ["coupon", "active", "success"],
   ["coupon", "inactive", "neutral"],
+
+  ["webhook", "retryable", "pending"],
+  ["webhook", "permanent", "danger"],
+
+  ["email", "pending", "pending"],
+  ["email", "failed", "danger"],
+  ["email", "sent", "success"],
 ];
 
 describe("admin status tone mapping", () => {
@@ -67,6 +74,8 @@ describe("admin status tone mapping", () => {
       "fulfilment",
       "refund",
       "coupon",
+      "webhook",
+      "email",
     ] as const) {
       expect(getStatusTone(kind, "not_a_real_status")).not.toBe("success");
     }

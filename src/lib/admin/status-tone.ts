@@ -23,7 +23,9 @@ export type StatusKind =
   | "order"
   | "fulfilment"
   | "refund"
-  | "coupon";
+  | "coupon"
+  | "webhook"
+  | "email";
 
 // Keys are the values the database check constraints allow for each column.
 // A refund that succeeded is deliberately red rather than green: the money went
@@ -63,6 +65,20 @@ const TONES_BY_KIND: Record<StatusKind, Record<string, StatusTone>> = {
   coupon: {
     active: "success",
     inactive: "neutral",
+  },
+  // webhook_failures.failure_kind. 'retryable' means Stripe is still expected to
+  // redeliver, so it may clear itself; 'permanent' was acknowledged after being
+  // recorded and can only be settled by a person.
+  webhook: {
+    retryable: "pending",
+    permanent: "danger",
+  },
+  // order_emails.status. The unsent queue only ever shows the first two, but
+  // 'sent' is mapped so the tone stays truthful wherever it is used.
+  email: {
+    pending: "pending",
+    failed: "danger",
+    sent: "success",
   },
 };
 

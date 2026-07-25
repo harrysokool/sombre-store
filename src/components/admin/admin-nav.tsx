@@ -3,9 +3,11 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-// Orders owns `/admin` itself plus every order detail route; Coupons owns its
-// list, create, and edit routes. The two prefixes never overlap, so at most
-// one item is ever active.
+// Orders owns `/admin` itself plus every order detail route; Coupons and
+// Operations each own their own subtree. Orders matches `/admin` exactly rather
+// than by prefix, and the three subtree prefixes are distinct
+// (`/admin/orders`, `/admin/coupons`, `/admin/operations`), so at most one item
+// is ever active.
 const NAV_ITEMS = [
   {
     label: "Orders",
@@ -17,6 +19,11 @@ const NAV_ITEMS = [
     label: "Coupons",
     href: "/admin/coupons",
     isActive: (pathname: string) => pathname.startsWith("/admin/coupons"),
+  },
+  {
+    label: "Operations",
+    href: "/admin/operations",
+    isActive: (pathname: string) => pathname.startsWith("/admin/operations"),
   },
 ] as const;
 
