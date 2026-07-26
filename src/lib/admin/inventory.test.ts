@@ -6,11 +6,13 @@ import {
   getInventoryRelationOptions,
   getInventoryStockStatus,
   getVisibleInventoryProducts,
+  LOW_STOCK_MIN_QUANTITY,
   LOW_STOCK_THRESHOLD,
   MISSING_RELATION_FILTER,
   normalizeInventoryProduct,
   normalizeInventoryView,
   normalizeStockQuantity,
+  OUT_OF_STOCK_QUANTITY,
   summarizeInventory,
   type AdminInventoryProduct,
   type AdminInventoryProductRow,
@@ -70,6 +72,8 @@ function ids(products: AdminInventoryProduct[]) {
 describe("inventory stock safety", () => {
   it("keeps the shared low-stock threshold at five", () => {
     expect(LOW_STOCK_THRESHOLD).toBe(5);
+    expect(OUT_OF_STOCK_QUANTITY).toBe(0);
+    expect(LOW_STOCK_MIN_QUANTITY).toBe(1);
   });
 
   it.each([

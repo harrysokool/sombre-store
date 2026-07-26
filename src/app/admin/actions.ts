@@ -111,6 +111,7 @@ export async function updateOrderFulfilment(
   }
 
   revalidatePath(`/admin/orders/${orderId}`);
+  revalidatePath("/admin/orders");
   revalidatePath("/admin");
 
   return { error: null, success: `Order marked ${status}.` };

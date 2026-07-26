@@ -31,7 +31,7 @@ type InventoryPageProps = {
 };
 
 const CONTROL_CLASS_NAME =
-  "min-w-0 w-full rounded-xl border border-white/10 bg-[#141211] px-3 py-2.5 text-sm text-stone-100 outline-none transition-colors placeholder:text-stone-500 hover:border-white/20 focus:border-white/30 focus:ring-2 focus:ring-white/20";
+  "min-w-0 w-full rounded-xl border border-white/10 bg-[#141211] px-3 py-2.5 text-sm text-stone-100 outline-none transition-colors placeholder:text-stone-400 hover:border-white/20 focus:border-white/30 focus:ring-2 focus:ring-white/20";
 
 const STOCK_FILTER_OPTIONS = [
   { value: ALL_INVENTORY_FILTER, label: "All" },

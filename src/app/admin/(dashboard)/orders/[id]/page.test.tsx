@@ -119,6 +119,19 @@ describe("admin saved discount display", () => {
     cleanup();
   });
 
+  it("checks admin authentication before reading the requested order", async () => {
+    mocks.requireAdminUser.mockRejectedValue(
+      new Error("redirect to admin login"),
+    );
+
+    await expect(
+      AdminOrderDetailPage({
+        params: Promise.resolve({ id: ORDER_ID }),
+      }),
+    ).rejects.toThrow("redirect to admin login");
+    expect(mocks.getAdminOrder).not.toHaveBeenCalled();
+  });
+
   it("shows discounted order and item snapshots in admin details", async () => {
     mocks.getAdminOrder.mockResolvedValue({
       order: adminOrder(),
@@ -146,6 +159,10 @@ describe("admin saved discount display", () => {
     expect(screen.getByText("Line discount")).toBeInTheDocument();
     expect(screen.getByText("Final line total")).toBeInTheDocument();
     expect(screen.getByTestId("fulfilment-panel")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /All orders/i })).toHaveAttribute(
+      "href",
+      "/admin/orders",
+    );
   });
 
   it("keeps legacy admin orders on existing subtotal and unit prices", async () => {

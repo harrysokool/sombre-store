@@ -2,7 +2,7 @@
 
 import "@testing-library/jest-dom/vitest";
 
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import type { ComponentProps } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -15,8 +15,20 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("next/link", () => ({
-  default: ({ children, href, ...props }: ComponentProps<"a">) => (
-    <a href={href} {...props}>
+  default: ({
+    children,
+    href,
+    onClick,
+    ...props
+  }: ComponentProps<"a">) => (
+    <a
+      href={href}
+      onClick={(event) => {
+        event.preventDefault();
+        onClick?.(event);
+      }}
+      {...props}
+    >
       {children}
     </a>
   ),
@@ -24,134 +36,126 @@ vi.mock("next/link", () => ({
 
 import { AdminNav } from "./admin-nav";
 
-function renderAt(pathname: string) {
+function renderAt(
+  pathname: string,
+  props: ComponentProps<typeof AdminNav> = {},
+) {
   mocks.usePathname.mockReturnValue(pathname);
-  return render(<AdminNav />);
+  return render(<AdminNav {...props} />);
+}
+
+function navigation() {
+  return screen.getByRole("navigation", { name: "Admin navigation" });
 }
 
 function getNavLinks() {
+  const nav = within(navigation());
+
   return {
-    orders: screen.getByRole("link", { name: "Orders" }),
-    inventory: screen.getByRole("link", { name: "Inventory" }),
-    coupons: screen.getByRole("link", { name: "Coupons" }),
-    operations: screen.getByRole("link", { name: "Operations" }),
+    home: nav.getByRole("link", { name: "Home" }),
+    orders: nav.getByRole("link", { name: "Orders" }),
+    inventory: nav.getByRole("link", { name: "Inventory" }),
+    coupons: nav.getByRole("link", { name: "Coupons" }),
+    operations: nav.getByRole("link", { name: "Operations" }),
   };
 }
 
-describe("AdminNav active link", () => {
+describe("AdminNav", () => {
   afterEach(() => {
     cleanup();
   });
 
-  it("marks Orders active on the order list", () => {
+  it.each([
+    ["/admin", "Home"],
+    ["/admin/", "Home"],
+    ["/admin/orders", "Orders"],
+    ["/admin/orders/11111111-1111-4111-8111-111111111111", "Orders"],
+    ["/admin/inventory", "Inventory"],
+    ["/admin/inventory/product-1", "Inventory"],
+    ["/admin/coupons", "Coupons"],
+    ["/admin/coupons/new", "Coupons"],
+    ["/admin/coupons/11111111-1111-4111-8111-111111111111", "Coupons"],
+    ["/admin/operations", "Operations"],
+  ])("marks only %s's owning item active", (pathname, activeLabel) => {
+    renderAt(pathname);
+
+    const links = within(navigation()).getAllByRole("link");
+    const activeLinks = links.filter(
+      (link) => link.getAttribute("aria-current") === "page",
+    );
+
+    expect(activeLinks).toHaveLength(1);
+    expect(activeLinks[0]).toHaveAccessibleName(activeLabel);
+  });
+
+  it("keeps Home exact and uses path-segment boundaries for sections", () => {
+    renderAt("/admin/orders-archive");
+
+    const { home, orders, inventory, coupons, operations } = getNavLinks();
+
+    expect(home).not.toHaveAttribute("aria-current");
+    expect(orders).not.toHaveAttribute("aria-current");
+    expect(inventory).not.toHaveAttribute("aria-current");
+    expect(coupons).not.toHaveAttribute("aria-current");
+    expect(operations).not.toHaveAttribute("aria-current");
+  });
+
+  it("renders every destination and visible label in the shared renderer", () => {
     renderAt("/admin");
 
-    const { orders, inventory, coupons, operations } = getNavLinks();
+    const { home, orders, inventory, coupons, operations } = getNavLinks();
 
-    expect(orders).toHaveAttribute("aria-current", "page");
-    expect(inventory).not.toHaveAttribute("aria-current");
-    expect(coupons).not.toHaveAttribute("aria-current");
-    expect(operations).not.toHaveAttribute("aria-current");
+    expect(home).toHaveAttribute("href", "/admin");
+    expect(orders).toHaveAttribute("href", "/admin/orders");
+    expect(inventory).toHaveAttribute("href", "/admin/inventory");
+    expect(coupons).toHaveAttribute("href", "/admin/coupons");
+    expect(operations).toHaveAttribute("href", "/admin/operations");
   });
 
-  it("marks Orders active on an order detail route", () => {
-    renderAt("/admin/orders/11111111-1111-4111-8111-111111111111");
+  it("uses shape and weight as well as colour for the active state", () => {
+    renderAt("/admin/inventory");
 
-    const { orders, inventory, coupons, operations } = getNavLinks();
+    const { home, inventory } = getNavLinks();
 
-    expect(orders).toHaveAttribute("aria-current", "page");
-    expect(inventory).not.toHaveAttribute("aria-current");
-    expect(coupons).not.toHaveAttribute("aria-current");
-    expect(operations).not.toHaveAttribute("aria-current");
+    expect(inventory).toHaveClass(
+      "border-stone-200",
+      "bg-white/[0.08]",
+      "font-medium",
+    );
+    expect(home).toHaveClass("border-transparent", "font-normal");
   });
 
-  it.each([
-    ["/admin/inventory", "the inventory list"],
-    ["/admin/inventory/product-1", "an inventory descendant"],
-  ])("marks Inventory active on %s (%s)", (pathname) => {
-    renderAt(pathname);
-
-    const { orders, inventory, coupons, operations } = getNavLinks();
-
-    expect(inventory).toHaveAttribute("aria-current", "page");
-    expect(orders).not.toHaveAttribute("aria-current");
-    expect(coupons).not.toHaveAttribute("aria-current");
-    expect(operations).not.toHaveAttribute("aria-current");
-  });
-
-  it("marks Operations active on the operations page", () => {
-    renderAt("/admin/operations");
-
-    const { orders, inventory, coupons, operations } = getNavLinks();
-
-    expect(operations).toHaveAttribute("aria-current", "page");
-    // `/admin/operations` must not be mistaken for `/admin/orders`, and it is
-    // not the `/admin` order list either.
-    expect(orders).not.toHaveAttribute("aria-current");
-    expect(inventory).not.toHaveAttribute("aria-current");
-    expect(coupons).not.toHaveAttribute("aria-current");
-  });
-
-  it.each([
-    ["/admin/coupons", "the coupons list"],
-    ["/admin/coupons/new", "coupon create"],
-    ["/admin/coupons/11111111-1111-4111-8111-111111111111", "coupon edit"],
-  ])("marks Coupons active on %s (%s)", (pathname) => {
-    renderAt(pathname);
-
-    const { orders, inventory, coupons, operations } = getNavLinks();
-
-    expect(coupons).toHaveAttribute("aria-current", "page");
-    expect(orders).not.toHaveAttribute("aria-current");
-    expect(inventory).not.toHaveAttribute("aria-current");
-    expect(operations).not.toHaveAttribute("aria-current");
-  });
-
-  it("never marks Orders active while on a coupon route", () => {
-    renderAt("/admin/coupons/new");
-
-    expect(
-      screen.getByRole("link", { name: "Orders" }),
-    ).not.toHaveAttribute("aria-current");
-  });
-
-  it.each([
-    "/admin",
-    "/admin/orders/11111111-1111-4111-8111-111111111111",
-    "/admin/inventory",
-    "/admin/inventory/product-1",
-    "/admin/coupons",
-    "/admin/coupons/new",
-    "/admin/coupons/11111111-1111-4111-8111-111111111111",
-    "/admin/operations",
-  ])("keeps exactly one link active on %s", (pathname) => {
-    renderAt(pathname);
-
-    const active = screen
+  it("supports desktop and mobile sizing without changing destinations", () => {
+    const { rerender } = renderAt("/admin/orders", {
+      variant: "desktop",
+    });
+    const desktopHrefs = within(navigation())
       .getAllByRole("link")
-      .filter((link) => link.getAttribute("aria-current") === "page");
+      .map((link) => link.getAttribute("href"));
 
-    expect(active).toHaveLength(1);
+    rerender(<AdminNav variant="mobile" />);
+
+    const mobileLinks = within(navigation()).getAllByRole("link");
+
+    expect(mobileLinks.map((link) => link.getAttribute("href"))).toEqual(
+      desktopHrefs,
+    );
+    expect(mobileLinks[0]).toHaveClass("min-h-12", "text-base");
   });
 
-  it("keeps every nav destination and label regardless of route", () => {
-    renderAt("/admin/coupons");
+  it("accepts a specific accessible label and closes its owner on selection", () => {
+    const onNavigate = vi.fn();
 
-    expect(screen.getByRole("link", { name: "Orders" })).toHaveAttribute(
-      "href",
-      "/admin",
-    );
-    expect(screen.getByRole("link", { name: "Inventory" })).toHaveAttribute(
-      "href",
-      "/admin/inventory",
-    );
-    expect(screen.getByRole("link", { name: "Coupons" })).toHaveAttribute(
-      "href",
-      "/admin/coupons",
-    );
-    expect(screen.getByRole("link", { name: "Operations" })).toHaveAttribute(
-      "href",
-      "/admin/operations",
-    );
+    renderAt("/admin", {
+      ariaLabel: "Admin mobile navigation",
+      onNavigate,
+    });
+
+    const nav = screen.getByRole("navigation", {
+      name: "Admin mobile navigation",
+    });
+    fireEvent.click(within(nav).getByRole("link", { name: "Coupons" }));
+
+    expect(onNavigate).toHaveBeenCalledOnce();
   });
 });

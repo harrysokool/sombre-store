@@ -282,7 +282,10 @@ describe("admin inventory page", () => {
 
     expect(form).toHaveAttribute("method", "get");
     expect(form).toHaveAttribute("action", "/admin/inventory");
-    expect(screen.getByLabelText("Product name")).toHaveValue("Cedar");
+    const productSearch = screen.getByLabelText("Product name");
+    expect(productSearch).toHaveValue("Cedar");
+    expect(productSearch).toHaveClass("placeholder:text-stone-400");
+    expect(productSearch).not.toHaveClass("placeholder:text-stone-500");
     expect(screen.getByLabelText("Brand")).toHaveValue("Maison");
     expect(screen.getByLabelText("Category")).toHaveValue("Fragrance");
     expect(screen.getByLabelText("Stock status")).toHaveValue("out-of-stock");

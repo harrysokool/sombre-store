@@ -153,6 +153,7 @@ describe("route metadata", () => {
       ["checkout cancel", "./(storefront)/checkout/cancel/page"],
       ["admin sign in", "./admin/login/layout"],
       ["admin dashboard", "./admin/(dashboard)/layout"],
+      ["admin orders", "./admin/(dashboard)/layout"],
     ])("marks %s noindex and nofollow", async (_label, path) => {
       const { metadata } = await import(path);
 
@@ -192,6 +193,7 @@ describe("route metadata", () => {
       ],
       ["admin sign in", "./admin/login/layout", "/admin/login"],
       ["admin dashboard", "./admin/(dashboard)/layout", "/admin"],
+      ["admin orders", "./admin/(dashboard)/layout", "/admin/orders"],
     ])("%s", async (_label, modulePath, urlPath) => {
       const [{ metadata }, { default: robots }] = await Promise.all([
         import(modulePath),

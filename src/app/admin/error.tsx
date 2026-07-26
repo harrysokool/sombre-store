@@ -32,7 +32,7 @@ export default function AdminError({ reset }: { error: Error & { digest?: string
             Try again
           </button>
           <Link
-            href="/admin"
+            href="/admin/orders"
             className="rounded-full border border-white/10 px-5 py-2.5 text-xs uppercase tracking-[0.2em] text-stone-400 transition-colors hover:border-white/20 hover:bg-white/5 hover:text-stone-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
           >
             Back to orders

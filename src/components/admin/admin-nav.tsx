@@ -3,59 +3,72 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-// Orders owns `/admin` itself plus every order detail route; Inventory, Coupons,
-// and Operations each own their own subtree. Orders matches `/admin` exactly
-// rather than by prefix, and the four subtree prefixes are distinct
-// (`/admin/orders`, `/admin/inventory`, `/admin/coupons`,
-// `/admin/operations`), so at most one item is ever active.
-const NAV_ITEMS = [
-  {
-    label: "Orders",
-    href: "/admin",
-    isActive: (pathname: string) =>
-      pathname === "/admin" || pathname.startsWith("/admin/orders"),
-  },
-  {
-    label: "Inventory",
-    href: "/admin/inventory",
-    isActive: (pathname: string) => pathname.startsWith("/admin/inventory"),
-  },
-  {
-    label: "Coupons",
-    href: "/admin/coupons",
-    isActive: (pathname: string) => pathname.startsWith("/admin/coupons"),
-  },
-  {
-    label: "Operations",
-    href: "/admin/operations",
-    isActive: (pathname: string) => pathname.startsWith("/admin/operations"),
-  },
-] as const;
+import {
+  adminNavigation,
+  isAdminNavigationItemActive,
+} from "@/components/admin/admin-navigation";
 
-export function AdminNav() {
+type AdminNavProps = {
+  variant?: "desktop" | "mobile";
+  ariaLabel?: string;
+  onNavigate?: () => void;
+};
+
+const focusRing =
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stone-200/50 focus-visible:ring-offset-2 focus-visible:ring-offset-stone-950";
+
+export function AdminNav({
+  variant = "desktop",
+  ariaLabel = "Admin navigation",
+  onNavigate,
+}: AdminNavProps) {
   const pathname = usePathname() ?? "";
+  const linkSize =
+    variant === "mobile"
+      ? "min-h-12 px-4 py-3 text-base"
+      : "min-h-11 px-3 py-2.5 text-sm";
 
   return (
-    <nav aria-label="Admin">
-      <ul className="flex flex-wrap items-center gap-x-6 gap-y-2">
-        {NAV_ITEMS.map((item) => {
-          const isActive = item.isActive(pathname);
+    <nav aria-label={ariaLabel} className="min-w-0">
+      {adminNavigation.map((group) => (
+        <div key={group.id}>
+          {group.label ? (
+            <p className="mb-2 px-3 text-xs uppercase tracking-[0.2em] text-stone-400">
+              {group.label}
+            </p>
+          ) : null}
 
-          return (
-            <li key={item.href}>
-              <Link
-                href={item.href}
-                aria-current={isActive ? "page" : undefined}
-                className={`text-xl font-medium tracking-[0.14em] transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30 sm:text-2xl ${
-                  isActive ? "text-stone-100" : "text-stone-400"
-                }`}
-              >
-                {item.label}
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
+          <ul className="space-y-1">
+            {group.items.map((item) => {
+              const isActive = isAdminNavigationItemActive(item, pathname);
+              const Icon = item.icon;
+
+              return (
+                <li key={item.href}>
+                  <Link
+                    href={item.href}
+                    aria-current={isActive ? "page" : undefined}
+                    onClick={onNavigate}
+                    className={`group flex w-full items-center gap-3 rounded-lg border-l-2 tracking-[0.02em] transition-colors ${linkSize} ${focusRing} ${
+                      isActive
+                        ? "border-stone-200 bg-white/[0.08] font-medium text-stone-100"
+                        : "border-transparent font-normal text-stone-300 hover:border-white/20 hover:bg-white/[0.04] hover:text-white"
+                    }`}
+                  >
+                    {Icon ? (
+                      <Icon
+                        aria-hidden="true"
+                        className="h-5 w-5 shrink-0"
+                      />
+                    ) : null}
+                    <span>{item.label}</span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ))}
     </nav>
   );
 }

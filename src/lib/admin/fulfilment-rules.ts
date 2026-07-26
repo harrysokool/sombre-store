@@ -51,7 +51,22 @@ export type FulfilmentEligibility = {
   hasUnresolvedRefundReview: boolean;
 };
 
-const SETTLED_PAYMENT_STATUSES = ["paid", "no_payment_required"];
+// Stripe uses both values for a checkout whose payment step is complete. Keep
+// this public so read-only admin reporting follows the same definition as the
+// fulfilment gate instead of growing a second, subtly different list.
+export const SETTLED_PAYMENT_STATUSES = [
+  "paid",
+  "no_payment_required",
+] as const;
+
+export type SettledPaymentStatus =
+  (typeof SETTLED_PAYMENT_STATUSES)[number];
+
+export function isSettledPaymentStatus(
+  value: string,
+): value is SettledPaymentStatus {
+  return (SETTLED_PAYMENT_STATUSES as readonly string[]).includes(value);
+}
 
 const LOCKED_ORDER_STATUS_REASONS: Record<string, string> = {
   refunded: "This order was refunded, so fulfilment is locked.",
@@ -68,7 +83,7 @@ const LOCKED_ORDER_STATUS_REASONS: Record<string, string> = {
 // authority; this copy exists so the admin UI can explain a locked order rather
 // than offer controls the database would refuse.
 export function getFulfilmentBlockReason(order: FulfilmentEligibility) {
-  if (!SETTLED_PAYMENT_STATUSES.includes(order.paymentStatus)) {
+  if (!isSettledPaymentStatus(order.paymentStatus)) {
     return "This order has not been paid, so it cannot be fulfilled.";
   }
 

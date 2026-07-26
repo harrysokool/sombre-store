@@ -14,6 +14,7 @@ const PRIVATE_PAGE_PATHS = [
   "/checkout/cancel",
   "/admin",
   "/admin/login",
+  "/admin/orders",
   "/admin/orders/abc",
   "/admin/coupons",
 ] as const;

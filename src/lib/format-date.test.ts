@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { formatHongKongDateTime } from "./format-date";
+import {
+  formatHongKongDateTime,
+  getHongKongDayBounds,
+} from "./format-date";
 
 describe("formatHongKongDateTime", () => {
   it("formats a valid date explicitly in Asia/Hong_Kong, not the host timezone", () => {
@@ -42,5 +45,47 @@ describe("formatHongKongDateTime", () => {
 
   it("accepts a custom fallback", () => {
     expect(formatHongKongDateTime(null, {}, "Unknown")).toBe("Unknown");
+  });
+});
+
+describe("getHongKongDayBounds", () => {
+  it("returns Hong Kong midnight as UTC instants", () => {
+    expect(
+      getHongKongDayBounds(new Date("2026-07-24T20:00:00.000Z")),
+    ).toEqual({
+      startInclusive: "2026-07-24T16:00:00.000Z",
+      endExclusive: "2026-07-25T16:00:00.000Z",
+    });
+  });
+
+  it("changes days exactly at 16:00 UTC, which is midnight in Hong Kong", () => {
+    expect(
+      getHongKongDayBounds(new Date("2026-07-24T15:59:59.999Z")),
+    ).toEqual({
+      startInclusive: "2026-07-23T16:00:00.000Z",
+      endExclusive: "2026-07-24T16:00:00.000Z",
+    });
+
+    expect(
+      getHongKongDayBounds(new Date("2026-07-24T16:00:00.000Z")),
+    ).toEqual({
+      startInclusive: "2026-07-24T16:00:00.000Z",
+      endExclusive: "2026-07-25T16:00:00.000Z",
+    });
+  });
+
+  it("crosses month and year boundaries without using the host timezone", () => {
+    expect(
+      getHongKongDayBounds(new Date("2026-12-31T20:00:00.000Z")),
+    ).toEqual({
+      startInclusive: "2026-12-31T16:00:00.000Z",
+      endExclusive: "2027-01-01T16:00:00.000Z",
+    });
+  });
+
+  it("rejects an invalid date rather than returning unusable query bounds", () => {
+    expect(() => getHongKongDayBounds(new Date("invalid"))).toThrow(
+      /invalid date/i,
+    );
   });
 });

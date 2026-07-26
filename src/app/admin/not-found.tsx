@@ -16,7 +16,7 @@ export default function AdminNotFound() {
           This admin record does not exist, or it has been removed.
         </p>
         <Link
-          href="/admin"
+          href="/admin/orders"
           className="inline-flex rounded-full border border-white/10 bg-white/5 px-5 py-2.5 text-xs uppercase tracking-[0.2em] text-stone-100 transition-colors hover:border-white/20 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
         >
           Back to orders

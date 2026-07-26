@@ -6,17 +6,19 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import type { ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { AdminHomeData } from "@/lib/admin/home-data";
+
 const mocks = vi.hoisted(() => ({
+  loadAdminHomeData: vi.fn(),
   requireAdminUser: vi.fn(),
-  listAdminOrders: vi.fn(),
+}));
+
+vi.mock("@/lib/admin/home-data", () => ({
+  loadAdminHomeData: mocks.loadAdminHomeData,
 }));
 
 vi.mock("@/lib/supabase/admin-auth", () => ({
   requireAdminUser: mocks.requireAdminUser,
-}));
-
-vi.mock("@/lib/admin/orders", () => ({
-  listAdminOrders: mocks.listAdminOrders,
 }));
 
 vi.mock("next/link", () => ({
@@ -31,237 +33,246 @@ vi.mock("next/link", () => ({
   ),
 }));
 
-import AdminOrdersPage from "./page";
+import AdminHomePage, { metadata } from "./page";
 
 const ORDER_ID = "11111111-1111-4111-8111-111111111111";
+const FAILURE_ORDER_ID = "22222222-2222-4222-8222-222222222222";
 
-const BASE_ORDER = {
-  id: ORDER_ID,
-  created_at: "2026-07-24T20:00:00.000Z",
-  customer_name: "Sombre Customer",
-  customer_email: "customer@example.com",
-  total: "1650.00",
-  currency: "hkd",
-  payment_status: "paid",
-  order_status: "confirmed",
-  fulfilment_status: "unfulfilled",
-};
-
-// The list renders twice on purpose: stacked cards for small screens and the
-// table for `lg` and up. Every assertion scopes to one of them, so a value can
-// never be found in the wrong presentation.
-function mobileCards() {
-  return within(screen.getByRole("list", { name: "Orders" }));
+function homeData(): AdminHomeData {
+  return {
+    dayBounds: {
+      startInclusive: "2026-07-24T16:00:00.000Z",
+      endExclusive: "2026-07-25T16:00:00.000Z",
+    },
+    summary: {
+      ordersToday: { value: 7, hasError: false },
+      revenueTodayCents: { value: 234_567, hasError: false },
+      awaitingFulfilment: { value: 3, hasError: false },
+      lowStockProducts: { value: 2, hasError: false },
+      outOfStockProducts: { value: 1, hasError: false },
+    },
+    recentOrders: {
+      hasError: false,
+      items: [
+        {
+          id: ORDER_ID,
+          created_at: "2026-07-24T20:30:00.000Z",
+          customer_name:
+            "A Customer With A Deliberately Long Name That Still Wraps",
+          customer_email:
+            "a.deliberately.long.address@a-very-long-domain.example.com",
+          total: "1650.00",
+          currency: "hkd",
+          payment_status: "paid",
+          order_status: "confirmed",
+          fulfilment_status: "unfulfilled",
+        },
+      ],
+    },
+    recentFailures: {
+      hasError: false,
+      items: [
+        {
+          source: "webhook",
+          id: "failure-1",
+          orderId: FAILURE_ORDER_ID,
+          title: "checkout.session.completed",
+          status: "permanent",
+          occurredAt: "2026-07-24T21:00:00.000Z",
+        },
+      ],
+    },
+  };
 }
 
-function desktopTable() {
-  return within(screen.getByRole("table", { name: "Orders" }));
-}
-
-describe("admin orders list page", () => {
+describe("Admin Home page", () => {
   beforeEach(() => {
     mocks.requireAdminUser.mockReset();
-    mocks.listAdminOrders.mockReset();
+    mocks.loadAdminHomeData.mockReset();
     mocks.requireAdminUser.mockResolvedValue({
       id: "admin-1",
       email: "admin@example.com",
     });
+    mocks.loadAdminHomeData.mockResolvedValue(homeData());
   });
 
   afterEach(() => {
     cleanup();
   });
 
-  it("formats the order date in Hong Kong time regardless of the host timezone", async () => {
-    // 2026-07-24T20:00:00Z is still 2026-07-24 in UTC, but already
-    // 2026-07-25 in Asia/Hong_Kong (UTC+8). Asserting on the shifted day
-    // proves the explicit timeZone option is applied.
-    mocks.listAdminOrders.mockResolvedValue([BASE_ORDER]);
+  it("makes /admin the Home dashboard rather than the order list", async () => {
+    render(await AdminHomePage());
 
-    render(await AdminOrdersPage());
-
-    expect(desktopTable().getByText(/25 Jul 2026/)).toBeInTheDocument();
-    expect(mobileCards().getByText(/25 Jul 2026/)).toBeInTheDocument();
+    expect(metadata).toEqual({ title: "Home" });
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Home" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { level: 1, name: "Orders" }),
+    ).toBeNull();
+    expect(screen.queryByRole("table", { name: "Orders" })).toBeNull();
   });
 
-  it("stacks each order into a labelled card for small screens", async () => {
-    mocks.listAdminOrders.mockResolvedValue([BASE_ORDER]);
-
-    render(await AdminOrdersPage());
-
-    const cards = mobileCards();
-    const card = within(cards.getAllByRole("listitem")[0]);
-
-    // Order id, customer, date, payment/order status, fulfilment, and total.
-    expect(card.getByRole("link", { name: "11111111" })).toHaveAttribute(
-      "href",
-      `/admin/orders/${ORDER_ID}`,
+  it("checks the admin session before loading protected dashboard data", async () => {
+    mocks.requireAdminUser.mockRejectedValue(
+      new Error("redirect to admin login"),
     );
-    expect(card.getByText("Customer")).toBeInTheDocument();
-    expect(card.getByText("Sombre Customer")).toBeInTheDocument();
-    expect(card.getByText("customer@example.com")).toBeInTheDocument();
-    expect(card.getByText("Date")).toBeInTheDocument();
-    expect(card.getByText(/25 Jul 2026/)).toBeInTheDocument();
-    expect(card.getByText("Payment")).toBeInTheDocument();
-    expect(card.getByText("Paid")).toBeInTheDocument();
-    expect(card.getByText("Status")).toBeInTheDocument();
-    expect(card.getByText("Confirmed")).toBeInTheDocument();
-    expect(card.getByText("Fulfilment")).toBeInTheDocument();
-    expect(card.getByText("Unfulfilled")).toBeInTheDocument();
-    expect(card.getByText("Total")).toBeInTheDocument();
-    expect(card.getByText("HK$1,650.00")).toBeInTheDocument();
+
+    await expect(AdminHomePage()).rejects.toThrow("redirect to admin login");
+    expect(mocks.loadAdminHomeData).not.toHaveBeenCalled();
   });
 
-  it("hides the cards at desktop widths and the table below them", async () => {
-    mocks.listAdminOrders.mockResolvedValue([BASE_ORDER]);
+  it("renders all five summary values and their exact definitions", async () => {
+    render(await AdminHomePage());
 
-    render(await AdminOrdersPage());
+    const summary = within(screen.getByLabelText("Admin Home summary"));
 
-    // Only one presentation is visible at any width, so the two can never
-    // overlap on screen.
-    expect(screen.getByRole("list", { name: "Orders" })).toHaveClass(
-      "lg:hidden",
+    expect(summary.getByText("Orders today")).toBeInTheDocument();
+    expect(summary.getByText("7")).toBeInTheDocument();
+    expect(summary.getByText("Revenue today")).toBeInTheDocument();
+    expect(summary.getByText("HK$2,345.67")).toBeInTheDocument();
+    expect(
+      summary.getByText(
+        "Normal confirmed HKD sales, excluding every order with a recorded refund.",
+      ),
+    ).toBeInTheDocument();
+    expect(summary.getByText("Orders awaiting fulfilment")).toBeInTheDocument();
+    expect(summary.getByText("3")).toBeInTheDocument();
+    expect(summary.getByText("Low stock products")).toBeInTheDocument();
+    expect(summary.getByText("2")).toBeInTheDocument();
+    expect(
+      summary.getByText("Products with 1–5 units remaining."),
+    ).toBeInTheDocument();
+    expect(summary.getByText("Out of stock products")).toBeInTheDocument();
+    expect(summary.getByText("1")).toBeInTheDocument();
+  });
+
+  it("links recent orders and formats their dates in Hong Kong time", async () => {
+    render(await AdminHomePage());
+
+    const recentOrders = within(
+      screen.getByRole("list", { name: "Recent orders" }),
+    );
+    const orderLink = recentOrders.getByRole("link", {
+      name: `Open order ${ORDER_ID}`,
+    });
+
+    expect(orderLink).toHaveAttribute("href", `/admin/orders/${ORDER_ID}`);
+    expect(recentOrders.getByText("HK$1,650.00")).toBeInTheDocument();
+    expect(recentOrders.getByText(/25 Jul 2026/)).toBeInTheDocument();
+    expect(recentOrders.getByText("Paid")).toBeInTheDocument();
+    expect(recentOrders.getByText("Unfulfilled")).toBeInTheDocument();
+
+    const email = recentOrders.getByText(
+      "a.deliberately.long.address@a-very-long-domain.example.com",
+    );
+    expect(email).toHaveClass("break-words", "[overflow-wrap:anywhere]");
+  });
+
+  it("shows recent operational issues with a safe related-order link", async () => {
+    render(await AdminHomePage());
+
+    const issues = within(
+      screen.getByRole("list", { name: "Recent operational issues" }),
+    );
+
+    expect(
+      issues.getByText("Checkout.session.completed"),
+    ).toBeInTheDocument();
+    expect(issues.getByText("Permanent")).toBeInTheDocument();
+    expect(
+      issues.getByRole("link", {
+        name: `Open related order ${FAILURE_ORDER_ID}`,
+      }),
+    ).toHaveAttribute(
+      "href",
+      `/admin/orders/${FAILURE_ORDER_ID}`,
+    );
+  });
+
+  it("shows understandable empty states for both recent lists", async () => {
+    const data = homeData();
+    data.recentOrders.items = [];
+    data.recentFailures.items = [];
+    mocks.loadAdminHomeData.mockResolvedValue(data);
+
+    render(await AdminHomePage());
+
+    expect(screen.getByText("No recent orders.")).toBeInTheDocument();
+    expect(
+      screen.getByText("No recent operational issues."),
+    ).toBeInTheDocument();
+  });
+
+  it("does not turn failed summary or activity queries into misleading zeroes", async () => {
+    const data = homeData();
+    data.summary.revenueTodayCents = { value: null, hasError: true };
+    data.recentOrders = { items: [], hasError: true };
+    data.recentFailures = { items: [], hasError: true };
+    mocks.loadAdminHomeData.mockResolvedValue(data);
+
+    render(await AdminHomePage());
+
+    expect(screen.getByText("Unavailable")).toBeInTheDocument();
+    expect(
+      screen.getByText("This metric could not be loaded. Try again."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Recent orders could not be loaded. Please try again.",
+      ),
+    ).toHaveAttribute("role", "status");
+    expect(
+      screen.getByText(
+        "Recent operational issues could not be loaded. Please try again.",
+      ),
+    ).toHaveAttribute("role", "status");
+  });
+
+  it("keeps available operational results visible when only one source fails", async () => {
+    const data = homeData();
+    data.recentFailures.hasError = true;
+    mocks.loadAdminHomeData.mockResolvedValue(data);
+
+    render(await AdminHomePage());
+
+    expect(
+      screen.getByText(
+        "Some operational issues could not be loaded. Available items are shown below.",
+      ),
+    ).toHaveAttribute("role", "status");
+    expect(
+      screen.getByRole("list", { name: "Recent operational issues" }),
+    ).toBeInTheDocument();
+  });
+
+  it("provides every requested quick action at its migrated route", async () => {
+    render(await AdminHomePage());
+
+    const actions = within(
+      screen.getByRole("navigation", { name: "Admin quick actions" }),
+    );
+
+    expect(actions.getByRole("link", { name: /View orders/ })).toHaveAttribute(
+      "href",
+      "/admin/orders",
     );
     expect(
-      screen.getByRole("table", { name: "Orders" }).parentElement,
-    ).toHaveClass("hidden", "lg:block");
-  });
-
-  it("keeps the desktop table with a row per order", async () => {
-    mocks.listAdminOrders.mockResolvedValue([
-      BASE_ORDER,
-      {
-        ...BASE_ORDER,
-        id: "22222222-2222-4222-8222-222222222222",
-        customer_name: "Second Customer",
-        customer_email: "second@example.com",
-        payment_status: "failed",
-        order_status: "unfulfillable",
-        fulfilment_status: "delivered",
-        total: "250.00",
-      },
-    ]);
-
-    render(await AdminOrdersPage());
-
-    const table = desktopTable();
-
-    for (const header of [
-      "Order",
-      "Customer",
-      "Date",
-      "Payment",
-      "Status",
-      "Fulfilment",
-      "Total",
-    ]) {
-      expect(table.getByRole("columnheader", { name: header })).toBeInTheDocument();
-    }
-
-    // Header row plus one row per order.
-    expect(table.getAllByRole("row")).toHaveLength(3);
-    expect(table.getByText("Sombre Customer")).toBeInTheDocument();
-    expect(table.getByText("Second Customer")).toBeInTheDocument();
-    expect(table.getByText("HK$250.00")).toBeInTheDocument();
-    expect(table.getByRole("link", { name: "22222222" })).toHaveAttribute(
+      actions.getByRole("link", { name: /View inventory/ }),
+    ).toHaveAttribute("href", "/admin/inventory");
+    expect(actions.getByRole("link", { name: /View coupons/ })).toHaveAttribute(
       "href",
-      "/admin/orders/22222222-2222-4222-8222-222222222222",
+      "/admin/coupons",
     );
+    expect(
+      actions.getByRole("link", { name: /View operations/ }),
+    ).toHaveAttribute("href", "/admin/operations");
   });
 
-  it("tones each status while keeping its word readable", async () => {
-    mocks.listAdminOrders.mockResolvedValue([
-      BASE_ORDER,
-      {
-        ...BASE_ORDER,
-        id: "22222222-2222-4222-8222-222222222222",
-        payment_status: "failed",
-        order_status: "refund_pending",
-        fulfilment_status: "delivered",
-      },
-    ]);
+  it("keeps normal dark-background copy off low-contrast stone 500 and 600", async () => {
+    const { container } = render(await AdminHomePage());
 
-    render(await AdminOrdersPage());
-
-    const table = desktopTable();
-
-    expect(table.getByText("Paid")).toHaveAttribute("data-tone", "success");
-    expect(table.getByText("Confirmed")).toHaveAttribute(
-      "data-tone",
-      "success",
-    );
-    expect(table.getByText("Unfulfilled")).toHaveAttribute(
-      "data-tone",
-      "neutral",
-    );
-    expect(table.getByText("Failed")).toHaveAttribute("data-tone", "danger");
-    expect(table.getByText("Refund pending")).toHaveAttribute(
-      "data-tone",
-      "pending",
-    );
-    expect(table.getByText("Delivered")).toHaveAttribute(
-      "data-tone",
-      "success",
-    );
-
-    // The same values carry the same tones in the mobile cards.
-    expect(mobileCards().getByText("Failed")).toHaveAttribute(
-      "data-tone",
-      "danger",
-    );
-  });
-
-  it("wraps long customer values instead of forcing horizontal scroll", async () => {
-    const longEmail =
-      "an.extremely.long.customer.email.address.that.will.not.fit@a-very-long-domain-name.example.com";
-
-    mocks.listAdminOrders.mockResolvedValue([
-      {
-        ...BASE_ORDER,
-        customer_name: "Bartholomew Fitzgerald-Wellingtonshire-Montgomery III",
-        customer_email: longEmail,
-      },
-    ]);
-
-    render(await AdminOrdersPage());
-
-    const cardValue = mobileCards().getByText(longEmail).closest("dd");
-    expect(cardValue).toHaveClass("break-words", "[overflow-wrap:anywhere]");
-    expect(cardValue).toHaveClass("min-w-0");
-
-    const tableCell = desktopTable().getByText(longEmail).closest("td");
-    expect(tableCell).toHaveClass("break-words", "[overflow-wrap:anywhere]");
-    expect(tableCell).toHaveClass("max-w-[18rem]");
-  });
-
-  it("keeps the empty and failed states out of both presentations", async () => {
-    mocks.listAdminOrders.mockResolvedValue([]);
-
-    render(await AdminOrdersPage());
-
-    expect(screen.getByText("No orders yet.")).toBeInTheDocument();
-    expect(screen.queryByRole("table")).toBeNull();
-    expect(screen.queryByRole("list", { name: "Orders" })).toBeNull();
-  });
-
-  it("keeps informational labels off the failing low-contrast class", async () => {
-    mocks.listAdminOrders.mockResolvedValue([BASE_ORDER]);
-
-    render(await AdminOrdersPage());
-
-    const orderCount = screen.getByText("1 order");
-    expect(orderCount.className).not.toContain("text-stone-500");
-    expect(orderCount.className).toContain("text-stone-400");
-
-    const headerRow = desktopTable()
-      .getByRole("columnheader", { name: "Date" })
-      .closest("tr");
-    expect(headerRow).not.toBeNull();
-    expect(headerRow).not.toHaveClass("text-stone-500");
-    expect(headerRow).toHaveClass("text-stone-400");
-
-    const dateLabel = mobileCards().getByText("Date");
-    expect(dateLabel.className).not.toContain("text-stone-500");
-    expect(dateLabel.className).toContain("text-stone-400");
+    expect(container.querySelector('[class*="text-stone-500"]')).toBeNull();
+    expect(container.querySelector('[class*="text-stone-600"]')).toBeNull();
   });
 });

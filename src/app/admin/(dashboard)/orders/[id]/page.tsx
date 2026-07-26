@@ -99,7 +99,7 @@ export default async function AdminOrderDetailPage({
     <div className="space-y-8">
       <div className="flex flex-col gap-2">
         <Link
-          href="/admin"
+          href="/admin/orders"
           className="text-xs uppercase tracking-[0.22em] text-stone-400 transition-colors hover:text-stone-300"
         >
           &larr; All orders

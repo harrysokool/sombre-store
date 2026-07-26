@@ -1,6 +1,8 @@
 import { formatPrice } from "@/lib/storefront/format-price";
 
 export const LOW_STOCK_THRESHOLD = 5;
+export const OUT_OF_STOCK_QUANTITY = 0;
+export const LOW_STOCK_MIN_QUANTITY = OUT_OF_STOCK_QUANTITY + 1;
 
 export const ALL_INVENTORY_FILTER = "all";
 export const MISSING_RELATION_FILTER = "__missing__";
@@ -166,11 +168,14 @@ export function getInventoryStockStatus(
 ): InventoryStockStatus {
   const quantity = normalizeStockQuantity(stockQuantity);
 
-  if (quantity === 0) {
+  if (quantity === OUT_OF_STOCK_QUANTITY) {
     return "out_of_stock";
   }
 
-  return quantity <= LOW_STOCK_THRESHOLD ? "low_stock" : "in_stock";
+  return quantity >= LOW_STOCK_MIN_QUANTITY &&
+    quantity <= LOW_STOCK_THRESHOLD
+    ? "low_stock"
+    : "in_stock";
 }
 
 function normalizeRelation(
