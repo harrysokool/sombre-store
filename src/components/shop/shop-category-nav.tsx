@@ -34,7 +34,7 @@ export function ShopCategoryNav({
             className={`shrink-0 border-b pb-2 text-xs uppercase tracking-[0.22em] transition-colors ${focusRing} ${
               link.isActive
                 ? "border-stone-300 text-stone-100"
-                : "border-transparent text-stone-500 hover:text-stone-200"
+                : "border-transparent text-stone-400 hover:text-stone-200"
             }`}
           >
             {link.label}
@@ -55,7 +55,7 @@ export function ShopCategoryNav({
               className={`shrink-0 text-[0.7rem] tracking-[0.16em] transition-colors ${focusRing} ${
                 link.isActive
                   ? "text-stone-300"
-                  : "text-stone-600 hover:text-stone-400"
+                  : "text-stone-400 hover:text-stone-200"
               }`}
             >
               {link.label}

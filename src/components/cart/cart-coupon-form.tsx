@@ -42,7 +42,7 @@ export function CartCouponForm({
         >
           Coupon
         </h3>
-        <p className="text-xs leading-6 text-stone-500">
+        <p className="text-xs leading-6 text-stone-400">
           Enter one code. Applying another replaces the current coupon.
         </p>
       </div>

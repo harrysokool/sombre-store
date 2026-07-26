@@ -196,7 +196,7 @@ export function CheckoutPageContent() {
           <p
             role="status"
             aria-live="polite"
-            className="py-24 text-center text-sm text-stone-500"
+            className="py-24 text-center text-sm text-stone-400"
           >
             Loading your checkout&hellip;
           </p>
@@ -316,7 +316,7 @@ export function CheckoutPageContent() {
                 />
                 <p
                   id="checkout-country-help"
-                  className="text-xs leading-6 text-stone-500 sm:col-span-2"
+                  className="text-xs leading-6 text-stone-400 sm:col-span-2"
                 >
                   Sombre currently ships only to Hong Kong.
                 </p>
@@ -429,12 +429,12 @@ export function CheckoutPageContent() {
                   </p>
                 ) : null}
 
-                <p className="text-center text-[0.7rem] leading-6 text-stone-500">
+                <p className="text-center text-[0.7rem] leading-6 text-stone-400">
                   You will be redirected to Stripe to enter your payment details
                   securely. Sombre never stores your card.
                 </p>
 
-                <p className="text-center text-[0.7rem] leading-6 text-stone-500">
+                <p className="text-center text-[0.7rem] leading-6 text-stone-400">
                   By continuing you agree to our{" "}
                   <Link href="/terms" className={policyLinkClass}>
                     Terms and Conditions
@@ -468,7 +468,7 @@ export function CheckoutPageContent() {
             <h2 className="font-display text-3xl font-light text-stone-200 sm:text-4xl">
               Your checkout is empty
             </h2>
-            <p className="mt-5 text-sm leading-8 text-stone-500">
+            <p className="mt-5 text-sm leading-8 text-stone-400">
               Add a product to your cart before continuing to payment.
             </p>
             <Link

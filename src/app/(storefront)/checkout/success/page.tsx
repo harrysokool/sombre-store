@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { CheckoutSuccessStateManager } from "@/components/cart/checkout-success-state-manager";
+import { formatHongKongDateTime } from "@/lib/format-date";
 import { privatePageMetadata } from "@/lib/seo/metadata";
 import {
   loadVerifiedCheckoutReceipt,
@@ -32,6 +33,19 @@ function isConfirmedPaymentStatus(paymentStatus: string | null) {
 
 function formatStatus(status: string) {
   return status.replaceAll("_", " ");
+}
+
+// Sums purchased units rather than counting line items, so a single product
+// bought in quantity 3 reads as "3 items", not "1 item". Non-finite or
+// non-positive quantities (a corrupt row) contribute nothing instead of
+// poisoning the total with NaN.
+function getTotalPurchasedQuantity(items: CheckoutReceiptItem[]): number {
+  return items.reduce((total, item) => {
+    const quantity = Number(item.quantity);
+    return Number.isFinite(quantity) && quantity > 0
+      ? total + quantity
+      : total;
+  }, 0);
 }
 
 // Masks a stored email for the public receipt: keeps the domain and only a hint
@@ -142,6 +156,7 @@ export default async function CheckoutSuccessPage({
   const orderDiscount = order
     ? getDiscountedOrderDisplay(order)
     : null;
+  const totalPurchasedQuantity = getTotalPurchasedQuantity(orderItems);
   const isPaymentConfirmed =
     isConfirmedPaymentStatus(stripePaymentStatus) &&
     isConfirmedPaymentStatus(order?.payment_status ?? null);
@@ -301,8 +316,8 @@ export default async function CheckoutSuccessPage({
                   </h2>
                 </div>
                 <p className="text-xs uppercase tracking-[0.22em] text-stone-500">
-                  {orderItems.length}{" "}
-                  {orderItems.length === 1 ? "item" : "items"}
+                  {totalPurchasedQuantity}{" "}
+                  {totalPurchasedQuantity === 1 ? "item" : "items"}
                 </p>
               </div>
 
@@ -320,7 +335,7 @@ export default async function CheckoutSuccessPage({
                     Order date
                   </dt>
                   <dd className="text-sm leading-6 text-stone-200">
-                    {new Date(order.created_at).toLocaleString("en-HK", {
+                    {formatHongKongDateTime(order.created_at, {
                       year: "numeric",
                       month: "long",
                       day: "numeric",

@@ -6,6 +6,7 @@ import { StatusBadge } from "@/components/admin/status-badge";
 import { getFulfilmentBlockReason } from "@/lib/admin/fulfilment-rules";
 import type { StatusKind } from "@/lib/admin/status-tone";
 import { getAdminOrder } from "@/lib/admin/orders";
+import { formatHongKongDateTime } from "@/lib/format-date";
 import {
   getDiscountedOrderDisplay,
   getDiscountedOrderItemDisplay,
@@ -23,11 +24,7 @@ const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function formatTimestamp(value: string | null) {
-  return value
-    ? new Date(value).toLocaleString("en-HK", {
-        timeZone: "Asia/Hong_Kong",
-      })
-    : null;
+  return value ? formatHongKongDateTime(value) : null;
 }
 
 function Field({ label, value }: { label: string; value: string }) {
@@ -111,8 +108,7 @@ export default async function AdminOrderDetailPage({
           {order.id}
         </h2>
         <p className="text-sm text-stone-400">
-          {new Date(order.created_at).toLocaleString("en-HK", {
-            timeZone: "Asia/Hong_Kong",
+          {formatHongKongDateTime(order.created_at, {
             year: "numeric",
             month: "long",
             day: "numeric",
@@ -150,9 +146,7 @@ export default async function AdminOrderDetailPage({
           {order.refunded_at ? (
             <Field
               label="Refunded at"
-              value={new Date(order.refunded_at).toLocaleString("en-HK", {
-                timeZone: "Asia/Hong_Kong",
-              })}
+              value={formatHongKongDateTime(order.refunded_at)}
             />
           ) : null}
         </div>

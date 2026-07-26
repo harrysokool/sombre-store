@@ -20,7 +20,7 @@ import {
 import type { CouponPreviewResponse } from "@/lib/checkout/coupon-preview";
 
 const testState = vi.hoisted(() => ({
-  cartItems: [] as CartItem[],
+  cartItems: [] as CartItem[] | null,
 }));
 
 vi.mock("@/hooks/use-cart-items", () => ({
@@ -301,5 +301,62 @@ describe("Checkout coupon revalidation", () => {
     expect(
       window.sessionStorage.getItem(COUPON_STORAGE_KEY),
     ).toBeNull();
+  });
+});
+
+describe("Checkout guidance text contrast", () => {
+  beforeEach(() => {
+    window.sessionStorage.clear();
+    fetchMock.mockReset();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  it("keeps the loading notice off the failing low-contrast class", () => {
+    testState.cartItems = null;
+
+    render(<CheckoutPageContent />);
+
+    const loading = screen.getByText(/Loading your checkout/);
+    expect(loading.className).not.toContain("text-stone-500");
+    expect(loading.className).toContain("text-stone-400");
+  });
+
+  it("keeps the shipping help and legal guidance off the failing low-contrast class", () => {
+    testState.cartItems = [cartItem()];
+
+    render(<CheckoutPageContent />);
+
+    const shippingHelp = screen.getByText(
+      "Sombre currently ships only to Hong Kong.",
+    );
+    expect(shippingHelp.className).not.toContain("text-stone-500");
+    expect(shippingHelp.className).toContain("text-stone-400");
+
+    const redirectNotice = screen.getByText(
+      /You will be redirected to Stripe/,
+    );
+    expect(redirectNotice.className).not.toContain("text-stone-500");
+    expect(redirectNotice.className).toContain("text-stone-400");
+
+    const agreement = screen.getByText(/By continuing you agree to our/);
+    expect(agreement.className).not.toContain("text-stone-500");
+    expect(agreement.className).toContain("text-stone-400");
+  });
+
+  it("keeps the empty checkout guidance off the failing low-contrast class", () => {
+    testState.cartItems = [];
+
+    render(<CheckoutPageContent />);
+
+    const guidance = screen.getByText(
+      "Add a product to your cart before continuing to payment.",
+    );
+    expect(guidance.className).not.toContain("text-stone-500");
+    expect(guidance.className).toContain("text-stone-400");
   });
 });

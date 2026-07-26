@@ -188,3 +188,125 @@ describe("checkout success saved discount display", () => {
     expect(screen.queryByText("Discounted subtotal")).toBeNull();
   });
 });
+
+describe("checkout success order date formatting", () => {
+  beforeEach(() => {
+    mocks.loadReceipt.mockReset();
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("formats the order date in Hong Kong time regardless of the host timezone", async () => {
+    // 2026-07-24T20:00:00Z is still 24 July in UTC, but already 25 July in
+    // Asia/Hong_Kong (UTC+8). Asserting the shifted day proves the explicit
+    // timeZone option is applied, not just the "en-HK" locale.
+    mocks.loadReceipt.mockResolvedValue(
+      lookup(receiptOrder({ created_at: "2026-07-24T20:00:00.000Z" }), [
+        receiptItem({ quantity: 1 }),
+      ]),
+    );
+
+    render(
+      await CheckoutSuccessPage({
+        searchParams: { session_id: "cs_test_receipt123" },
+      }),
+    );
+
+    expect(screen.getByText(/25 July 2026/)).toBeInTheDocument();
+  });
+
+  it("does not crash on an invalid order date and shows a safe fallback", async () => {
+    mocks.loadReceipt.mockResolvedValue(
+      lookup(receiptOrder({ created_at: "not-a-real-date" }), [
+        receiptItem({ quantity: 1 }),
+      ]),
+    );
+
+    render(
+      await CheckoutSuccessPage({
+        searchParams: { session_id: "cs_test_receipt123" },
+      }),
+    );
+
+    expect(screen.getByRole("heading", { name: "Order confirmed" })).toBeInTheDocument();
+    expect(screen.getByText("Order date").closest("div")).toHaveTextContent(
+      "—",
+    );
+  });
+});
+
+describe("checkout success purchased item count", () => {
+  beforeEach(() => {
+    mocks.loadReceipt.mockReset();
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("sums purchased quantities instead of counting line items", async () => {
+    mocks.loadReceipt.mockResolvedValue(
+      lookup(receiptOrder(), [
+        receiptItem({ id: "item-1", quantity: 2 }),
+        receiptItem({ id: "item-2", quantity: 3 }),
+      ]),
+    );
+
+    render(
+      await CheckoutSuccessPage({
+        searchParams: { session_id: "cs_test_receipt123" },
+      }),
+    );
+
+    // Two line items, five total units purchased.
+    expect(screen.getByText("5 items")).toBeInTheDocument();
+  });
+
+  it("uses singular wording for exactly one purchased unit", async () => {
+    mocks.loadReceipt.mockResolvedValue(
+      lookup(receiptOrder(), [receiptItem({ id: "item-1", quantity: 1 })]),
+    );
+
+    render(
+      await CheckoutSuccessPage({
+        searchParams: { session_id: "cs_test_receipt123" },
+      }),
+    );
+
+    expect(screen.getByText("1 item")).toBeInTheDocument();
+    expect(screen.queryByText("1 items")).toBeNull();
+  });
+
+  it("uses plural wording once total purchased units exceed one", async () => {
+    mocks.loadReceipt.mockResolvedValue(
+      lookup(receiptOrder(), [receiptItem({ id: "item-1", quantity: 4 })]),
+    );
+
+    render(
+      await CheckoutSuccessPage({
+        searchParams: { session_id: "cs_test_receipt123" },
+      }),
+    );
+
+    expect(screen.getByText("4 items")).toBeInTheDocument();
+  });
+
+  it("ignores an invalid quantity instead of letting it corrupt the total", async () => {
+    mocks.loadReceipt.mockResolvedValue(
+      lookup(receiptOrder(), [
+        receiptItem({ id: "item-1", quantity: Number.NaN }),
+        receiptItem({ id: "item-2", quantity: 3 }),
+      ]),
+    );
+
+    render(
+      await CheckoutSuccessPage({
+        searchParams: { session_id: "cs_test_receipt123" },
+      }),
+    );
+
+    expect(screen.getByText("3 items")).toBeInTheDocument();
+  });
+});

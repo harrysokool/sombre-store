@@ -9,11 +9,14 @@ const initialState: AdminLoginState = { error: null };
 const inputClassName =
   "w-full rounded-2xl border border-white/10 bg-transparent px-4 py-3 text-stone-100 outline-none transition-colors placeholder:text-stone-600 focus:border-white/20";
 
+const LOGIN_ERROR_ID = "admin-login-error";
+
 export function AdminLoginForm() {
   const [state, formAction, isPending] = useActionState(
     signInAdmin,
     initialState,
   );
+  const hasError = Boolean(state.error);
 
   return (
     <form action={formAction} className="space-y-5">
@@ -27,6 +30,8 @@ export function AdminLoginForm() {
           autoComplete="username"
           required
           placeholder="you@example.com"
+          aria-invalid={hasError ? true : undefined}
+          aria-describedby={hasError ? LOGIN_ERROR_ID : undefined}
           className={inputClassName}
         />
       </label>
@@ -41,6 +46,8 @@ export function AdminLoginForm() {
           autoComplete="current-password"
           required
           placeholder="Your password"
+          aria-invalid={hasError ? true : undefined}
+          aria-describedby={hasError ? LOGIN_ERROR_ID : undefined}
           className={inputClassName}
         />
       </label>
@@ -54,7 +61,11 @@ export function AdminLoginForm() {
       </button>
 
       {state.error ? (
-        <p className="text-center text-xs leading-6 text-red-300">
+        <p
+          id={LOGIN_ERROR_ID}
+          role="alert"
+          className="text-center text-xs leading-6 text-red-300"
+        >
           {state.error}
         </p>
       ) : null}

@@ -22,7 +22,7 @@ export function Footer() {
             <p className="font-display text-2xl font-normal tracking-[0.3em] text-stone-100">
               Sombre
             </p>
-            <p className="max-w-sm leading-7 text-stone-500">
+            <p className="max-w-sm leading-7 text-stone-400">
               A curated store for fragrance, skincare, makeup, and bath and body
               from luxury and independent brands.
             </p>
@@ -46,7 +46,7 @@ export function Footer() {
 
         <nav
           aria-label="Store policies"
-          className="mt-14 flex flex-wrap gap-x-8 gap-y-3 border-t border-white/10 pt-8 text-[0.7rem] uppercase tracking-[0.18em] text-stone-500"
+          className="mt-14 flex flex-wrap gap-x-8 gap-y-3 border-t border-white/10 pt-8 text-[0.7rem] uppercase tracking-[0.18em] text-stone-400"
         >
           {policyLinks.map((link) => (
             <Link

@@ -3,14 +3,14 @@ import type { ReactNode } from "react";
 
 import { StatusBadge } from "@/components/admin/status-badge";
 import { listAdminOrders, type AdminOrderListItem } from "@/lib/admin/orders";
+import { formatHongKongDateTime } from "@/lib/format-date";
 import { formatPrice } from "@/lib/storefront/format-price";
 import { requireAdminUser } from "@/lib/supabase/admin-auth";
 
 export const dynamic = "force-dynamic";
 
 function formatOrderDate(value: string) {
-  return new Date(value).toLocaleString("en-HK", {
-    timeZone: "Asia/Hong_Kong",
+  return formatHongKongDateTime(value, {
     year: "numeric",
     month: "short",
     day: "numeric",

@@ -9,6 +9,7 @@ import {
   type AdminWebhookFailure,
 } from "@/lib/admin/operations";
 import { formatStatusLabel } from "@/lib/admin/status-tone";
+import { formatHongKongDateTime } from "@/lib/format-date";
 import { requireAdminUser } from "@/lib/supabase/admin-auth";
 
 export const dynamic = "force-dynamic";
@@ -18,12 +19,7 @@ export const dynamic = "force-dynamic";
 // the settling itself still happens in Stripe, Resend, or the database.
 
 function formatOperationsTimestamp(value: string | null) {
-  if (!value) {
-    return "—";
-  }
-
-  return new Date(value).toLocaleString("en-HK", {
-    timeZone: "Asia/Hong_Kong",
+  return formatHongKongDateTime(value, {
     year: "numeric",
     month: "short",
     day: "numeric",

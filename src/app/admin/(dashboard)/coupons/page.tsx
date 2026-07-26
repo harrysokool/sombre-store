@@ -6,17 +6,13 @@ import {
   listAdminCoupons,
   type AdminCouponListItem,
 } from "@/lib/admin/coupons";
+import { formatHongKongDateTime } from "@/lib/format-date";
 import { requireAdminUser } from "@/lib/supabase/admin-auth";
 
 export const dynamic = "force-dynamic";
 
 function formatCouponDate(value: string | null) {
-  if (!value) {
-    return "—";
-  }
-
-  return new Date(value).toLocaleString("en-HK", {
-    timeZone: "Asia/Hong_Kong",
+  return formatHongKongDateTime(value, {
     year: "numeric",
     month: "short",
     day: "numeric",

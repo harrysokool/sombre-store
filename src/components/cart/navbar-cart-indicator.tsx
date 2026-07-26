@@ -64,7 +64,9 @@ export function NavbarCartIndicator() {
     <Link
       href="/cart"
       aria-label={
-        hasMounted && itemCount > 0 ? `Cart with ${itemCount} items` : "Cart"
+        hasMounted && itemCount > 0
+          ? `Cart with ${itemCount} ${itemCount === 1 ? "item" : "items"}`
+          : "Cart"
       }
       className="relative flex h-10 w-10 items-center justify-center text-stone-200 transition-colors hover:text-stone-100"
     >
