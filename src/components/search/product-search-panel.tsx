@@ -315,7 +315,7 @@ export function ProductSearchPanel({
       >
         <div className="mx-auto w-full max-w-4xl px-6 py-6 sm:px-10 sm:py-8 lg:px-12">
           <div className="flex items-center justify-between gap-4">
-            <p className="text-[0.65rem] uppercase tracking-[0.42em] text-stone-500 sm:text-xs">
+            <p className="text-[0.65rem] uppercase tracking-[0.42em] text-stone-400 sm:text-xs">
               Search
             </p>
             <button
@@ -354,11 +354,11 @@ export function ProductSearchPanel({
             </p>
 
             {!trimmedQuery ? (
-              <p className="py-10 text-sm text-stone-500">
+              <p className="py-10 text-sm text-stone-400">
                 Search by fragrance or brand.
               </p>
             ) : isLoading ? (
-              <p className="py-10 text-sm text-stone-500">
+              <p className="py-10 text-sm text-stone-400">
                 Searching products.
               </p>
             ) : hasError ? (
@@ -400,7 +400,10 @@ export function ProductSearchPanel({
                         />
                       ) : (
                         <div className="flex aspect-[4/5] items-center justify-center">
-                          <p className="text-[9px] uppercase tracking-[0.18em] text-stone-500">
+                          {/* This thumbnail sits on bg-stone-100, not the page's
+                              dark background or pure white, so stone-500/400
+                              would fall short of 4.5:1 here; stone-600 clears it. */}
+                          <p className="text-[9px] uppercase tracking-[0.18em] text-stone-600">
                             No image
                           </p>
                         </div>
@@ -408,7 +411,7 @@ export function ProductSearchPanel({
                     </div>
 
                     <div className="flex min-w-0 flex-col gap-1.5">
-                      <p className="truncate text-[0.65rem] uppercase tracking-[0.24em] text-stone-500">
+                      <p className="truncate text-[0.65rem] uppercase tracking-[0.24em] text-stone-400">
                         {product.brand?.name ?? "Sombre"}
                       </p>
                       <p className="text-base font-light leading-snug text-stone-100 [overflow-wrap:anywhere]">
@@ -422,7 +425,7 @@ export function ProductSearchPanel({
                           {formatPrice(product.price)}
                         </span>
                         {product.stock_quantity <= 0 ? (
-                          <span className="uppercase tracking-[0.16em] text-stone-500">
+                          <span className="uppercase tracking-[0.16em] text-stone-400">
                             Sold out
                           </span>
                         ) : null}
@@ -432,7 +435,7 @@ export function ProductSearchPanel({
                 ))}
               </div>
             ) : (
-              <p className="py-10 text-sm text-stone-500">No products found.</p>
+              <p className="py-10 text-sm text-stone-400">No products found.</p>
             )}
           </div>
         </div>

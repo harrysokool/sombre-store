@@ -30,7 +30,7 @@ function formatTimestamp(value: string | null) {
 function Field({ label, value }: { label: string; value: string }) {
   return (
     <div className="space-y-1">
-      <p className="text-xs uppercase tracking-[0.24em] text-stone-500">
+      <p className="text-xs uppercase tracking-[0.24em] text-stone-400">
         {label}
       </p>
       <p className="break-words text-sm leading-6 text-stone-200 [overflow-wrap:anywhere]">
@@ -52,7 +52,7 @@ function StatusField({
 }) {
   return (
     <div className="min-w-0 space-y-2">
-      <p className="text-xs uppercase tracking-[0.24em] text-stone-500">
+      <p className="text-xs uppercase tracking-[0.24em] text-stone-400">
         {label}
       </p>
       <StatusBadge kind={kind} value={value} />
@@ -100,7 +100,7 @@ export default async function AdminOrderDetailPage({
       <div className="flex flex-col gap-2">
         <Link
           href="/admin"
-          className="text-xs uppercase tracking-[0.22em] text-stone-500 transition-colors hover:text-stone-300"
+          className="text-xs uppercase tracking-[0.22em] text-stone-400 transition-colors hover:text-stone-300"
         >
           &larr; All orders
         </Link>
@@ -164,7 +164,7 @@ export default async function AdminOrderDetailPage({
       />
 
       <div className="space-y-4 rounded-2xl border border-white/10 bg-white/[0.02] px-5 py-6 sm:px-6">
-        <h3 className="text-xs uppercase tracking-[0.24em] text-stone-500">
+        <h3 className="text-xs uppercase tracking-[0.24em] text-stone-400">
           Purchased products
         </h3>
         {items.length > 0 ? (
@@ -185,7 +185,7 @@ export default async function AdminOrderDetailPage({
                       {item.product_name}
                     </p>
                     {item.size_label ? (
-                      <p className="break-words text-xs text-stone-500 [overflow-wrap:anywhere]">
+                      <p className="break-words text-xs text-stone-400 [overflow-wrap:anywhere]">
                         {item.size_label}
                       </p>
                     ) : null}
@@ -198,7 +198,7 @@ export default async function AdminOrderDetailPage({
                     {discount ? (
                       <dl className="mt-3 grid gap-x-5 gap-y-1.5 text-xs sm:grid-cols-2">
                         <div className="flex gap-2">
-                          <dt className="text-stone-500">
+                          <dt className="text-stone-400">
                             Original unit price
                           </dt>
                           <dd className="text-stone-300">
@@ -206,7 +206,7 @@ export default async function AdminOrderDetailPage({
                           </dd>
                         </div>
                         <div className="flex gap-2">
-                          <dt className="text-stone-500">
+                          <dt className="text-stone-400">
                             Discount percentage
                           </dt>
                           <dd className="text-stone-300">
@@ -214,7 +214,7 @@ export default async function AdminOrderDetailPage({
                           </dd>
                         </div>
                         <div className="flex gap-2">
-                          <dt className="text-stone-500">
+                          <dt className="text-stone-400">
                             Final unit price
                           </dt>
                           <dd className="text-stone-300">
@@ -222,7 +222,7 @@ export default async function AdminOrderDetailPage({
                           </dd>
                         </div>
                         <div className="flex gap-2">
-                          <dt className="text-stone-500">
+                          <dt className="text-stone-400">
                             Line discount
                           </dt>
                           <dd className="text-stone-300">
@@ -234,7 +234,7 @@ export default async function AdminOrderDetailPage({
                   </div>
                   <p className="shrink-0 text-right text-sm text-stone-200">
                     {discount ? (
-                      <span className="mb-1 block text-[0.6rem] uppercase tracking-[0.16em] text-stone-500">
+                      <span className="mb-1 block text-[0.6rem] uppercase tracking-[0.16em] text-stone-400">
                         Final line total
                       </span>
                     ) : (
@@ -253,7 +253,7 @@ export default async function AdminOrderDetailPage({
 
       <div className="grid gap-8 rounded-2xl border border-white/10 bg-white/[0.02] px-5 py-6 sm:grid-cols-2 sm:px-6">
         <div className="space-y-3">
-          <h3 className="text-xs uppercase tracking-[0.24em] text-stone-500">
+          <h3 className="text-xs uppercase tracking-[0.24em] text-stone-400">
             Delivery details
           </h3>
           <address className="space-y-1 text-sm not-italic leading-6 text-stone-200">
@@ -265,7 +265,7 @@ export default async function AdminOrderDetailPage({
             ))}
           </address>
           {order.district ? null : (
-            <p className="text-xs text-stone-500">
+            <p className="text-xs text-stone-400">
               No district recorded (order predates district collection).
             </p>
           )}
@@ -275,7 +275,7 @@ export default async function AdminOrderDetailPage({
           {orderDiscount ? (
             <>
               <div className="flex items-center justify-between gap-4">
-                <p className="text-xs uppercase tracking-[0.18em] text-stone-500">
+                <p className="text-xs uppercase tracking-[0.18em] text-stone-400">
                   Original subtotal
                 </p>
                 <p className="text-sm text-stone-200">
@@ -283,7 +283,7 @@ export default async function AdminOrderDetailPage({
                 </p>
               </div>
               <div className="flex items-center justify-between gap-4">
-                <p className="text-xs uppercase tracking-[0.18em] text-stone-500">
+                <p className="text-xs uppercase tracking-[0.18em] text-stone-400">
                   Coupon
                 </p>
                 <p className="min-w-0 break-words text-right text-sm text-stone-200 [overflow-wrap:anywhere]">
@@ -291,7 +291,7 @@ export default async function AdminOrderDetailPage({
                 </p>
               </div>
               <div className="flex items-center justify-between gap-4">
-                <p className="text-xs uppercase tracking-[0.18em] text-stone-500">
+                <p className="text-xs uppercase tracking-[0.18em] text-stone-400">
                   Discount
                 </p>
                 <p className="text-sm text-stone-200">
@@ -299,7 +299,7 @@ export default async function AdminOrderDetailPage({
                 </p>
               </div>
               <div className="flex items-center justify-between gap-4">
-                <p className="text-xs uppercase tracking-[0.18em] text-stone-500">
+                <p className="text-xs uppercase tracking-[0.18em] text-stone-400">
                   Discounted subtotal
                 </p>
                 <p className="text-sm text-stone-200">
@@ -309,7 +309,7 @@ export default async function AdminOrderDetailPage({
             </>
           ) : (
             <div className="flex items-center justify-between gap-4">
-              <p className="text-xs uppercase tracking-[0.18em] text-stone-500">
+              <p className="text-xs uppercase tracking-[0.18em] text-stone-400">
                 Subtotal
               </p>
               <p className="text-sm text-stone-200">
@@ -318,7 +318,7 @@ export default async function AdminOrderDetailPage({
             </div>
           )}
           <div className="flex items-center justify-between gap-4">
-            <p className="text-xs uppercase tracking-[0.18em] text-stone-500">
+            <p className="text-xs uppercase tracking-[0.18em] text-stone-400">
               Shipping
             </p>
             <p className="text-sm text-stone-200">

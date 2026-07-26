@@ -67,7 +67,7 @@ export function ProductCard({
 
         <div className="px-1 pt-5 text-center sm:pt-6">
           {brandName ? (
-            <p className="text-[0.6rem] uppercase tracking-[0.24em] text-stone-500">
+            <p className="text-[0.6rem] uppercase tracking-[0.24em] text-stone-400">
               {brandName}
             </p>
           ) : null}
@@ -77,11 +77,11 @@ export function ProductCard({
           </h2>
 
           {notes ? (
-            <p className="mt-2 text-xs leading-6 text-stone-500">{notes}</p>
+            <p className="mt-2 text-xs leading-6 text-stone-400">{notes}</p>
           ) : null}
 
           {sizeLabel ? (
-            <p className="mt-2 text-[0.65rem] uppercase tracking-[0.2em] text-stone-500">
+            <p className="mt-2 text-[0.65rem] uppercase tracking-[0.2em] text-stone-400">
               {sizeLabel}
             </p>
           ) : null}

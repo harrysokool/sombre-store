@@ -103,7 +103,7 @@ export default async function Home() {
                 <p className="mx-auto max-w-3xl font-display text-2xl font-light leading-[1.5] text-stone-200 sm:text-3xl lg:text-4xl">
                     A narrow selection, chosen for the way a room remembers it.
                 </p>
-                <p className="mx-auto mt-8 max-w-xl text-sm leading-8 text-stone-500">
+                <p className="mx-auto mt-8 max-w-xl text-sm leading-8 text-stone-400">
                     Sombre carries a focused Maison Margiela Replica edit — scents
                     built around memory, place, and the hours you return to.
                 </p>

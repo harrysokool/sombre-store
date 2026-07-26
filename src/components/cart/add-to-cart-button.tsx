@@ -117,7 +117,7 @@ export function AddToCartButton({ product }: AddToCartButtonProps) {
         <div className="flex items-center justify-between gap-6">
           <p
             id="quantity-label"
-            className="text-xs uppercase tracking-[0.24em] text-stone-500"
+            className="text-xs uppercase tracking-[0.24em] text-stone-400"
           >
             Quantity
           </p>
@@ -165,7 +165,7 @@ export function AddToCartButton({ product }: AddToCartButtonProps) {
       </button>
 
       {atMaxInCart ? (
-        <p id="cart-limit-note" className="text-center text-xs text-stone-500">
+        <p id="cart-limit-note" className="text-center text-xs text-stone-400">
           Maximum quantity already in cart.
         </p>
       ) : null}

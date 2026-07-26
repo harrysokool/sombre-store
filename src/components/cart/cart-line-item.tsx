@@ -77,7 +77,7 @@ export function CartLineItem({
               {item.name}
             </Link>
             {item.size_label ? (
-              <p className="break-words text-[0.65rem] uppercase tracking-[0.2em] text-stone-500 [overflow-wrap:anywhere]">
+              <p className="break-words text-[0.65rem] uppercase tracking-[0.2em] text-stone-400 [overflow-wrap:anywhere]">
                 {item.size_label}
               </p>
             ) : null}
@@ -87,7 +87,7 @@ export function CartLineItem({
             type="button"
             onClick={() => onRemove(item.id)}
             aria-label={`Remove ${item.name} from cart`}
-            className={`shrink-0 text-[0.65rem] uppercase tracking-[0.22em] text-stone-500 transition-colors hover:text-stone-200 ${focusRing}`}
+            className={`shrink-0 text-[0.65rem] uppercase tracking-[0.22em] text-stone-400 transition-colors hover:text-stone-200 ${focusRing}`}
           >
             Remove
           </button>
@@ -121,7 +121,7 @@ export function CartLineItem({
               </button>
             </div>
             {availabilityNote ? (
-              <p className="text-[0.7rem] text-stone-500">{availabilityNote}</p>
+              <p className="text-[0.7rem] text-stone-400">{availabilityNote}</p>
             ) : null}
           </div>
 
@@ -130,7 +130,7 @@ export function CartLineItem({
               {formatPrice(getCartLineTotal(item.price, item.quantity))}
             </p>
             {item.quantity > 1 ? (
-              <p className="mt-1 text-[0.7rem] text-stone-500">
+              <p className="mt-1 text-[0.7rem] text-stone-400">
                 {formatPrice(item.price)} each
               </p>
             ) : null}

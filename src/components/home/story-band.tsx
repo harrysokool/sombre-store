@@ -47,7 +47,7 @@ export function StoryBand({
             imageSide === "right" ? "lg:order-1" : "lg:order-2"
           }`}
         >
-          <p className="text-[0.65rem] uppercase tracking-[0.42em] text-stone-500 sm:text-xs">
+          <p className="text-[0.65rem] uppercase tracking-[0.42em] text-stone-400 sm:text-xs">
             {eyebrow}
           </p>
           <h2 className="mt-6 font-display text-4xl font-light leading-[1.12] text-stone-100 sm:text-5xl">

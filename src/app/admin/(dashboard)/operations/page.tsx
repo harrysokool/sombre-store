@@ -33,7 +33,7 @@ function formatOperationsTimestamp(value: string | null) {
 function CardField({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="grid gap-1 sm:grid-cols-[8.5rem_minmax(0,1fr)] sm:gap-3">
-      <dt className="text-xs uppercase tracking-[0.18em] text-stone-500">
+      <dt className="text-xs uppercase tracking-[0.18em] text-stone-400">
         {label}
       </dt>
       <dd className="min-w-0 break-words text-sm text-stone-200 [overflow-wrap:anywhere]">
@@ -47,7 +47,7 @@ function CardField({ label, children }: { label: string; children: ReactNode }) 
 // the full record. An unlinked failure says so rather than rendering a dead link.
 function OrderLink({ orderId }: { orderId: string | null }) {
   if (!orderId) {
-    return <span className="text-stone-500">Not linked</span>;
+    return <span className="text-stone-400">Not linked</span>;
   }
 
   return (
@@ -91,7 +91,7 @@ function SectionHeading({
           {title}
         </h2>
         {count === null ? null : (
-          <p className="text-xs uppercase tracking-[0.22em] text-stone-500">
+          <p className="text-xs uppercase tracking-[0.22em] text-stone-400">
             {count} {countLabel}
           </p>
         )}
@@ -209,7 +209,7 @@ function WebhookFailuresSection({
             <table className="w-full min-w-[62rem] border-collapse text-left text-sm">
               <caption className="sr-only">Webhook failures</caption>
               <thead>
-                <tr className="border-b border-white/10 text-xs uppercase tracking-[0.18em] text-stone-500">
+                <tr className="border-b border-white/10 text-xs uppercase tracking-[0.18em] text-stone-400">
                   <th className="px-4 py-4 font-normal">Event</th>
                   <th className="px-4 py-4 font-normal">Category</th>
                   <th className="px-4 py-4 font-normal">Error</th>
@@ -227,7 +227,7 @@ function WebhookFailuresSection({
                   >
                     <td className="max-w-[16rem] break-words px-4 py-4 text-stone-200 [overflow-wrap:anywhere]">
                       <span className="block">{failure.stripe_event_type}</span>
-                      <span className="mt-1 block font-mono text-xs text-stone-500">
+                      <span className="mt-1 block font-mono text-xs text-stone-400">
                         {failure.stripe_event_id}
                       </span>
                     </td>
@@ -321,7 +321,7 @@ function UnsentEmailsSection({ queue }: { queue: Queue<AdminUnsentEmail> }) {
             <table className="w-full min-w-[62rem] border-collapse text-left text-sm">
               <caption className="sr-only">Unsent emails</caption>
               <thead>
-                <tr className="border-b border-white/10 text-xs uppercase tracking-[0.18em] text-stone-500">
+                <tr className="border-b border-white/10 text-xs uppercase tracking-[0.18em] text-stone-400">
                   <th className="px-4 py-4 font-normal">Order</th>
                   <th className="px-4 py-4 font-normal">Email</th>
                   <th className="px-4 py-4 font-normal">Recipient</th>

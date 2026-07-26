@@ -300,7 +300,7 @@ export function NavDrawer({ isOpen, onClose, returnFocusRef }: NavDrawerProps) {
                 <Link
                   href={item.href}
                   onClick={closeDrawer}
-                  className={`block text-[0.7rem] uppercase tracking-[0.18em] text-stone-500 transition-colors hover:text-stone-200 ${focusRing}`}
+                  className={`block text-[0.7rem] uppercase tracking-[0.18em] text-stone-400 transition-colors hover:text-stone-200 ${focusRing}`}
                 >
                   {item.label}
                 </Link>

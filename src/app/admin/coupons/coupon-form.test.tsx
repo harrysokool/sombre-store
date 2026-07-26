@@ -248,4 +248,23 @@ describe("admin coupon form", () => {
       }),
     ).toBeInTheDocument();
   });
+
+  it("keeps field labels off the failing low-contrast class, while leaving the placeholder untouched", () => {
+    render(
+      <CouponForm
+        mode="create"
+        code=""
+        products={products}
+        initialAssignments={[]}
+      />,
+    );
+
+    const label = screen.getByText("Coupon code");
+    expect(label.className).not.toContain("text-stone-500");
+    expect(label.className).toContain("text-stone-400");
+
+    const codeInput = screen.getByPlaceholderText("SOMBRE");
+    // Placeholder text is a WCAG-exempt state and is left as-is.
+    expect(codeInput.className).toContain("placeholder:text-stone-600");
+  });
 });

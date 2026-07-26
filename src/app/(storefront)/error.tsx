@@ -20,7 +20,7 @@ export default function GlobalError({
           aria-atomic="true"
           className="mx-auto max-w-3xl text-center"
         >
-          <p className="text-[0.65rem] uppercase tracking-[0.42em] text-stone-500 sm:text-xs">
+          <p className="text-[0.65rem] uppercase tracking-[0.42em] text-stone-400 sm:text-xs">
             Something went wrong
           </p>
           <h1 className="mt-5 font-display text-5xl font-light leading-[0.95] text-stone-100 sm:text-6xl lg:text-7xl">

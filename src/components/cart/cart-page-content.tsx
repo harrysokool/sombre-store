@@ -83,7 +83,7 @@ export function CartPageContent() {
             </h1>
           </div>
           {cartItems !== null && hasItems ? (
-            <p className="text-xs uppercase tracking-[0.24em] text-stone-500">
+            <p className="text-xs uppercase tracking-[0.24em] text-stone-400">
               {itemCount} {itemCount === 1 ? "item" : "items"}
             </p>
           ) : null}
@@ -93,7 +93,7 @@ export function CartPageContent() {
           <p
             role="status"
             aria-live="polite"
-            className="py-24 text-center text-sm text-stone-500"
+            className="py-24 text-center text-sm text-stone-400"
           >
             Loading your cart&hellip;
           </p>
@@ -136,7 +136,7 @@ export function CartPageContent() {
             <h2 className="font-display text-3xl font-light text-stone-200 sm:text-4xl">
               Your cart is empty
             </h2>
-            <p className="mt-5 text-sm leading-8 text-stone-500">
+            <p className="mt-5 text-sm leading-8 text-stone-400">
               Nothing has been added yet. Browse the collection and your
               selections will gather here.
             </p>

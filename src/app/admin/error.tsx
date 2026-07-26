@@ -13,7 +13,7 @@ export default function AdminError({ reset }: { error: Error & { digest?: string
         aria-live="assertive"
         className="w-full max-w-md space-y-4 rounded-2xl border border-white/10 bg-white/[0.02] px-6 py-10 text-center"
       >
-        <p className="text-xs uppercase tracking-[0.34em] text-stone-500">
+        <p className="text-xs uppercase tracking-[0.34em] text-stone-400">
           Sombre Admin
         </p>
         <h1 className="text-2xl font-medium tracking-[0.08em] text-stone-100">

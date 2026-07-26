@@ -29,7 +29,7 @@ function SummaryRow({
     <div className="flex items-baseline justify-between gap-4">
       <dt
         className={`text-xs uppercase tracking-[0.2em] ${
-          emphasis ? "text-stone-300" : "text-stone-500"
+          emphasis ? "text-stone-300" : "text-stone-400"
         }`}
       >
         {label}
@@ -131,7 +131,7 @@ export function CartOrderSummary({
           </Link>
         </div>
 
-        <p className="text-center text-[0.7rem] leading-6 text-stone-500">
+        <p className="text-center text-[0.7rem] leading-6 text-stone-400">
           Payment is completed securely through Stripe. Your card details are
           never stored by Sombre.
         </p>

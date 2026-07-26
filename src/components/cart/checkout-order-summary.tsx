@@ -31,7 +31,7 @@ function SummaryRow({
     <div className="flex items-baseline justify-between gap-4">
       <dt
         className={`text-xs uppercase tracking-[0.2em] ${
-          emphasis ? "text-stone-300" : "text-stone-500"
+          emphasis ? "text-stone-300" : "text-stone-400"
         }`}
       >
         {label}
@@ -90,11 +90,11 @@ export function CheckoutOrderSummary({
                     {item.name}
                   </p>
                   {item.size_label ? (
-                    <p className="break-words text-[0.6rem] uppercase tracking-[0.2em] text-stone-500 [overflow-wrap:anywhere]">
+                    <p className="break-words text-[0.6rem] uppercase tracking-[0.2em] text-stone-400 [overflow-wrap:anywhere]">
                       {item.size_label}
                     </p>
                   ) : null}
-                  <p className="text-xs text-stone-500">Qty {item.quantity}</p>
+                  <p className="text-xs text-stone-400">Qty {item.quantity}</p>
                 </div>
 
                 <p className="shrink-0 text-sm text-stone-200">

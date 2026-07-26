@@ -41,7 +41,7 @@ const backButtonClassName =
 function Field({ label, value }: { label: string; value: string }) {
   return (
     <div className="space-y-1">
-      <p className="text-xs uppercase tracking-[0.24em] text-stone-500">
+      <p className="text-xs uppercase tracking-[0.24em] text-stone-400">
         {label}
       </p>
       <p className="break-words text-sm leading-6 text-stone-200 [overflow-wrap:anywhere]">
@@ -143,7 +143,7 @@ export function OrderFulfilmentPanel({
   return (
     <section className="space-y-6 rounded-2xl border border-white/10 bg-white/[0.02] px-5 py-6 sm:px-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h3 className="text-xs uppercase tracking-[0.24em] text-stone-500">
+        <h3 className="text-xs uppercase tracking-[0.24em] text-stone-400">
           Fulfilment
         </h3>
         <StatusBadge
@@ -161,7 +161,7 @@ export function OrderFulfilmentPanel({
       </div>
 
       {updatedAtLabel ? (
-        <p className="text-xs text-stone-500">
+        <p className="text-xs text-stone-400">
           Fulfilment last updated {updatedAtLabel}.
         </p>
       ) : null}
@@ -180,7 +180,7 @@ export function OrderFulfilmentPanel({
 
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="block space-y-2">
-            <span className="text-xs uppercase tracking-[0.24em] text-stone-500">
+            <span className="text-xs uppercase tracking-[0.24em] text-stone-400">
               Courier
             </span>
             <input
@@ -197,7 +197,7 @@ export function OrderFulfilmentPanel({
           </label>
 
           <label className="block space-y-2">
-            <span className="text-xs uppercase tracking-[0.24em] text-stone-500">
+            <span className="text-xs uppercase tracking-[0.24em] text-stone-400">
               Tracking number
             </span>
             <input
@@ -215,11 +215,11 @@ export function OrderFulfilmentPanel({
         </div>
 
         {trackingHint ? (
-          <p className="text-xs leading-6 text-stone-500">{trackingHint}</p>
+          <p className="text-xs leading-6 text-stone-400">{trackingHint}</p>
         ) : null}
 
         <div className="space-y-3">
-          <p className="text-xs uppercase tracking-[0.24em] text-stone-500">
+          <p className="text-xs uppercase tracking-[0.24em] text-stone-400">
             Advance fulfilment
           </p>
           {forwardTargets.length > 0 ? (
@@ -250,7 +250,7 @@ export function OrderFulfilmentPanel({
         </div>
 
         <div className="space-y-3 border-t border-white/10 pt-5">
-          <p className="text-xs uppercase tracking-[0.24em] text-stone-500">
+          <p className="text-xs uppercase tracking-[0.24em] text-stone-400">
             Correct a mistake
           </p>
           {backwardTargets.length > 0 ? (

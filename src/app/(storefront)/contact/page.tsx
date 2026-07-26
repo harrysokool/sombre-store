@@ -34,7 +34,7 @@ export default function ContactPage() {
     <div className="overflow-x-clip">
       <section className="px-6 pb-24 pt-20 sm:px-10 sm:pb-32 sm:pt-28 lg:px-12 lg:pb-40">
         <div className="mx-auto w-full max-w-7xl">
-          <p className="text-[0.65rem] uppercase tracking-[0.42em] text-stone-500 sm:text-xs">
+          <p className="text-[0.65rem] uppercase tracking-[0.42em] text-stone-400 sm:text-xs">
             Contact Sombre
           </p>
           <h1 className="mt-7 max-w-6xl font-display text-[3.25rem] font-light leading-[0.96] text-stone-100 sm:text-6xl lg:text-[5.5rem]">
@@ -54,7 +54,7 @@ export default function ContactPage() {
       >
         <div className="mx-auto grid w-full max-w-7xl gap-10 border-y border-white/10 py-14 sm:py-18 lg:grid-cols-[0.8fr_1.2fr] lg:gap-20 lg:py-20">
           <div>
-            <p className="text-[0.65rem] uppercase tracking-[0.42em] text-stone-500 sm:text-xs">
+            <p className="text-[0.65rem] uppercase tracking-[0.42em] text-stone-400 sm:text-xs">
               Contact Availability
             </p>
             <h2
@@ -75,7 +75,7 @@ export default function ContactPage() {
 
             <dl className="mt-10 divide-y divide-white/10 border-t border-white/10">
               <div className="grid gap-2 py-5 sm:grid-cols-[10rem_1fr] sm:items-baseline sm:gap-8">
-                <dt className="text-[0.65rem] uppercase tracking-[0.24em] text-stone-500">
+                <dt className="text-[0.65rem] uppercase tracking-[0.24em] text-stone-400">
                   Email
                 </dt>
                 <dd className="text-sm leading-7 text-stone-300">
@@ -83,7 +83,7 @@ export default function ContactPage() {
                 </dd>
               </div>
               <div className="grid gap-2 py-5 sm:grid-cols-[10rem_1fr] sm:items-baseline sm:gap-8">
-                <dt className="text-[0.65rem] uppercase tracking-[0.24em] text-stone-500">
+                <dt className="text-[0.65rem] uppercase tracking-[0.24em] text-stone-400">
                   Contact form
                 </dt>
                 <dd className="text-sm leading-7 text-stone-300">
@@ -91,7 +91,7 @@ export default function ContactPage() {
                 </dd>
               </div>
               <div className="grid gap-2 py-5 sm:grid-cols-[10rem_1fr] sm:items-baseline sm:gap-8">
-                <dt className="text-[0.65rem] uppercase tracking-[0.24em] text-stone-500">
+                <dt className="text-[0.65rem] uppercase tracking-[0.24em] text-stone-400">
                   Response time
                 </dt>
                 <dd className="text-sm leading-7 text-stone-300">
@@ -109,7 +109,7 @@ export default function ContactPage() {
       >
         <div className="mx-auto grid w-full max-w-7xl gap-10 lg:grid-cols-[0.8fr_1.2fr] lg:gap-20">
           <div>
-            <p className="text-[0.65rem] uppercase tracking-[0.42em] text-stone-500 sm:text-xs">
+            <p className="text-[0.65rem] uppercase tracking-[0.42em] text-stone-400 sm:text-xs">
               Contact Topics
             </p>
             <h2
@@ -126,7 +126,7 @@ export default function ContactPage() {
                 key={topic.number}
                 className="grid min-w-0 gap-4 border-b border-white/10 py-7 sm:grid-cols-[4rem_10rem_1fr] sm:items-baseline sm:gap-6 sm:py-8"
               >
-                <p className="text-[0.65rem] tracking-[0.24em] text-stone-600">
+                <p className="text-[0.65rem] tracking-[0.24em] text-stone-400">
                   {topic.number}
                 </p>
                 <h3 className="font-display text-2xl font-light text-stone-100">
@@ -147,7 +147,7 @@ export default function ContactPage() {
       >
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-10 border-t border-white/10 pt-12 sm:pt-16 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-[0.65rem] uppercase tracking-[0.42em] text-stone-500 sm:text-xs">
+            <p className="text-[0.65rem] uppercase tracking-[0.42em] text-stone-400 sm:text-xs">
               Current Edit
             </p>
             <h2

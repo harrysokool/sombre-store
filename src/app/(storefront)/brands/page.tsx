@@ -93,7 +93,7 @@ export default async function BrandsPage() {
     <section className="overflow-x-clip px-6 py-20 sm:px-10 sm:py-28 lg:px-12">
       <div className="mx-auto w-full max-w-7xl">
         <header className="mx-auto max-w-2xl text-center">
-          <p className="text-[0.65rem] uppercase tracking-[0.42em] text-stone-500 sm:text-xs">
+          <p className="text-[0.65rem] uppercase tracking-[0.42em] text-stone-400 sm:text-xs">
             The Houses
           </p>
           <h1 className="mt-5 font-display text-4xl font-light leading-[1.1] text-stone-100 sm:text-5xl lg:text-6xl">
@@ -124,7 +124,7 @@ export default async function BrandsPage() {
                     <h2 className="break-words font-display text-3xl font-light leading-tight text-stone-100 transition-colors group-hover:text-white sm:text-4xl">
                       {brand.name}
                     </h2>
-                    <p className="mt-3 text-[0.65rem] uppercase tracking-[0.2em] text-stone-600">
+                    <p className="mt-3 text-[0.65rem] uppercase tracking-[0.2em] text-stone-400">
                       {brand.activeProductCount} active{" "}
                       {brand.activeProductCount === 1 ? "product" : "products"}
                     </p>
@@ -154,7 +154,7 @@ export default async function BrandsPage() {
             <h2 className="font-display text-2xl font-light text-stone-200 sm:text-3xl">
               {hasError ? "The brand directory is unavailable" : "No brands yet"}
             </h2>
-            <p className="mt-5 text-sm leading-8 text-stone-500">
+            <p className="mt-5 text-sm leading-8 text-stone-400">
               {hasError
                 ? "We could not load the current brands right now. Please try again shortly."
                 : "There are no brands with active products in the Sombre edit right now."}

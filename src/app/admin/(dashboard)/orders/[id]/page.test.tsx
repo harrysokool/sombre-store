@@ -229,4 +229,29 @@ describe("admin saved discount display", () => {
     expect(refundReference.className).toContain("break-words");
     expect(refundReference.className).toContain("overflow-wrap:anywhere");
   });
+
+  it("keeps field labels off the failing low-contrast class", async () => {
+    mocks.getAdminOrder.mockResolvedValue({
+      order: adminOrder(),
+      items: [adminItem()],
+      hasUnresolvedRefundReview: false,
+    });
+
+    render(
+      await AdminOrderDetailPage({
+        params: Promise.resolve({ id: ORDER_ID }),
+      }),
+    );
+
+    for (const text of [
+      "Payment status",
+      "Order status",
+      "Purchased products",
+      "Delivery details",
+    ]) {
+      const label = screen.getByText(text);
+      expect(label.className).not.toContain("text-stone-500");
+      expect(label.className).toContain("text-stone-400");
+    }
+  });
 });

@@ -6,7 +6,7 @@ export default function AdminNotFound() {
   return (
     <main className="flex min-h-screen items-center justify-center px-4 py-16 sm:px-6">
       <div className="w-full max-w-md space-y-4 rounded-2xl border border-white/10 bg-white/[0.02] px-6 py-10 text-center">
-        <p className="text-xs uppercase tracking-[0.34em] text-stone-500">
+        <p className="text-xs uppercase tracking-[0.34em] text-stone-400">
           404
         </p>
         <h1 className="text-2xl font-medium tracking-[0.08em] text-stone-100">

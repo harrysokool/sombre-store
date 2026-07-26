@@ -85,21 +85,21 @@ function ReceiptItem({ item }: { item: CheckoutReceiptItem }) {
           {item.product_name}
         </p>
         {item.size_label ? (
-          <p className="break-words text-[0.65rem] uppercase tracking-[0.2em] text-stone-500 [overflow-wrap:anywhere]">
+          <p className="break-words text-[0.65rem] uppercase tracking-[0.2em] text-stone-400 [overflow-wrap:anywhere]">
             {item.size_label}
           </p>
         ) : null}
-        <p className="text-xs text-stone-500">Quantity {item.quantity}</p>
+        <p className="text-xs text-stone-400">Quantity {item.quantity}</p>
         {discount ? (
           <dl className="mt-3 grid gap-x-6 gap-y-2 text-xs sm:grid-cols-2">
             <div className="flex gap-2">
-              <dt className="text-stone-500">Original unit price</dt>
+              <dt className="text-stone-400">Original unit price</dt>
               <dd className="text-stone-300">
                 {formatPrice(discount.originalUnitPrice)}
               </dd>
             </div>
             <div className="flex gap-2">
-              <dt className="text-stone-500">
+              <dt className="text-stone-400">
                 Discount percentage
               </dt>
               <dd className="text-stone-300">
@@ -107,13 +107,13 @@ function ReceiptItem({ item }: { item: CheckoutReceiptItem }) {
               </dd>
             </div>
             <div className="flex gap-2">
-              <dt className="text-stone-500">Final unit price</dt>
+              <dt className="text-stone-400">Final unit price</dt>
               <dd className="text-stone-300">
                 {formatPrice(discount.finalUnitPrice)}
               </dd>
             </div>
             <div className="flex gap-2">
-              <dt className="text-stone-500">Line discount</dt>
+              <dt className="text-stone-400">Line discount</dt>
               <dd className="text-stone-300">
                 −{formatPrice(discount.lineDiscount)}
               </dd>
@@ -123,7 +123,7 @@ function ReceiptItem({ item }: { item: CheckoutReceiptItem }) {
       </div>
       <p className="shrink-0 text-right text-sm text-stone-200">
         {discount ? (
-          <span className="mb-1 block text-[0.6rem] uppercase tracking-[0.16em] text-stone-500">
+          <span className="mb-1 block text-[0.6rem] uppercase tracking-[0.16em] text-stone-400">
             Final line total
           </span>
         ) : (
@@ -286,7 +286,7 @@ export default async function CheckoutSuccessPage({
           aria-busy={shouldRefresh || undefined}
           className="mx-auto max-w-3xl text-center"
         >
-          <p className="text-[0.65rem] uppercase tracking-[0.42em] text-stone-500 sm:text-xs">
+          <p className="text-[0.65rem] uppercase tracking-[0.42em] text-stone-400 sm:text-xs">
             {statusEyebrow}
           </p>
           <h1 className="mt-5 font-display text-5xl font-light leading-[0.95] text-stone-100 sm:text-6xl lg:text-7xl">
@@ -305,7 +305,7 @@ export default async function CheckoutSuccessPage({
             >
               <div className="flex flex-col gap-8 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                  <p className="text-[0.65rem] uppercase tracking-[0.34em] text-stone-500">
+                  <p className="text-[0.65rem] uppercase tracking-[0.34em] text-stone-400">
                     Receipt
                   </p>
                   <h2
@@ -315,7 +315,7 @@ export default async function CheckoutSuccessPage({
                     Order details
                   </h2>
                 </div>
-                <p className="text-xs uppercase tracking-[0.22em] text-stone-500">
+                <p className="text-xs uppercase tracking-[0.22em] text-stone-400">
                   {totalPurchasedQuantity}{" "}
                   {totalPurchasedQuantity === 1 ? "item" : "items"}
                 </p>
@@ -323,7 +323,7 @@ export default async function CheckoutSuccessPage({
 
               <dl className="mt-10 grid gap-7 border-t border-white/10 pt-8 sm:grid-cols-3">
                 <div className="min-w-0 space-y-2">
-                  <dt className="text-[0.65rem] uppercase tracking-[0.24em] text-stone-500">
+                  <dt className="text-[0.65rem] uppercase tracking-[0.24em] text-stone-400">
                     Order number
                   </dt>
                   <dd className="break-words text-sm text-stone-200 [overflow-wrap:anywhere]">
@@ -331,7 +331,7 @@ export default async function CheckoutSuccessPage({
                   </dd>
                 </div>
                 <div className="min-w-0 space-y-2">
-                  <dt className="text-[0.65rem] uppercase tracking-[0.24em] text-stone-500">
+                  <dt className="text-[0.65rem] uppercase tracking-[0.24em] text-stone-400">
                     Order date
                   </dt>
                   <dd className="text-sm leading-6 text-stone-200">
@@ -345,7 +345,7 @@ export default async function CheckoutSuccessPage({
                   </dd>
                 </div>
                 <div className="min-w-0 space-y-2">
-                  <dt className="text-[0.65rem] uppercase tracking-[0.24em] text-stone-500">
+                  <dt className="text-[0.65rem] uppercase tracking-[0.24em] text-stone-400">
                     Payment status
                   </dt>
                   <dd className="break-words text-sm capitalize text-stone-200 [overflow-wrap:anywhere]">
@@ -416,7 +416,7 @@ export default async function CheckoutSuccessPage({
                   {orderDiscount ? (
                     <>
                       <div className="flex items-baseline justify-between gap-5">
-                        <dt className="text-xs uppercase tracking-[0.2em] text-stone-500">
+                        <dt className="text-xs uppercase tracking-[0.2em] text-stone-400">
                           Original subtotal
                         </dt>
                         <dd className="shrink-0 text-sm text-stone-300">
@@ -424,7 +424,7 @@ export default async function CheckoutSuccessPage({
                         </dd>
                       </div>
                       <div className="flex items-baseline justify-between gap-5">
-                        <dt className="text-xs uppercase tracking-[0.2em] text-stone-500">
+                        <dt className="text-xs uppercase tracking-[0.2em] text-stone-400">
                           Coupon
                         </dt>
                         <dd className="min-w-0 break-words text-right text-sm text-stone-300 [overflow-wrap:anywhere]">
@@ -432,7 +432,7 @@ export default async function CheckoutSuccessPage({
                         </dd>
                       </div>
                       <div className="flex items-baseline justify-between gap-5">
-                        <dt className="text-xs uppercase tracking-[0.2em] text-stone-500">
+                        <dt className="text-xs uppercase tracking-[0.2em] text-stone-400">
                           Discount
                         </dt>
                         <dd className="shrink-0 text-sm text-stone-300">
@@ -440,7 +440,7 @@ export default async function CheckoutSuccessPage({
                         </dd>
                       </div>
                       <div className="flex items-baseline justify-between gap-5">
-                        <dt className="text-xs uppercase tracking-[0.2em] text-stone-500">
+                        <dt className="text-xs uppercase tracking-[0.2em] text-stone-400">
                           Discounted subtotal
                         </dt>
                         <dd className="shrink-0 text-sm text-stone-300">
@@ -452,7 +452,7 @@ export default async function CheckoutSuccessPage({
                     </>
                   ) : (
                     <div className="flex items-baseline justify-between gap-5">
-                      <dt className="text-xs uppercase tracking-[0.2em] text-stone-500">
+                      <dt className="text-xs uppercase tracking-[0.2em] text-stone-400">
                         Subtotal
                       </dt>
                       <dd className="shrink-0 text-sm text-stone-300">
@@ -461,7 +461,7 @@ export default async function CheckoutSuccessPage({
                     </div>
                   )}
                   <div className="flex items-baseline justify-between gap-5">
-                    <dt className="text-xs uppercase tracking-[0.2em] text-stone-500">
+                    <dt className="text-xs uppercase tracking-[0.2em] text-stone-400">
                       Shipping
                     </dt>
                     <dd className="shrink-0 text-sm text-stone-300">
@@ -501,7 +501,7 @@ export default async function CheckoutSuccessPage({
             </h2>
             <dl className="mt-8 grid gap-7 sm:grid-cols-2 lg:grid-cols-3">
               <div className="min-w-0 space-y-2">
-                <dt className="text-[0.65rem] uppercase tracking-[0.24em] text-stone-500">
+                <dt className="text-[0.65rem] uppercase tracking-[0.24em] text-stone-400">
                   Order number
                 </dt>
                 <dd className="break-words text-sm text-stone-200 [overflow-wrap:anywhere]">
@@ -509,7 +509,7 @@ export default async function CheckoutSuccessPage({
                 </dd>
               </div>
               <div className="min-w-0 space-y-2">
-                <dt className="text-[0.65rem] uppercase tracking-[0.24em] text-stone-500">
+                <dt className="text-[0.65rem] uppercase tracking-[0.24em] text-stone-400">
                   Payment status
                 </dt>
                 <dd className="break-words text-sm capitalize text-stone-200 [overflow-wrap:anywhere]">
@@ -522,7 +522,7 @@ export default async function CheckoutSuccessPage({
                 isUnfulfillable) &&
               (order.refund_status || order.refund_id) ? (
                 <div className="min-w-0 space-y-2">
-                  <dt className="text-[0.65rem] uppercase tracking-[0.24em] text-stone-500">
+                  <dt className="text-[0.65rem] uppercase tracking-[0.24em] text-stone-400">
                     Refund status
                   </dt>
                   {order.refund_status ? (
@@ -531,7 +531,7 @@ export default async function CheckoutSuccessPage({
                     </dd>
                   ) : null}
                   {order.refund_id ? (
-                    <dd className="break-words text-xs text-stone-500 [overflow-wrap:anywhere]">
+                    <dd className="break-words text-xs text-stone-400 [overflow-wrap:anywhere]">
                       Reference {order.refund_id}
                     </dd>
                   ) : null}

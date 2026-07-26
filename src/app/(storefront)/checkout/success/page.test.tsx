@@ -189,6 +189,39 @@ describe("checkout success saved discount display", () => {
   });
 });
 
+describe("checkout success text contrast", () => {
+  beforeEach(() => {
+    mocks.loadReceipt.mockReset();
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("keeps the status eyebrow and receipt field labels off the failing low-contrast class", async () => {
+    mocks.loadReceipt.mockResolvedValue(
+      lookup(receiptOrder(), [receiptItem()]),
+    );
+
+    render(
+      await CheckoutSuccessPage({
+        searchParams: { session_id: "cs_test_receipt123" },
+      }),
+    );
+
+    // The status eyebrow carries real information (it can read "Payment
+    // confirmed", "Refund pending", etc.), unlike the plain "Sombre" wordmark
+    // used purely as branding elsewhere, so it must meet contrast too.
+    const statusEyebrow = screen.getByText("Payment confirmed");
+    expect(statusEyebrow.className).not.toContain("text-stone-500");
+    expect(statusEyebrow.className).toContain("text-stone-400");
+
+    const orderNumberLabel = screen.getByText("Order number");
+    expect(orderNumberLabel.className).not.toContain("text-stone-500");
+    expect(orderNumberLabel.className).toContain("text-stone-400");
+  });
+});
+
 describe("checkout success order date formatting", () => {
   beforeEach(() => {
     mocks.loadReceipt.mockReset();

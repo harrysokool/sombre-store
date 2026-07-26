@@ -138,7 +138,7 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
     <section className="px-6 py-20 sm:px-10 sm:py-28 lg:px-12">
       <div className="mx-auto w-full max-w-7xl">
         <header className="mx-auto max-w-2xl text-center">
-          <p className="text-[0.65rem] uppercase tracking-[0.42em] text-stone-500 sm:text-xs">
+          <p className="text-[0.65rem] uppercase tracking-[0.42em] text-stone-400 sm:text-xs">
             {pageCopy.eyebrow}
           </p>
           <h1 className="mt-5 font-display text-4xl font-light leading-[1.1] text-stone-100 sm:text-5xl lg:text-6xl">
@@ -180,7 +180,7 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
               ))}
             </div>
 
-            <p className="mt-16 text-center text-[0.65rem] uppercase tracking-[0.24em] text-stone-600">
+            <p className="mt-16 text-center text-[0.65rem] uppercase tracking-[0.24em] text-stone-400">
               {visibleProducts.length}{" "}
               {visibleProducts.length === 1 ? "Product" : "Products"}
             </p>
@@ -192,7 +192,7 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
             <h2 className="font-display text-2xl font-light text-stone-200 sm:text-3xl">
               {hasError ? "The collection is unavailable" : "Nothing here yet"}
             </h2>
-            <p className="mt-5 text-sm leading-8 text-stone-500">
+            <p className="mt-5 text-sm leading-8 text-stone-400">
               {hasError
                 ? "We could not load the collection right now. Please try again shortly."
                 : "This part of the edit is still being composed. The rest of the collection is waiting."}

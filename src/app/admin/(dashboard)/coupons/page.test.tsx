@@ -231,4 +231,20 @@ describe("admin coupon list page", () => {
     expect(screen.queryByRole("table")).toBeNull();
     expect(screen.queryByRole("list", { name: "Coupons" })).toBeNull();
   });
+
+  it("keeps the field labels off the failing low-contrast class", async () => {
+    mocks.listAdminCoupons.mockResolvedValue([BASE_COUPON]);
+
+    render(await AdminCouponsPage());
+
+    const cardLabel = mobileCards().getByText("Starts");
+    expect(cardLabel.className).not.toContain("text-stone-500");
+    expect(cardLabel.className).toContain("text-stone-400");
+
+    const headerRow = desktopTable()
+      .getByRole("columnheader", { name: "Status" })
+      .closest("tr");
+    expect(headerRow).not.toHaveClass("text-stone-500");
+    expect(headerRow).toHaveClass("text-stone-400");
+  });
 });

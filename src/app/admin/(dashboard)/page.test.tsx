@@ -243,4 +243,25 @@ describe("admin orders list page", () => {
     expect(screen.queryByRole("table")).toBeNull();
     expect(screen.queryByRole("list", { name: "Orders" })).toBeNull();
   });
+
+  it("keeps informational labels off the failing low-contrast class", async () => {
+    mocks.listAdminOrders.mockResolvedValue([BASE_ORDER]);
+
+    render(await AdminOrdersPage());
+
+    const orderCount = screen.getByText("1 order");
+    expect(orderCount.className).not.toContain("text-stone-500");
+    expect(orderCount.className).toContain("text-stone-400");
+
+    const headerRow = desktopTable()
+      .getByRole("columnheader", { name: "Date" })
+      .closest("tr");
+    expect(headerRow).not.toBeNull();
+    expect(headerRow).not.toHaveClass("text-stone-500");
+    expect(headerRow).toHaveClass("text-stone-400");
+
+    const dateLabel = mobileCards().getByText("Date");
+    expect(dateLabel.className).not.toContain("text-stone-500");
+    expect(dateLabel.className).toContain("text-stone-400");
+  });
 });

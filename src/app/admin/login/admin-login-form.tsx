@@ -21,7 +21,7 @@ export function AdminLoginForm() {
   return (
     <form action={formAction} className="space-y-5">
       <label className="block space-y-2">
-        <span className="text-xs uppercase tracking-[0.24em] text-stone-500">
+        <span className="text-xs uppercase tracking-[0.24em] text-stone-400">
           Email
         </span>
         <input
@@ -37,7 +37,7 @@ export function AdminLoginForm() {
       </label>
 
       <label className="block space-y-2">
-        <span className="text-xs uppercase tracking-[0.24em] text-stone-500">
+        <span className="text-xs uppercase tracking-[0.24em] text-stone-400">
           Password
         </span>
         <input

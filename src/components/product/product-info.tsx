@@ -32,7 +32,7 @@ export function ProductInfo({
     <div>
       <div className="space-y-8">
         <div className="space-y-5">
-          <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.65rem] uppercase tracking-[0.34em] text-stone-500">
+          <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.65rem] uppercase tracking-[0.34em] text-stone-400">
             {brandName ? <span>{brandName}</span> : null}
             {brandName && categoryName ? (
               <span aria-hidden="true" className="text-stone-700">
@@ -57,7 +57,7 @@ export function ProductInfo({
             rather than a boxed card. */}
         <dl className="flex flex-wrap items-baseline gap-x-10 gap-y-4 border-y border-white/10 py-6">
           <div className="space-y-1.5">
-            <dt className="text-[0.65rem] uppercase tracking-[0.24em] text-stone-500">
+            <dt className="text-[0.65rem] uppercase tracking-[0.24em] text-stone-400">
               Price
             </dt>
             <dd className="text-2xl font-light text-stone-100">
@@ -67,7 +67,7 @@ export function ProductInfo({
 
           {sizeLabel ? (
             <div className="space-y-1.5">
-              <dt className="text-[0.65rem] uppercase tracking-[0.24em] text-stone-500">
+              <dt className="text-[0.65rem] uppercase tracking-[0.24em] text-stone-400">
                 Size
               </dt>
               <dd className="text-sm uppercase tracking-[0.16em] text-stone-300">
@@ -77,7 +77,7 @@ export function ProductInfo({
           ) : null}
 
           <div className="space-y-1.5">
-            <dt className="text-[0.65rem] uppercase tracking-[0.24em] text-stone-500">
+            <dt className="text-[0.65rem] uppercase tracking-[0.24em] text-stone-400">
               Availability
             </dt>
             {/* Text carries the meaning; the dot is a redundant cue, never the

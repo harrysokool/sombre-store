@@ -26,7 +26,7 @@ function formatCouponDate(value: string | null) {
 function CardField({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="grid gap-1 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-3">
-      <dt className="text-xs uppercase tracking-[0.18em] text-stone-500">
+      <dt className="text-xs uppercase tracking-[0.18em] text-stone-400">
         {label}
       </dt>
       <dd className="min-w-0 break-words text-sm text-stone-200 [overflow-wrap:anywhere]">
@@ -125,7 +125,7 @@ export default async function AdminCouponsPage() {
             <table className="w-full min-w-[48rem] border-collapse text-left text-sm">
               <caption className="sr-only">Coupons</caption>
               <thead>
-                <tr className="border-b border-white/10 text-xs uppercase tracking-[0.18em] text-stone-500">
+                <tr className="border-b border-white/10 text-xs uppercase tracking-[0.18em] text-stone-400">
                   <th className="px-4 py-4 font-normal">Code</th>
                   <th className="px-4 py-4 font-normal">Status</th>
                   <th className="px-4 py-4 font-normal">Starts</th>

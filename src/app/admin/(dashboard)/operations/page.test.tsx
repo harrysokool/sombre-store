@@ -396,4 +396,27 @@ describe("admin operations page", () => {
     expect(screen.queryAllByRole("button")).toHaveLength(0);
     expect(document.querySelector("form")).toBeNull();
   });
+
+  it("keeps informational labels off the failing low-contrast class", async () => {
+    mocks.listUnresolvedWebhookFailures.mockResolvedValue([FAILURE]);
+    mocks.listUnsentOrderEmails.mockResolvedValue([
+      { ...EMAIL, order_id: null },
+    ]);
+
+    render(await AdminOperationsPage());
+
+    const countLabel = screen.getByText("1 unresolved");
+    expect(countLabel.className).not.toContain("text-stone-500");
+    expect(countLabel.className).toContain("text-stone-400");
+
+    const headerRow = failureTable()
+      .getByRole("columnheader", { name: "Event" })
+      .closest("tr");
+    expect(headerRow).not.toHaveClass("text-stone-500");
+    expect(headerRow).toHaveClass("text-stone-400");
+
+    const notLinked = emailTable().getByText("Not linked");
+    expect(notLinked.className).not.toContain("text-stone-500");
+    expect(notLinked.className).toContain("text-stone-400");
+  });
 });

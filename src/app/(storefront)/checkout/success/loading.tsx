@@ -11,7 +11,7 @@ export default function CheckoutSuccessLoading() {
         aria-atomic="true"
         className="mx-auto w-full max-w-3xl text-center"
       >
-        <p className="text-[0.65rem] uppercase tracking-[0.42em] text-stone-500 sm:text-xs">
+        <p className="text-[0.65rem] uppercase tracking-[0.42em] text-stone-400 sm:text-xs">
           Checking order status
         </p>
         <h1

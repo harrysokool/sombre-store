@@ -34,14 +34,14 @@ export default async function AdminDashboardLayout({
       <div className="mx-auto w-full max-w-6xl space-y-8 sm:space-y-10">
         <header className="flex flex-col gap-4 border-b border-white/10 pb-6 sm:flex-row sm:items-end sm:justify-between">
           <div className="space-y-2">
-            <p className="text-xs uppercase tracking-[0.34em] text-stone-500">
+            <p className="text-xs uppercase tracking-[0.34em] text-stone-400">
               Sombre Admin
             </p>
             <AdminNav />
           </div>
 
           <div className="flex min-w-0 flex-wrap items-center gap-3 sm:gap-4">
-            <span className="min-w-0 break-words text-xs text-stone-500 [overflow-wrap:anywhere]">
+            <span className="min-w-0 break-words text-xs text-stone-400 [overflow-wrap:anywhere]">
               {adminUser.email}
             </span>
             <form action={signOutAdmin}>

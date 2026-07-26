@@ -140,7 +140,7 @@ export function CouponForm({
 
       <section className="grid gap-6 rounded-2xl border border-white/10 bg-white/[0.02] px-5 py-6 sm:grid-cols-2 sm:px-6">
         <label className="block space-y-2 sm:col-span-2">
-          <span className="text-xs uppercase tracking-[0.24em] text-stone-500">
+          <span className="text-xs uppercase tracking-[0.24em] text-stone-400">
             Coupon code
           </span>
           {mode === "create" ? (
@@ -160,14 +160,14 @@ export function CouponForm({
               {code}
             </span>
           )}
-          <span className="block text-xs leading-5 text-stone-500">
+          <span className="block text-xs leading-5 text-stone-400">
             Codes are saved uppercase. Use 3–32 letters, numbers, hyphens, or
             underscores.
           </span>
         </label>
 
         <label className="block space-y-2">
-          <span className="text-xs uppercase tracking-[0.24em] text-stone-500">
+          <span className="text-xs uppercase tracking-[0.24em] text-stone-400">
             Starts
           </span>
           <input
@@ -177,13 +177,13 @@ export function CouponForm({
             step={1}
             className={inputClassName}
           />
-          <span className="block text-xs text-stone-500">
+          <span className="block text-xs text-stone-400">
             Optional, Hong Kong time.
           </span>
         </label>
 
         <label className="block space-y-2">
-          <span className="text-xs uppercase tracking-[0.24em] text-stone-500">
+          <span className="text-xs uppercase tracking-[0.24em] text-stone-400">
             Expires
           </span>
           <input
@@ -193,7 +193,7 @@ export function CouponForm({
             step={1}
             className={inputClassName}
           />
-          <span className="block text-xs text-stone-500">
+          <span className="block text-xs text-stone-400">
             Optional, Hong Kong time.
           </span>
         </label>
@@ -207,7 +207,7 @@ export function CouponForm({
           />
           <span>
             <span className="block text-sm text-stone-200">Active</span>
-            <span className="block text-xs leading-5 text-stone-500">
+            <span className="block text-xs leading-5 text-stone-400">
               Inactive coupons remain saved but cannot be applied to checkout.
             </span>
           </span>
@@ -217,14 +217,14 @@ export function CouponForm({
       <section className="space-y-5 rounded-2xl border border-white/10 bg-white/[0.02] px-5 py-6 sm:px-6">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div className="space-y-1">
-            <h2 className="text-xs uppercase tracking-[0.24em] text-stone-500">
+            <h2 className="text-xs uppercase tracking-[0.24em] text-stone-400">
               Product discounts
             </h2>
             <p className="text-sm leading-6 text-stone-400">
               Unassigned products remain full price.
             </p>
           </div>
-          <p className="text-xs text-stone-500">
+          <p className="text-xs text-stone-400">
             {assignments.length}{" "}
             {assignments.length === 1 ? "product" : "products"} assigned
           </p>
@@ -258,11 +258,11 @@ export function CouponForm({
             </button>
           </div>
         ) : products.length === 0 ? (
-          <p className="rounded-2xl border border-white/10 px-4 py-5 text-sm text-stone-500">
+          <p className="rounded-2xl border border-white/10 px-4 py-5 text-sm text-stone-400">
             No active products are available.
           </p>
         ) : (
-          <p className="rounded-2xl border border-white/10 px-4 py-5 text-sm text-stone-500">
+          <p className="rounded-2xl border border-white/10 px-4 py-5 text-sm text-stone-400">
             Every active product is already assigned to this coupon.
           </p>
         )}
@@ -288,12 +288,12 @@ export function CouponForm({
                       </span>
                     ) : null}
                   </p>
-                  <p className="text-xs text-stone-500">
+                  <p className="text-xs text-stone-400">
                     Current price {formatPrice(assignment.productPrice)}
                   </p>
                 </div>
                 <label className="space-y-2">
-                  <span className="text-xs uppercase tracking-[0.18em] text-stone-500">
+                  <span className="text-xs uppercase tracking-[0.18em] text-stone-400">
                     Discount %
                   </span>
                   <input
@@ -328,7 +328,7 @@ export function CouponForm({
             ))}
           </div>
         ) : (
-          <p className="rounded-2xl border border-dashed border-white/10 px-4 py-6 text-center text-sm text-stone-500">
+          <p className="rounded-2xl border border-dashed border-white/10 px-4 py-6 text-center text-sm text-stone-400">
             No products assigned. This coupon will have no effect until a
             product is added.
           </p>

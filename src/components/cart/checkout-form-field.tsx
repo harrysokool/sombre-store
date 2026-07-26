@@ -35,7 +35,7 @@ export function CheckoutFormField({
 }: CheckoutFormFieldProps) {
   return (
     <label className={className}>
-      <span className="text-[0.65rem] uppercase tracking-[0.22em] text-stone-500">
+      <span className="text-[0.65rem] uppercase tracking-[0.22em] text-stone-400">
         {label}
         {/* Required is announced by the input's `required` attribute, so the
             asterisk is decorative; optional status has no such attribute, so its
@@ -46,7 +46,7 @@ export function CheckoutFormField({
             *
           </span>
         ) : (
-          <span className="text-stone-600"> (optional)</span>
+          <span className="text-stone-400"> (optional)</span>
         )}
       </span>
       <input

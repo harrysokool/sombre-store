@@ -24,7 +24,7 @@ function formatOrderDate(value: string) {
 function CardField({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="grid gap-1 sm:grid-cols-[7rem_minmax(0,1fr)] sm:gap-3">
-      <dt className="text-xs uppercase tracking-[0.18em] text-stone-500">
+      <dt className="text-xs uppercase tracking-[0.18em] text-stone-400">
         {label}
       </dt>
       <dd className="min-w-0 break-words text-sm text-stone-200 [overflow-wrap:anywhere]">
@@ -67,7 +67,7 @@ export default async function AdminOrdersPage() {
 
   return (
     <div className="space-y-4">
-      <p className="text-xs uppercase tracking-[0.22em] text-stone-500">
+      <p className="text-xs uppercase tracking-[0.22em] text-stone-400">
         {orders.length} {orders.length === 1 ? "order" : "orders"}
       </p>
 
@@ -87,7 +87,7 @@ export default async function AdminOrdersPage() {
               >
                 {order.id.slice(0, 8)}
               </Link>
-              <span className="text-xs uppercase tracking-[0.18em] text-stone-500">
+              <span className="text-xs uppercase tracking-[0.18em] text-stone-400">
                 Order
               </span>
             </div>
@@ -117,7 +117,7 @@ export default async function AdminOrdersPage() {
             </dl>
 
             <div className="flex items-baseline justify-between gap-4 border-t border-white/10 pt-3">
-              <span className="text-xs uppercase tracking-[0.18em] text-stone-500">
+              <span className="text-xs uppercase tracking-[0.18em] text-stone-400">
                 Total
               </span>
               <span className="text-base font-medium text-stone-100">
@@ -132,7 +132,7 @@ export default async function AdminOrdersPage() {
         <table className="w-full min-w-[54rem] border-collapse text-left text-sm">
           <caption className="sr-only">Orders</caption>
           <thead>
-            <tr className="border-b border-white/10 text-xs uppercase tracking-[0.18em] text-stone-500">
+            <tr className="border-b border-white/10 text-xs uppercase tracking-[0.18em] text-stone-400">
               <th className="px-4 py-4 font-normal">Order</th>
               <th className="px-4 py-4 font-normal">Customer</th>
               <th className="px-4 py-4 font-normal">Date</th>

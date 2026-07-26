@@ -19,7 +19,7 @@ export default function CheckoutCancelPage() {
           aria-atomic="true"
           className="mx-auto max-w-3xl text-center"
         >
-          <p className="text-[0.65rem] uppercase tracking-[0.42em] text-stone-500 sm:text-xs">
+          <p className="text-[0.65rem] uppercase tracking-[0.42em] text-stone-400 sm:text-xs">
             Payment not completed
           </p>
           <h1 className="mt-5 font-display text-5xl font-light leading-[0.95] text-stone-100 sm:text-6xl lg:text-7xl">
@@ -35,7 +35,7 @@ export default function CheckoutCancelPage() {
           <h2 className="font-display text-2xl font-light text-stone-100 sm:text-3xl">
             Your selections are still in your cart
           </h2>
-          <p className="mx-auto mt-4 max-w-xl text-sm leading-7 text-stone-500">
+          <p className="mx-auto mt-4 max-w-xl text-sm leading-7 text-stone-400">
             Return to checkout when you are ready to try again, or review your
             cart before continuing. Stock has not been reserved.
           </p>

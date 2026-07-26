@@ -23,7 +23,7 @@ export function PolicyPage({
     <div>
       <section className="px-6 py-20 sm:px-10 sm:py-28 lg:px-12">
         <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
-          <p className="text-xs uppercase tracking-[0.34em] text-stone-500">
+          <p className="text-xs uppercase tracking-[0.34em] text-stone-400">
             {eyebrow}
           </p>
           <h1 className="max-w-4xl text-4xl font-medium leading-tight tracking-[0.08em] text-stone-100 sm:text-5xl">
@@ -32,7 +32,7 @@ export function PolicyPage({
           <p className="max-w-2xl text-base leading-8 text-stone-400">
             {intro}
           </p>
-          <p className="text-xs uppercase tracking-[0.24em] text-stone-500">
+          <p className="text-xs uppercase tracking-[0.24em] text-stone-400">
             Last updated: {BUSINESS_DETAILS.lastUpdated}
           </p>
         </div>
@@ -45,7 +45,7 @@ export function PolicyPage({
         >
           <div className="mx-auto grid w-full max-w-5xl gap-10 border-t border-white/10 pt-10 lg:grid-cols-[0.8fr_1.2fr]">
             <div className="space-y-3">
-              <p className="text-xs uppercase tracking-[0.34em] text-stone-500">
+              <p className="text-xs uppercase tracking-[0.34em] text-stone-400">
                 {section.eyebrow}
               </p>
               <h2 className="text-2xl font-medium tracking-[0.08em] text-stone-100 sm:text-3xl">
@@ -69,7 +69,7 @@ export function PolicyPage({
 
       <section className="px-6 pb-24 pt-10 sm:px-10 sm:pb-32 lg:px-12">
         <div className="mx-auto w-full max-w-5xl border-t border-white/10 pt-10">
-          <p className="max-w-2xl break-words text-sm leading-7 text-stone-500 [overflow-wrap:anywhere]">
+          <p className="max-w-2xl break-words text-sm leading-7 text-stone-400 [overflow-wrap:anywhere]">
             Sombre is operated by {BUSINESS_DETAILS.legalName} (Business
             Registration Number {BUSINESS_DETAILS.registrationNumber}),{" "}
             {BUSINESS_DETAILS.address}. Questions about this policy can be sent

@@ -41,7 +41,7 @@ export default async function EditAdminCouponPage({
       <div className="space-y-6">
         <Link
           href="/admin/coupons"
-          className="text-xs uppercase tracking-[0.22em] text-stone-500 transition-colors hover:text-stone-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
+          className="text-xs uppercase tracking-[0.22em] text-stone-400 transition-colors hover:text-stone-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
         >
           &larr; All coupons
         </Link>
@@ -61,7 +61,7 @@ export default async function EditAdminCouponPage({
       <div className="space-y-3">
         <Link
           href="/admin/coupons"
-          className="text-xs uppercase tracking-[0.22em] text-stone-500 transition-colors hover:text-stone-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
+          className="text-xs uppercase tracking-[0.22em] text-stone-400 transition-colors hover:text-stone-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
         >
           &larr; All coupons
         </Link>

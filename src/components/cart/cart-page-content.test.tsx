@@ -307,3 +307,44 @@ describe("Cart coupon interface", () => {
     },
   );
 });
+
+describe("Cart page text contrast", () => {
+  beforeEach(() => {
+    window.sessionStorage.clear();
+    fetchMock.mockReset();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  it("leaves the decorative Sombre wordmark untouched while fixing the item count", () => {
+    testState.cartItems = [cartItem()];
+
+    render(<CartPageContent />);
+
+    // Plain "Sombre" repeats identically as a masthead across several pages
+    // and adds no information beyond the site's own branding, so it is
+    // exempt; the item count is real content and must meet contrast.
+    const wordmark = screen.getByText("Sombre");
+    expect(wordmark.className).toContain("text-stone-500");
+
+    const itemCount = screen.getByText("2 items");
+    expect(itemCount.className).not.toContain("text-stone-500");
+    expect(itemCount.className).toContain("text-stone-400");
+  });
+
+  it("keeps the empty-cart guidance off the failing low-contrast class", () => {
+    testState.cartItems = [];
+
+    render(<CartPageContent />);
+
+    const guidance = screen.getByText(
+      "Nothing has been added yet. Browse the collection and your selections will gather here.",
+    );
+    expect(guidance.className).not.toContain("text-stone-500");
+    expect(guidance.className).toContain("text-stone-400");
+  });
+});
