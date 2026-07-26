@@ -6,12 +6,15 @@ import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { StatusBadge } from "@/components/admin/status-badge";
 import {
   loadAdminHomeData,
+  type AdminHomeData,
   type AdminHomeMetric,
 } from "@/lib/admin/home-data";
+import { LOW_STOCK_THRESHOLD } from "@/lib/admin/inventory";
 import {
-  LOW_STOCK_THRESHOLD,
-} from "@/lib/admin/inventory";
-import { formatStatusLabel } from "@/lib/admin/status-tone";
+  formatStatusLabel,
+  STATUS_TONE_CLASSES,
+  type StatusTone,
+} from "@/lib/admin/status-tone";
 import { formatHongKongDateTime } from "@/lib/format-date";
 import { formatPrice } from "@/lib/storefront/format-price";
 import { requireAdminUser } from "@/lib/supabase/admin-auth";
@@ -25,6 +28,9 @@ export const dynamic = "force-dynamic";
 const focusRing =
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stone-200/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[#141211]";
 
+const UNAVAILABLE_METRIC_TEXT = "This metric could not be loaded. Try again.";
+const UNAVAILABLE_CHECK_TEXT = "This could not be checked. Try again.";
+
 function formatActivityDate(value: string) {
   return formatHongKongDateTime(value, {
     year: "numeric",
@@ -33,36 +39,6 @@ function formatActivityDate(value: string) {
     hour: "numeric",
     minute: "2-digit",
   });
-}
-
-function MetricCard({
-  label,
-  metric,
-  description,
-  formatValue = (value) => value.toLocaleString("en-HK"),
-}: {
-  label: string;
-  metric: AdminHomeMetric<number>;
-  description: string;
-  formatValue?: (value: number) => string;
-}) {
-  const isUnavailable = metric.hasError || metric.value === null;
-
-  return (
-    <div className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.025] px-5 py-5">
-      <dt className="text-xs uppercase tracking-[0.16em] text-stone-400">
-        {label}
-      </dt>
-      <dd className="mt-3 break-words text-3xl font-medium leading-none text-stone-100 [overflow-wrap:anywhere] xl:text-2xl 2xl:text-3xl">
-        {isUnavailable ? "Unavailable" : formatValue(metric.value)}
-      </dd>
-      <dd className="mt-3 text-xs leading-5 text-stone-400">
-        {isUnavailable
-          ? "This metric could not be loaded. Try again."
-          : description}
-      </dd>
-    </div>
-  );
 }
 
 function SectionHeader({
@@ -92,13 +68,7 @@ function SectionHeader({
   );
 }
 
-function TextLink({
-  href,
-  children,
-}: {
-  href: string;
-  children: ReactNode;
-}) {
+function TextLink({ href, children }: { href: string; children: ReactNode }) {
   return (
     <Link
       href={href}
@@ -126,10 +96,269 @@ function ActivityNotice({
   );
 }
 
+// One compact number inside the connected overview panel. Revenue is rendered
+// separately as the lead figure; every other metric shares this smaller,
+// scannable form so the panel reads as one business picture, not five cards.
+function CompactMetric({
+  label,
+  metric,
+  description,
+  formatValue = (value) => value.toLocaleString("en-HK"),
+}: {
+  label: string;
+  metric: AdminHomeMetric<number>;
+  description: string;
+  formatValue?: (value: number) => string;
+}) {
+  const isUnavailable = metric.hasError || metric.value === null;
+
+  return (
+    <div className="min-w-0">
+      <dt className="text-xs uppercase tracking-[0.16em] text-stone-400">
+        {label}
+      </dt>
+      <dd className="mt-2 break-words text-xl font-medium leading-none text-stone-100 [overflow-wrap:anywhere] sm:text-2xl">
+        {isUnavailable ? "Unavailable" : formatValue(metric.value)}
+      </dd>
+      <dd className="mt-2 text-xs leading-5 text-stone-400">
+        {isUnavailable ? UNAVAILABLE_METRIC_TEXT : description}
+      </dd>
+    </div>
+  );
+}
+
+function BusinessSummary({ summary }: { summary: AdminHomeData["summary"] }) {
+  const revenue = summary.revenueTodayCents;
+  const isRevenueUnavailable = revenue.hasError || revenue.value === null;
+
+  return (
+    <section aria-labelledby="business-summary-heading" className="space-y-4">
+      <SectionHeader
+        id="business-summary-heading"
+        title="Overview"
+        description="Today’s sales and orders, plus current stock levels."
+      />
+
+      <dl
+        aria-label="Admin Home summary"
+        className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.025] px-5 py-6 sm:px-6"
+      >
+        <div className="flex flex-col gap-6 xl:flex-row xl:items-stretch xl:gap-8">
+          <div className="min-w-0 xl:w-64 xl:shrink-0 xl:border-r xl:border-white/10 xl:pr-8">
+            <dt className="text-xs uppercase tracking-[0.16em] text-stone-400">
+              Revenue today
+            </dt>
+            <dd className="mt-2 break-words text-4xl font-medium leading-none text-stone-100 [overflow-wrap:anywhere]">
+              {isRevenueUnavailable
+                ? "Unavailable"
+                : formatPrice(revenue.value / 100)}
+            </dd>
+            <dd className="mt-2 text-xs leading-5 text-stone-400">
+              {isRevenueUnavailable
+                ? UNAVAILABLE_METRIC_TEXT
+                : "Normal confirmed HKD sales, excluding every order with a recorded refund."}
+            </dd>
+          </div>
+
+          <div className="grid min-w-0 flex-1 grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-4">
+            <CompactMetric
+              label="Orders today"
+              metric={summary.ordersToday}
+              description="Orders created since midnight in Hong Kong."
+            />
+            <CompactMetric
+              label="Orders awaiting fulfilment"
+              metric={summary.awaitingFulfilment}
+              description="Settled, confirmed orders still unfulfilled or processing."
+            />
+            <CompactMetric
+              label="Low stock products"
+              metric={summary.lowStockProducts}
+              description={`Products with 1–${LOW_STOCK_THRESHOLD} units remaining.`}
+            />
+            <CompactMetric
+              label="Out of stock products"
+              metric={summary.outOfStockProducts}
+              description="Products with no units remaining."
+            />
+          </div>
+        </div>
+      </dl>
+    </section>
+  );
+}
+
+type AdminHomeTask = {
+  key: string;
+  label: string;
+  href: string;
+  description: string;
+} & (
+  | { state: "count"; count: number; tone: StatusTone }
+  | { state: "unavailable" }
+);
+
+// Every condition here already has an exact, previously-verified count (or an
+// explicit load failure) from `loadAdminHomeData`. Nothing is queried again
+// here — a zero-count condition is simply left out of the list, and the page
+// shows one calm confirmation when nothing qualifies.
+function getAdminHomeTasks(data: AdminHomeData): AdminHomeTask[] {
+  const tasks: AdminHomeTask[] = [];
+  const { awaitingFulfilment, lowStockProducts, outOfStockProducts } =
+    data.summary;
+  const { recentFailures } = data;
+
+  if (awaitingFulfilment.hasError) {
+    tasks.push({
+      key: "awaiting-fulfilment",
+      label: "Orders awaiting fulfilment",
+      href: "/admin/orders",
+      description: UNAVAILABLE_CHECK_TEXT,
+      state: "unavailable",
+    });
+  } else if (awaitingFulfilment.value > 0) {
+    tasks.push({
+      key: "awaiting-fulfilment",
+      label: "Orders awaiting fulfilment",
+      href: "/admin/orders",
+      description: "Settled, confirmed orders still unfulfilled or processing.",
+      state: "count",
+      count: awaitingFulfilment.value,
+      tone: "pending",
+    });
+  }
+
+  if (lowStockProducts.hasError) {
+    tasks.push({
+      key: "low-stock",
+      label: "Low stock products",
+      href: "/admin/inventory?stock=low-stock",
+      description: UNAVAILABLE_CHECK_TEXT,
+      state: "unavailable",
+    });
+  } else if (lowStockProducts.value > 0) {
+    tasks.push({
+      key: "low-stock",
+      label: "Low stock products",
+      href: "/admin/inventory?stock=low-stock",
+      description: `Products with 1–${LOW_STOCK_THRESHOLD} units remaining.`,
+      state: "count",
+      count: lowStockProducts.value,
+      tone: "pending",
+    });
+  }
+
+  if (outOfStockProducts.hasError) {
+    tasks.push({
+      key: "out-of-stock",
+      label: "Out of stock products",
+      href: "/admin/inventory?stock=out-of-stock",
+      description: UNAVAILABLE_CHECK_TEXT,
+      state: "unavailable",
+    });
+  } else if (outOfStockProducts.value > 0) {
+    tasks.push({
+      key: "out-of-stock",
+      label: "Out of stock products",
+      href: "/admin/inventory?stock=out-of-stock",
+      description: "Products with no units remaining.",
+      state: "count",
+      count: outOfStockProducts.value,
+      tone: "danger",
+    });
+  }
+
+  if (recentFailures.hasError && recentFailures.items.length === 0) {
+    tasks.push({
+      key: "operational-issues",
+      label: "Operational issues",
+      href: "/admin/operations",
+      description: UNAVAILABLE_CHECK_TEXT,
+      state: "unavailable",
+    });
+  } else if (recentFailures.items.length > 0) {
+    tasks.push({
+      key: "operational-issues",
+      label: "Operational issues",
+      href: "/admin/operations",
+      description: recentFailures.hasError
+        ? "Unresolved webhook failures or failed email deliveries. Some could not be loaded."
+        : "Unresolved webhook failures or failed email deliveries.",
+      state: "count",
+      count: recentFailures.items.length,
+      tone: "danger",
+    });
+  }
+
+  return tasks;
+}
+
+function TaskRow({ task }: { task: AdminHomeTask }) {
+  const isUnavailable = task.state === "unavailable";
+  const pillTone = isUnavailable ? "neutral" : task.tone;
+
+  return (
+    <li className="min-w-0">
+      <Link
+        href={task.href}
+        aria-label={`${task.label}: ${
+          isUnavailable ? "unavailable" : task.count
+        }. ${task.description}`}
+        className={`flex min-w-0 items-start justify-between gap-4 px-4 py-4 transition-colors hover:bg-white/[0.04] sm:px-5 ${focusRing}`}
+      >
+        <div className="min-w-0">
+          <p className="break-words text-sm font-medium text-stone-100 [overflow-wrap:anywhere]">
+            {task.label}
+          </p>
+          <p className="mt-1 break-words text-xs leading-5 text-stone-400 [overflow-wrap:anywhere]">
+            {task.description}
+          </p>
+        </div>
+        <span
+          aria-hidden="true"
+          className={`inline-flex min-w-[2.75rem] shrink-0 items-center justify-center rounded-full border px-3 py-1 text-sm font-medium ${STATUS_TONE_CLASSES[pillTone]}`}
+        >
+          {isUnavailable ? "N/A" : task.count.toLocaleString("en-HK")}
+        </span>
+      </Link>
+    </li>
+  );
+}
+
+function NeedsAttention({ tasks }: { tasks: AdminHomeTask[] }) {
+  return (
+    <section aria-labelledby="needs-attention-heading" className="space-y-4">
+      <SectionHeader
+        id="needs-attention-heading"
+        title="Needs attention"
+        description="Actionable items that may need a decision or a fix."
+      />
+
+      {tasks.length === 0 ? (
+        <p
+          role="status"
+          className="rounded-2xl border border-white/10 bg-white/[0.02] px-5 py-6 text-sm leading-6 text-stone-300"
+        >
+          All clear — nothing needs attention right now.
+        </p>
+      ) : (
+        <ul
+          aria-label="Needs attention"
+          className="divide-y divide-white/10 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.02]"
+        >
+          {tasks.map((task) => (
+            <TaskRow key={task.key} task={task} />
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
 function RecentOrders({
   data,
 }: {
-  data: Awaited<ReturnType<typeof loadAdminHomeData>>["recentOrders"];
+  data: AdminHomeData["recentOrders"];
 }) {
   return (
     <section
@@ -182,18 +411,9 @@ function RecentOrders({
               </div>
 
               <div className="flex min-w-0 flex-wrap items-center gap-2">
-                <StatusBadge
-                  kind="payment"
-                  value={order.payment_status}
-                />
-                <StatusBadge
-                  kind="fulfilment"
-                  value={order.fulfilment_status}
-                />
-                <time
-                  dateTime={order.created_at}
-                  className="text-xs text-stone-400"
-                >
+                <StatusBadge kind="payment" value={order.payment_status} />
+                <StatusBadge kind="fulfilment" value={order.fulfilment_status} />
+                <time dateTime={order.created_at} className="text-xs text-stone-400">
                   {formatActivityDate(order.created_at)}
                 </time>
               </div>
@@ -208,7 +428,7 @@ function RecentOrders({
 function RecentFailures({
   data,
 }: {
-  data: Awaited<ReturnType<typeof loadAdminHomeData>>["recentFailures"];
+  data: AdminHomeData["recentFailures"];
 }) {
   const hasPartialError = data.hasError && data.items.length > 0;
 
@@ -224,120 +444,92 @@ function RecentFailures({
         action={<TextLink href="/admin/operations">View operations</TextLink>}
       />
 
-      {data.hasError && data.items.length === 0 ? (
-        <ActivityNotice role="status">
-          Recent operational issues could not be loaded. Please try again.
-        </ActivityNotice>
-      ) : data.items.length === 0 ? (
-        <ActivityNotice>No recent operational issues.</ActivityNotice>
-      ) : (
-        <>
-          {hasPartialError ? (
-            <p
-              role="status"
-              className="rounded-xl border border-white/10 bg-white/[0.025] px-4 py-3 text-sm leading-6 text-stone-400"
-            >
-              Some operational issues could not be loaded. Available items are
-              shown below.
-            </p>
-          ) : null}
+      {hasPartialError ? (
+        <p
+          role="status"
+          className="rounded-xl border border-white/10 bg-white/[0.025] px-4 py-3 text-sm leading-6 text-stone-400"
+        >
+          Some operational issues could not be loaded. Available items are
+          shown below.
+        </p>
+      ) : null}
 
-          <ul
-            aria-label="Recent operational issues"
-            className="divide-y divide-white/10 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.02]"
+      <ul
+        aria-label="Recent operational issues"
+        className="divide-y divide-white/10 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.02]"
+      >
+        {data.items.map((failure) => (
+          <li
+            key={`${failure.source}-${failure.id}`}
+            className="min-w-0 space-y-3 px-4 py-4 sm:px-5"
           >
-            {data.items.map((failure) => (
-              <li
-                key={`${failure.source}-${failure.id}`}
-                className="min-w-0 space-y-3 px-4 py-4 sm:px-5"
-              >
-                <div className="flex min-w-0 flex-wrap items-start justify-between gap-x-4 gap-y-2">
-                  <div className="min-w-0">
-                    <p className="break-words text-sm text-stone-100 [overflow-wrap:anywhere]">
-                      {formatStatusLabel(failure.title)}
-                    </p>
-                    <p className="mt-1 text-xs uppercase tracking-[0.16em] text-stone-400">
-                      {failure.source === "webhook"
-                        ? "Webhook"
-                        : "Email delivery"}
-                    </p>
-                  </div>
-                  <StatusBadge
-                    kind={failure.source === "webhook" ? "webhook" : "email"}
-                    value={failure.status}
-                  />
-                </div>
+            <div className="flex min-w-0 flex-wrap items-start justify-between gap-x-4 gap-y-2">
+              <div className="min-w-0">
+                <p className="break-words text-sm text-stone-100 [overflow-wrap:anywhere]">
+                  {formatStatusLabel(failure.title)}
+                </p>
+                <p className="mt-1 text-xs uppercase tracking-[0.16em] text-stone-400">
+                  {failure.source === "webhook" ? "Webhook" : "Email delivery"}
+                </p>
+              </div>
+              <StatusBadge
+                kind={failure.source === "webhook" ? "webhook" : "email"}
+                value={failure.status}
+              />
+            </div>
 
-                <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2 text-xs text-stone-400">
-                  {failure.orderId ? (
-                    <Link
-                      href={`/admin/orders/${failure.orderId}`}
-                      aria-label={`Open related order ${failure.orderId}`}
-                      className={`break-all font-mono text-stone-300 underline decoration-white/30 underline-offset-4 transition-colors hover:text-white ${focusRing}`}
-                    >
-                      Order {failure.orderId.slice(0, 8)}
-                    </Link>
-                  ) : (
-                    <span>Not linked to an order</span>
-                  )}
-                  <time dateTime={failure.occurredAt}>
-                    {formatActivityDate(failure.occurredAt)}
-                  </time>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
+            <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2 text-xs text-stone-400">
+              {failure.orderId ? (
+                <Link
+                  href={`/admin/orders/${failure.orderId}`}
+                  aria-label={`Open related order ${failure.orderId}`}
+                  className={`break-all font-mono text-stone-300 underline decoration-white/30 underline-offset-4 transition-colors hover:text-white ${focusRing}`}
+                >
+                  Order {failure.orderId.slice(0, 8)}
+                </Link>
+              ) : (
+                <span>Not linked to an order</span>
+              )}
+              <time dateTime={failure.occurredAt}>
+                {formatActivityDate(failure.occurredAt)}
+              </time>
+            </div>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }
 
 const QUICK_ACTIONS = [
-  {
-    label: "View orders",
-    href: "/admin/orders",
-    description: "Review payment and fulfilment status.",
-  },
-  {
-    label: "View inventory",
-    href: "/admin/inventory",
-    description: "Check availability across the catalogue.",
-  },
-  {
-    label: "View coupons",
-    href: "/admin/coupons",
-    description: "Review and manage existing promotions.",
-  },
-  {
-    label: "View operations",
-    href: "/admin/operations",
-    description: "Inspect webhook and email delivery queues.",
-  },
+  { label: "View orders", href: "/admin/orders" },
+  { label: "View inventory", href: "/admin/inventory" },
+  { label: "View coupons", href: "/admin/coupons" },
+  { label: "View operations", href: "/admin/operations" },
 ] as const;
 
 function QuickActions() {
   return (
-    <section aria-labelledby="quick-actions-heading" className="space-y-4">
+    <section aria-labelledby="quick-actions-heading" className="min-w-0 space-y-4">
       <SectionHeader
         id="quick-actions-heading"
         title="Quick actions"
-        description="Go directly to the most common admin tasks."
+        description="Jump to the most common admin tasks."
       />
 
       <nav aria-label="Admin quick actions">
-        <ul className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <ul className="divide-y divide-white/10 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.02]">
           {QUICK_ACTIONS.map((action) => (
             <li key={action.href} className="min-w-0">
               <Link
                 href={action.href}
-                className={`block h-full min-w-0 rounded-2xl border border-white/10 bg-white/[0.02] px-5 py-5 transition-colors hover:border-white/20 hover:bg-white/[0.05] ${focusRing}`}
+                className={`flex min-w-0 items-center justify-between gap-3 px-4 py-3.5 text-sm text-stone-200 transition-colors hover:bg-white/[0.05] hover:text-white ${focusRing}`}
               >
-                <span className="block text-sm font-medium text-stone-100">
+                <span className="min-w-0 break-words [overflow-wrap:anywhere]">
                   {action.label}
                 </span>
-                <span className="mt-2 block text-xs leading-5 text-stone-400">
-                  {action.description}
+                <span aria-hidden="true" className="shrink-0 text-stone-400">
+                  →
                 </span>
               </Link>
             </li>
@@ -353,52 +545,30 @@ export default async function AdminHomePage() {
   await requireAdminUser();
 
   const data = await loadAdminHomeData();
+  const tasks = getAdminHomeTasks(data);
+  const hasOperationalIssues = data.recentFailures.items.length > 0;
 
   return (
     <div className="min-w-0 space-y-10">
       <AdminPageHeader
         title="Home"
-        description="A concise view of today’s orders, stock, and operational health. All dates and day boundaries use Hong Kong time."
+        description="Today’s orders, stock, and open tasks — all times in Hong Kong."
       />
 
-      <dl
-        aria-label="Admin Home summary"
-        className="grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5"
-      >
-        <MetricCard
-          label="Orders today"
-          metric={data.summary.ordersToday}
-          description="Orders created since midnight in Hong Kong."
-        />
-        <MetricCard
-          label="Revenue today"
-          metric={data.summary.revenueTodayCents}
-          formatValue={(cents) => formatPrice(cents / 100)}
-          description="Normal confirmed HKD sales, excluding every order with a recorded refund."
-        />
-        <MetricCard
-          label="Orders awaiting fulfilment"
-          metric={data.summary.awaitingFulfilment}
-          description="Settled, confirmed orders still unfulfilled or processing."
-        />
-        <MetricCard
-          label="Low stock products"
-          metric={data.summary.lowStockProducts}
-          description={`Products with 1–${LOW_STOCK_THRESHOLD} units remaining.`}
-        />
-        <MetricCard
-          label="Out of stock products"
-          metric={data.summary.outOfStockProducts}
-          description="Products with no units remaining."
-        />
-      </dl>
+      <BusinessSummary summary={data.summary} />
 
-      <div className="grid min-w-0 gap-10 xl:grid-cols-2">
-        <RecentOrders data={data.recentOrders} />
-        <RecentFailures data={data.recentFailures} />
+      <NeedsAttention tasks={tasks} />
+
+      <div className="grid min-w-0 gap-8 xl:grid-cols-[minmax(0,1fr)_16rem]">
+        <div className="min-w-0 space-y-10">
+          <RecentOrders data={data.recentOrders} />
+          {hasOperationalIssues ? (
+            <RecentFailures data={data.recentFailures} />
+          ) : null}
+        </div>
+
+        <QuickActions />
       </div>
-
-      <QuickActions />
     </div>
   );
 }
