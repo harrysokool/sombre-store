@@ -86,7 +86,8 @@ export default function ContactPage() {
                   Contact form
                 </dt>
                 <dd className="text-sm leading-7 text-stone-300">
-                  Not currently available
+                  There isn&apos;t one yet — email {BUSINESS_DETAILS.supportEmail}{" "}
+                  instead.
                 </dd>
               </div>
               <div className="grid gap-2 py-5 sm:grid-cols-[10rem_1fr] sm:items-baseline sm:gap-8">
@@ -94,7 +95,7 @@ export default function ContactPage() {
                   Response time
                 </dt>
                 <dd className="text-sm leading-7 text-stone-300">
-                  Not stated
+                  We aim to respond within 1 to 2 business days.
                 </dd>
               </div>
             </dl>

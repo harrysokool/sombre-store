@@ -12,7 +12,7 @@ The frontend uses the Next.js App Router with server-rendered catalog pages, a `
 
 ## 2. Project status
 
-Code is ready for Stripe test-mode runtime testing. Production launch configuration is not complete. Nothing below has been runtime-verified against live Stripe, Supabase, or Resend services — only code-level review and mocked-test coverage.
+Code is ready for Stripe test-mode runtime testing. Production launch configuration is not complete. Nothing below has been runtime-verified against live Stripe or Supabase services — only code-level review and mocked-test coverage. Resend is the exception: the sender domain is verified, and production customer and seller order emails have been tested successfully.
 
 **Coupon system** — implemented end to end: cart coupon input, checkout revalidation, server-authoritative pricing, Stripe metadata, webhook persistence, order snapshots, receipt/email/admin display, and private admin coupon management.
 
@@ -23,7 +23,6 @@ Code is ready for Stripe test-mode runtime testing. Production launch configurat
 - Stripe test-mode runtime flows (payment, delayed payment, webhook replay/concurrency, full and partial refunds, paid oversell)
 - production Supabase configuration
 - live Stripe keys and webhook endpoint
-- Resend domain and sender verification
 - Upstash credentials for shared rate limiting
 - legal/business placeholders (`src/lib/legal/business-details.ts`)
 - production domain and DNS
