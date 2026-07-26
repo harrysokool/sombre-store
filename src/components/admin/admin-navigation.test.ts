@@ -1,3 +1,10 @@
+import {
+  Activity,
+  ClipboardList,
+  House,
+  Package,
+  TicketPercent,
+} from "lucide-react";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -25,11 +32,16 @@ describe("admin navigation configuration", () => {
     );
   });
 
-  it("keeps icons optional while every item retains visible text", () => {
-    for (const item of adminNavigationItems) {
-      expect(item.label.length).toBeGreaterThan(0);
-      expect(item.icon).toBeUndefined();
-    }
+  it("assigns an icon to every item while retaining visible text", () => {
+    expect(
+      adminNavigationItems.map(({ label, icon }) => ({ label, icon })),
+    ).toEqual([
+      { label: "Home", icon: House },
+      { label: "Orders", icon: ClipboardList },
+      { label: "Inventory", icon: Package },
+      { label: "Coupons", icon: TicketPercent },
+      { label: "Operations", icon: Activity },
+    ]);
   });
 
   it.each([

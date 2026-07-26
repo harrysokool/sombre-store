@@ -2,7 +2,13 @@
 
 import "@testing-library/jest-dom/vitest";
 
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import type { ComponentProps } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -100,7 +106,7 @@ describe("AdminNav", () => {
     expect(operations).not.toHaveAttribute("aria-current");
   });
 
-  it("renders every destination and visible label in the shared renderer", () => {
+  it("renders every destination with an icon and visible label when expanded", () => {
     renderAt("/admin");
 
     const { home, orders, inventory, coupons, operations } = getNavLinks();
@@ -110,19 +116,72 @@ describe("AdminNav", () => {
     expect(inventory).toHaveAttribute("href", "/admin/inventory");
     expect(coupons).toHaveAttribute("href", "/admin/coupons");
     expect(operations).toHaveAttribute("href", "/admin/operations");
+
+    for (const link of [home, orders, inventory, coupons, operations]) {
+      expect(link.querySelector("svg")).toHaveAttribute(
+        "aria-hidden",
+        "true",
+      );
+      expect(link.querySelector("span")).not.toHaveClass("sr-only");
+      expect(link).not.toHaveAttribute("title");
+    }
   });
 
-  it("uses shape and weight as well as colour for the active state", () => {
+  it("uses only a subtle background and stronger text for the active state", () => {
     renderAt("/admin/inventory");
 
     const { home, inventory } = getNavLinks();
 
-    expect(inventory).toHaveClass(
-      "border-stone-200",
-      "bg-white/[0.08]",
-      "font-medium",
+    expect(inventory).toHaveAttribute("aria-current", "page");
+    expect(inventory).toHaveClass("bg-white/[0.08]", "font-medium");
+    expect(home).toHaveClass("font-normal");
+    expect(inventory.querySelector("svg")).toHaveAttribute(
+      "stroke-width",
+      "2.25",
     );
-    expect(home).toHaveClass("border-transparent", "font-normal");
+    expect(home.querySelector("svg")).toHaveAttribute(
+      "stroke-width",
+      "1.75",
+    );
+
+    for (const link of [home, inventory]) {
+      expect(link.className).not.toContain("border-l");
+      expect(link.className).not.toContain("border-stone-200");
+      expect(link.className).not.toContain("border-transparent");
+    }
+  });
+
+  it("hides desktop labels visually when collapsed without losing names", () => {
+    renderAt("/admin/orders/order-1", {
+      variant: "desktop",
+      collapsed: true,
+    });
+
+    const links = within(navigation()).getAllByRole("link");
+
+    for (const link of links) {
+      const label = link.textContent;
+
+      expect(label).toBeTruthy();
+      expect(link).toHaveAccessibleName(label!);
+      expect(link).toHaveAttribute("title", label!);
+      expect(link.querySelector("span")).toHaveClass("sr-only");
+      expect(link.querySelector("svg")).toHaveAttribute(
+        "aria-hidden",
+        "true",
+      );
+      expect(link).toHaveClass("justify-center", "px-2");
+    }
+
+    expect(getNavLinks().orders).toHaveAttribute("aria-current", "page");
+    expect(getNavLinks().orders.querySelector("svg")).toHaveAttribute(
+      "stroke-width",
+      "2.25",
+    );
+    expect(getNavLinks().home.querySelector("svg")).toHaveAttribute(
+      "stroke-width",
+      "1.75",
+    );
   });
 
   it("supports desktop and mobile sizing without changing destinations", () => {
@@ -141,6 +200,10 @@ describe("AdminNav", () => {
       desktopHrefs,
     );
     expect(mobileLinks[0]).toHaveClass("min-h-12", "text-base");
+    expect(within(navigation()).queryAllByRole("img")).toHaveLength(0);
+    expect(navigation().querySelector("svg")).toBeNull();
+    expect(mobileLinks[0].querySelector("span")).not.toHaveClass("sr-only");
+    expect(mobileLinks[0]).not.toHaveAttribute("title");
   });
 
   it("accepts a specific accessible label and closes its owner on selection", () => {
@@ -157,5 +220,27 @@ describe("AdminNav", () => {
     fireEvent.click(within(nav).getByRole("link", { name: "Coupons" }));
 
     expect(onNavigate).toHaveBeenCalledOnce();
+  });
+
+  it("keeps visible focus classes and avoids failing dark-text classes", () => {
+    const { container } = renderAt("/admin", {
+      variant: "desktop",
+      collapsed: true,
+    });
+
+    for (const link of within(navigation()).getAllByRole("link")) {
+      expect(link).toHaveClass(
+        "focus-visible:outline-none",
+        "focus-visible:ring-2",
+        "focus-visible:ring-stone-200/50",
+      );
+    }
+
+    for (const element of container.querySelectorAll<HTMLElement>(
+      '[class*="text-stone-"]',
+    )) {
+      expect(element.className).not.toContain("text-stone-500");
+      expect(element.className).not.toContain("text-stone-600");
+    }
   });
 });

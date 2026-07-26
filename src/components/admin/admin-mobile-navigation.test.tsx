@@ -82,9 +82,10 @@ describe("AdminMobileNavigation", () => {
   });
 
   it("shows the active page title and an accessible menu trigger", () => {
-    renderNavigation("/admin/orders/order-1");
+    const { container } = renderNavigation("/admin/orders/order-1");
 
     const header = screen.getByRole("banner");
+    const drawer = screen.getByRole("dialog", { name: "Admin navigation" });
     const trigger = within(header).getByRole("button", {
       name: "Open admin navigation",
     });
@@ -92,6 +93,12 @@ describe("AdminMobileNavigation", () => {
     expect(within(header).getByText("Orders")).toBeInTheDocument();
     expect(trigger).toHaveAttribute("aria-controls", "admin-navigation-drawer");
     expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(
+      within(drawer).queryByRole("button", {
+        name: /(?:collapse|expand) sidebar/i,
+      }),
+    ).toBeNull();
+    expect(container.querySelector(".lucide")).toBeNull();
   });
 
   it("opens the dialog, locks scrolling, and focuses its named close button", async () => {

@@ -35,6 +35,7 @@ import AdminDashboardLayout from "./layout";
 
 describe("admin dashboard layout", () => {
   beforeEach(() => {
+    window.localStorage.clear();
     mocks.requireAdminUser.mockReset();
     mocks.requireAdminUser.mockResolvedValue({
       id: "admin-1",
@@ -46,7 +47,7 @@ describe("admin dashboard layout", () => {
     cleanup();
   });
 
-  it("renders the shared navigation in a permanent 240px desktop sidebar", async () => {
+  it("renders the shared navigation in an expanded 240px desktop sidebar", async () => {
     render(
       await AdminDashboardLayout({ children: <p>admin page body</p> }),
     );
@@ -64,14 +65,18 @@ describe("admin dashboard layout", () => {
       "hidden",
       "h-dvh",
       "w-60",
+      "transition-[width]",
+      "motion-reduce:transition-none",
       "border-r",
       "lg:flex",
     );
     expect(sidebar.parentElement).toHaveClass(
       "overflow-x-clip",
-      "lg:grid",
-      "lg:grid-cols-[15rem_minmax(0,1fr)]",
+      "lg:flex",
     );
+    expect(
+      within(sidebar).getByRole("button", { name: "Collapse sidebar" }),
+    ).toHaveAttribute("aria-expanded", "true");
 
     const expectedDestinations = [
       ["Home", "/admin"],
@@ -122,6 +127,7 @@ describe("admin dashboard layout", () => {
     expect(main).toHaveClass("min-w-0");
     expect(main).toHaveTextContent("admin page body");
     expect(main.parentElement?.parentElement).toHaveClass("min-w-0");
+    expect(main.parentElement?.parentElement).toHaveClass("lg:flex-1");
   });
 
   it("renders no storefront navbar, search, cart, or footer", async () => {

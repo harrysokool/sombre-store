@@ -1,3 +1,10 @@
+import {
+  Activity,
+  ClipboardList,
+  House,
+  Package,
+  TicketPercent,
+} from "lucide-react";
 import type { ComponentType, SVGProps } from "react";
 
 export type AdminNavigationIcon = ComponentType<SVGProps<SVGSVGElement>>;
@@ -6,7 +13,7 @@ export type AdminNavigationItem = Readonly<{
   label: string;
   href: `/admin${string}`;
   match: "exact" | "section";
-  icon?: AdminNavigationIcon;
+  icon: AdminNavigationIcon;
 }>;
 
 export type AdminNavigationGroup = Readonly<{
@@ -31,26 +38,31 @@ export const adminNavigation: readonly AdminNavigationGroup[] = [
         label: "Home",
         href: "/admin",
         match: "exact",
+        icon: House,
       },
       {
         label: "Orders",
         href: "/admin/orders",
         match: "section",
+        icon: ClipboardList,
       },
       {
         label: "Inventory",
         href: "/admin/inventory",
         match: "section",
+        icon: Package,
       },
       {
         label: "Coupons",
         href: "/admin/coupons",
         match: "section",
+        icon: TicketPercent,
       },
       {
         label: "Operations",
         href: "/admin/operations",
         match: "section",
+        icon: Activity,
       },
     ],
   },

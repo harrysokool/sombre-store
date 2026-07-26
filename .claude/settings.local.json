@@ -1,0 +1,43 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 *)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(echo \"\\(exit code: $?\\)\")",
+      "Bash(npm run *)",
+      "Bash(npx tsc *)",
+      "Bash(echo \"\\(tsc exit: $?\\)\")",
+      "Bash(echo \"\\(exit: $?\\)\")",
+      "Bash(curl -s -o /dev/null -w 'status=%{http_code}\\\\n' -X POST http://localhost:3000/api/checkout/session -H 'Content-Type: application/json' -d '{}')",
+      "Bash(curl -s -w '\\\\nstatus=%{http_code}\\\\n' -X POST http://localhost:3000/api/checkout/session -H 'Content-Type: application/json' -d 'this is not json{')",
+      "Bash(curl -s -w '\\\\nstatus=%{http_code}\\\\n' -X POST http://localhost:3000/api/checkout/session -H 'Content-Type: application/json' --data-binary @/Users/harrysocool/.claude/jobs/79f85d58/tmp/big.json)",
+      "Bash(curl -s -w '\\\\nstatus=%{http_code}\\\\n' -X POST http://localhost:3000/api/checkout/session -H 'Content-Type: application/json' -H 'Transfer-Encoding: chunked' --data-binary @/Users/harrysocool/.claude/jobs/79f85d58/tmp/big.json)",
+      "Bash(curl -s -w '\\\\nstatus=%{http_code}\\\\n' -X POST http://localhost:3000/api/checkout/session -H 'Content-Type: application/json' --data-binary @/Users/harrysocool/.claude/jobs/79f85d58/tmp/tampered.json)",
+      "Bash(curl -s -w '\\\\nstatus=%{http_code}\\\\n' -X POST http://localhost:3000/api/checkout/session -H 'Content-Type: application/json' --data-binary @/Users/harrysocool/.claude/jobs/79f85d58/tmp/overstock.json)",
+      "Bash(curl -s -w '\\\\nstatus=%{http_code}\\\\n' -X POST http://localhost:3000/api/checkout/session -H 'Content-Type: application/json' --data-binary @/Users/harrysocool/.claude/jobs/79f85d58/tmp/stock5.json)",
+      "Bash(pkill -f \"next dev\")",
+      "Bash(node -p \"require\\('./node_modules/@supabase/supabase-js/package.json'\\).version\")",
+      "Bash(node -p \"require\\('./node_modules/@supabase/auth-js/package.json'\\).version\")",
+      "Bash(grep -v '^$')",
+      "Bash(node -p \"require\\('./package.json'\\).dependencies.next\")",
+      "Bash(node -p \"require\\('./node_modules/next/package.json'\\).version\")",
+      "Bash(timeout 25 grep -rhoE \"middleware.{0,60}proxy|proxy.{0,60}middleware\" node_modules/next/dist/server/lib/router-utils/filesystem.js node_modules/next/dist/build/index.js)",
+      "Bash(timeout 20 grep -c \"getClaims\" node_modules/@supabase/auth-js/dist/main/GoTrueClient.js)",
+      "Bash(timeout 20 grep -oE \"^ +async \\(getClaims|getUser|getSession|signInWithPassword|signOut\\)\\\\\\(\" node_modules/@supabase/auth-js/dist/main/GoTrueClient.js)",
+      "Bash(timeout 30 grep -rl \"getClaims\" node_modules/@supabase/auth-js/)",
+      "Bash(timeout 30 grep -oE \"\\(getClaims|getUser|getSession|signInWithPassword|signOut\\)\\\\??\\\\\\(\" node_modules/@supabase/auth-js/dist/module/GoTrueClient.d.ts)",
+      "Bash(timeout 30 grep -c \"getUser\" node_modules/@supabase/auth-js/dist/module/GoTrueClient.d.ts)",
+      "Bash(timeout 30 grep -c \"getClaims\" node_modules/@supabase/auth-js/dist/module/GoTrueClient.d.ts)",
+      "Bash(timeout 60 grep -rl \"getClaims\" node_modules/@supabase/)",
+      "Bash(grep -rhoE \"[^\\\\\"'\\\\`]{0,80}proxy[^\\\\\"'\\\\`]{0,80}\" node_modules/next/dist/build/utils.js)",
+      "Bash(node -p \"Object.keys\\(require\\('./node_modules/next/dist/client/components/headers.js'\\)\\)\")",
+      "Bash(grep -rhoE \"export\\(ed\\)? \\(function \\)?['\\\\\\\\\\\\\"\\\\`]?proxy['\\\\\\\\\\\\\"\\\\`]?|proxy function|\\\\bproxy\\\\b export\" node_modules/next/dist/build/analysis/get-page-static-info.js node_modules/next/dist/lib/constants.js)",
+      "Bash(grep -rhoE \"[A-Za-z ,\\\\.\\\\`]*proxy\\\\.ts[A-Za-z ,\\\\.\\\\`]*\" node_modules/next/dist/lib/constants.js node_modules/next/dist/build/index.js)",
+      "Bash(node -p \"JSON.stringify\\(require\\('./node_modules/next/package.json'\\).dependencies['server-only'] || 'not a direct next dep'\\)\")",
+      "Bash(node -e \"try{require.resolve\\('server-only'\\);console.log\\('RESOLVABLE'\\)}catch\\(e\\){console.log\\('NOT RESOLVABLE - would need npm i server-only'\\)}\")",
+      "Bash(node -p \"require\\('./node_modules/react/package.json'\\).version\")",
+      "Bash(echo \"exit=$?\")",
+      "Bash(npx supabase *)"
+    ]
+  }
+}
