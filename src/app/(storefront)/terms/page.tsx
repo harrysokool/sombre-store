@@ -16,7 +16,7 @@ const sections: PolicySection[] = [
     eyebrow: "Section 1",
     heading: "About these terms",
     paragraphs: [
-      `This website is operated by ${BUSINESS_DETAILS.legalName}. By browsing this site or placing an order, you agree to these terms.`,
+      "This website is operated by Sombre. By browsing this site or placing an order, you agree to these terms.",
       "If you do not agree with these terms, please do not use the site.",
     ],
   },

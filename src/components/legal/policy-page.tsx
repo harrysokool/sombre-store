@@ -70,10 +70,8 @@ export function PolicyPage({
       <section className="px-6 pb-24 pt-10 sm:px-10 sm:pb-32 lg:px-12">
         <div className="mx-auto w-full max-w-5xl border-t border-white/10 pt-10">
           <p className="max-w-2xl break-words text-sm leading-7 text-stone-400 [overflow-wrap:anywhere]">
-            Sombre is operated by {BUSINESS_DETAILS.legalName} (Business
-            Registration Number {BUSINESS_DETAILS.registrationNumber}),{" "}
-            {BUSINESS_DETAILS.address}. Questions about this policy can be sent
-            to {BUSINESS_DETAILS.supportEmail}.
+            Sombre is an independently operated online store. Questions about
+            this policy can be sent to {BUSINESS_DETAILS.supportEmail}.
           </p>
         </div>
       </section>

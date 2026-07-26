@@ -34,15 +34,15 @@ const sections: PolicySection[] = [
     heading: "Processing time",
     paragraphs: [
       `Orders are usually prepared for dispatch within ${BUSINESS_DETAILS.processingTime} after payment is confirmed.`,
-      "Orders placed on weekends or public holidays are processed on the next working day.",
+      "Processing may take longer during weekends, public holidays, promotions, or periods of high order volume.",
     ],
   },
   {
     eyebrow: "Section 4",
     heading: "Delivery time",
     paragraphs: [
-      `Once dispatched, orders typically arrive within ${BUSINESS_DETAILS.deliveryTime}.`,
-      `Deliveries are handled by ${BUSINESS_DETAILS.courier}.`,
+      `Once dispatched, orders usually arrive within ${BUSINESS_DETAILS.deliveryTime}, depending on the carrier and destination.`,
+      "Orders are delivered by a suitable local courier selected based on the destination, parcel requirements, and service availability. Tracking details will be provided after dispatch.",
       "Delivery times are estimates. Weather, public holidays, and courier delays can affect them.",
     ],
   },

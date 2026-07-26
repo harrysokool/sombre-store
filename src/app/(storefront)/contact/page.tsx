@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { BUSINESS_DETAILS } from "@/lib/legal/business-details";
+
 export const metadata: Metadata = {
   title: "Contact",
   description:
@@ -38,12 +40,11 @@ export default function ContactPage() {
             Contact Sombre
           </p>
           <h1 className="mt-7 max-w-6xl font-display text-[3.25rem] font-light leading-[0.96] text-stone-100 sm:text-6xl lg:text-[5.5rem]">
-            Our public contact channel is still being prepared.
+            Reach Sombre by email.
           </h1>
           <p className="ml-auto mt-12 max-w-2xl text-sm leading-8 text-stone-400 sm:mt-16 sm:text-base">
-            Sombre has not yet published a verified customer-service email or
-            connected contact form. The confirmed contact details will appear
-            here once they are configured.
+            Sombre can be reached by email for questions about an order,
+            delivery, or a product in the current edit.
           </p>
         </div>
       </section>
@@ -61,16 +62,14 @@ export default function ContactPage() {
               id="contact-availability-heading"
               className="mt-5 max-w-md font-display text-3xl font-light leading-[1.1] text-stone-100 sm:text-4xl lg:text-5xl"
             >
-              No unmonitored inboxes.
+              How to reach us.
             </h2>
           </div>
 
           <div className="max-w-2xl">
             <p className="text-sm leading-8 text-stone-400 sm:text-base">
-              To avoid directing messages to an address that may not be active,
-              this page does not currently provide an email link or message
-              form. No response time is stated until a working channel can be
-              verified.
+              Email is the current way to reach Sombre. A connected contact
+              form is not yet available.
             </p>
 
             <dl className="mt-10 divide-y divide-white/10 border-t border-white/10">
@@ -79,7 +78,7 @@ export default function ContactPage() {
                   Email
                 </dt>
                 <dd className="text-sm leading-7 text-stone-300">
-                  Not currently published
+                  {BUSINESS_DETAILS.supportEmail}
                 </dd>
               </div>
               <div className="grid gap-2 py-5 sm:grid-cols-[10rem_1fr] sm:items-baseline sm:gap-8">
