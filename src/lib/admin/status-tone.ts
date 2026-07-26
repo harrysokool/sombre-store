@@ -25,7 +25,9 @@ export type StatusKind =
   | "refund"
   | "coupon"
   | "webhook"
-  | "email";
+  | "email"
+  | "product"
+  | "stock";
 
 // Keys are the values the database check constraints allow for each column.
 // A refund that succeeded is deliberately red rather than green: the money went
@@ -79,6 +81,15 @@ const TONES_BY_KIND: Record<StatusKind, Record<string, StatusTone>> = {
     pending: "pending",
     failed: "danger",
     sent: "success",
+  },
+  product: {
+    active: "success",
+    inactive: "neutral",
+  },
+  stock: {
+    in_stock: "success",
+    low_stock: "pending",
+    out_of_stock: "danger",
   },
 };
 

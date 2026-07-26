@@ -29,6 +29,15 @@ function renderAt(pathname: string) {
   return render(<AdminNav />);
 }
 
+function getNavLinks() {
+  return {
+    orders: screen.getByRole("link", { name: "Orders" }),
+    inventory: screen.getByRole("link", { name: "Inventory" }),
+    coupons: screen.getByRole("link", { name: "Coupons" }),
+    operations: screen.getByRole("link", { name: "Operations" }),
+  };
+}
+
 describe("AdminNav active link", () => {
   afterEach(() => {
     cleanup();
@@ -37,11 +46,10 @@ describe("AdminNav active link", () => {
   it("marks Orders active on the order list", () => {
     renderAt("/admin");
 
-    const orders = screen.getByRole("link", { name: "Orders" });
-    const coupons = screen.getByRole("link", { name: "Coupons" });
-    const operations = screen.getByRole("link", { name: "Operations" });
+    const { orders, inventory, coupons, operations } = getNavLinks();
 
     expect(orders).toHaveAttribute("aria-current", "page");
+    expect(inventory).not.toHaveAttribute("aria-current");
     expect(coupons).not.toHaveAttribute("aria-current");
     expect(operations).not.toHaveAttribute("aria-current");
   });
@@ -49,11 +57,24 @@ describe("AdminNav active link", () => {
   it("marks Orders active on an order detail route", () => {
     renderAt("/admin/orders/11111111-1111-4111-8111-111111111111");
 
-    const orders = screen.getByRole("link", { name: "Orders" });
-    const coupons = screen.getByRole("link", { name: "Coupons" });
-    const operations = screen.getByRole("link", { name: "Operations" });
+    const { orders, inventory, coupons, operations } = getNavLinks();
 
     expect(orders).toHaveAttribute("aria-current", "page");
+    expect(inventory).not.toHaveAttribute("aria-current");
+    expect(coupons).not.toHaveAttribute("aria-current");
+    expect(operations).not.toHaveAttribute("aria-current");
+  });
+
+  it.each([
+    ["/admin/inventory", "the inventory list"],
+    ["/admin/inventory/product-1", "an inventory descendant"],
+  ])("marks Inventory active on %s (%s)", (pathname) => {
+    renderAt(pathname);
+
+    const { orders, inventory, coupons, operations } = getNavLinks();
+
+    expect(inventory).toHaveAttribute("aria-current", "page");
+    expect(orders).not.toHaveAttribute("aria-current");
     expect(coupons).not.toHaveAttribute("aria-current");
     expect(operations).not.toHaveAttribute("aria-current");
   });
@@ -61,14 +82,13 @@ describe("AdminNav active link", () => {
   it("marks Operations active on the operations page", () => {
     renderAt("/admin/operations");
 
-    const orders = screen.getByRole("link", { name: "Orders" });
-    const coupons = screen.getByRole("link", { name: "Coupons" });
-    const operations = screen.getByRole("link", { name: "Operations" });
+    const { orders, inventory, coupons, operations } = getNavLinks();
 
     expect(operations).toHaveAttribute("aria-current", "page");
     // `/admin/operations` must not be mistaken for `/admin/orders`, and it is
     // not the `/admin` order list either.
     expect(orders).not.toHaveAttribute("aria-current");
+    expect(inventory).not.toHaveAttribute("aria-current");
     expect(coupons).not.toHaveAttribute("aria-current");
   });
 
@@ -79,11 +99,12 @@ describe("AdminNav active link", () => {
   ])("marks Coupons active on %s (%s)", (pathname) => {
     renderAt(pathname);
 
-    const orders = screen.getByRole("link", { name: "Orders" });
-    const coupons = screen.getByRole("link", { name: "Coupons" });
+    const { orders, inventory, coupons, operations } = getNavLinks();
 
     expect(coupons).toHaveAttribute("aria-current", "page");
     expect(orders).not.toHaveAttribute("aria-current");
+    expect(inventory).not.toHaveAttribute("aria-current");
+    expect(operations).not.toHaveAttribute("aria-current");
   });
 
   it("never marks Orders active while on a coupon route", () => {
@@ -97,6 +118,8 @@ describe("AdminNav active link", () => {
   it.each([
     "/admin",
     "/admin/orders/11111111-1111-4111-8111-111111111111",
+    "/admin/inventory",
+    "/admin/inventory/product-1",
     "/admin/coupons",
     "/admin/coupons/new",
     "/admin/coupons/11111111-1111-4111-8111-111111111111",
@@ -117,6 +140,10 @@ describe("AdminNav active link", () => {
     expect(screen.getByRole("link", { name: "Orders" })).toHaveAttribute(
       "href",
       "/admin",
+    );
+    expect(screen.getByRole("link", { name: "Inventory" })).toHaveAttribute(
+      "href",
+      "/admin/inventory",
     );
     expect(screen.getByRole("link", { name: "Coupons" })).toHaveAttribute(
       "href",

@@ -46,6 +46,13 @@ const EXPECTED: Array<[StatusKind, string, StatusTone]> = [
   ["email", "pending", "pending"],
   ["email", "failed", "danger"],
   ["email", "sent", "success"],
+
+  ["product", "active", "success"],
+  ["product", "inactive", "neutral"],
+
+  ["stock", "in_stock", "success"],
+  ["stock", "low_stock", "pending"],
+  ["stock", "out_of_stock", "danger"],
 ];
 
 describe("admin status tone mapping", () => {
@@ -76,6 +83,8 @@ describe("admin status tone mapping", () => {
       "coupon",
       "webhook",
       "email",
+      "product",
+      "stock",
     ] as const) {
       expect(getStatusTone(kind, "not_a_real_status")).not.toBe("success");
     }
@@ -84,6 +93,7 @@ describe("admin status tone mapping", () => {
   it("tolerates casing and surrounding whitespace", () => {
     expect(getStatusTone("payment", " Paid ")).toBe("success");
     expect(getStatusTone("order", "REFUNDED")).toBe("danger");
+    expect(getStatusTone("stock", " LOW_STOCK ")).toBe("pending");
   });
 
   it("gives every tone its own class set", () => {

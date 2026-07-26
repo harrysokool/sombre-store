@@ -57,6 +57,9 @@ describe("admin dashboard layout", () => {
       "href",
       "/admin",
     );
+    expect(
+      within(nav).getByRole("link", { name: "Inventory" }),
+    ).toHaveAttribute("href", "/admin/inventory");
     expect(within(nav).getByRole("link", { name: "Coupons" })).toHaveAttribute(
       "href",
       "/admin/coupons",

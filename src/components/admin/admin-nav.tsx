@@ -3,17 +3,22 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-// Orders owns `/admin` itself plus every order detail route; Coupons and
-// Operations each own their own subtree. Orders matches `/admin` exactly rather
-// than by prefix, and the three subtree prefixes are distinct
-// (`/admin/orders`, `/admin/coupons`, `/admin/operations`), so at most one item
-// is ever active.
+// Orders owns `/admin` itself plus every order detail route; Inventory, Coupons,
+// and Operations each own their own subtree. Orders matches `/admin` exactly
+// rather than by prefix, and the four subtree prefixes are distinct
+// (`/admin/orders`, `/admin/inventory`, `/admin/coupons`,
+// `/admin/operations`), so at most one item is ever active.
 const NAV_ITEMS = [
   {
     label: "Orders",
     href: "/admin",
     isActive: (pathname: string) =>
       pathname === "/admin" || pathname.startsWith("/admin/orders"),
+  },
+  {
+    label: "Inventory",
+    href: "/admin/inventory",
+    isActive: (pathname: string) => pathname.startsWith("/admin/inventory"),
   },
   {
     label: "Coupons",
