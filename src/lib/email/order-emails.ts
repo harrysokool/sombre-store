@@ -4,6 +4,7 @@ import {
   renderCustomerRefundFailed,
   renderCustomerRefundPending,
   renderCustomerRefunded,
+  renderCustomerShippingConfirmation,
   renderSellerOrderNotification,
   type OrderEmailItem,
   type OrderEmailOrder,
@@ -16,10 +17,12 @@ export type OrderEmailKind =
   | "seller_order_notification"
   | "customer_refund_pending"
   | "customer_refunded"
-  | "customer_refund_failed";
+  | "customer_refund_failed"
+  | "shipping_confirmation";
 
 type OrderEmailRecord = OrderEmailOrder & {
   order_status: string;
+  fulfilment_status: string;
 };
 
 type PlannedEmail = {
@@ -60,10 +63,11 @@ const ORDER_EMAIL_RENDERERS: Record<
   customer_refund_pending: renderCustomerRefundPending,
   customer_refunded: renderCustomerRefunded,
   customer_refund_failed: renderCustomerRefundFailed,
+  shipping_confirmation: renderCustomerShippingConfirmation,
 };
 
 const ORDER_EMAIL_COLUMNS =
-  "id, created_at, customer_email, customer_name, customer_phone, address_line_1, address_line_2, district, city, postal_code, country, coupon_code, original_subtotal, discount_total, subtotal, shipping_fee, total, order_status";
+  "id, created_at, customer_email, customer_name, customer_phone, address_line_1, address_line_2, district, city, postal_code, country, coupon_code, original_subtotal, discount_total, subtotal, shipping_fee, total, order_status, fulfilment_status, courier, tracking_number";
 
 function isOrderEmailKind(value: string): value is OrderEmailKind {
   return Object.prototype.hasOwnProperty.call(
@@ -138,6 +142,23 @@ function planEmails(
     if (config.sellerEmail) {
       planned.push(
         plannedEmail("seller_order_notification", config.sellerEmail),
+      );
+    }
+
+    // Fulfilment only ever reaches 'shipped' or beyond while order_status stays
+    // 'confirmed' (set_order_fulfilment refuses to run otherwise), so this
+    // check only needs to live in the 'confirmed' branch. It re-appears here
+    // (rather than only in sendShippingConfirmationEmail) so the retry system
+    // can still validate and resend a failed shipping email later.
+    if (
+      order.customer_email &&
+      order.courier &&
+      order.tracking_number &&
+      (order.fulfilment_status === "shipped" ||
+        order.fulfilment_status === "delivered")
+    ) {
+      planned.push(
+        plannedEmail("shipping_confirmation", order.customer_email),
       );
     }
 
@@ -754,6 +775,67 @@ export async function sendOrderStatusEmails(orderId: string): Promise<void> {
     }
   } catch (error) {
     console.error("Failed to process order emails", {
+      orderId,
+      errorName: getErrorName(error),
+    });
+  }
+}
+
+// Sends the shipping confirmation email for one order. Called directly by the
+// admin "mark as shipped" action rather than through sendOrderStatusEmails,
+// because shipping is driven by fulfilment_status, not the order_status values
+// that function plans against.
+//
+// This never throws, for the same reason sendOrderStatusEmails does not: email
+// delivery is a follow-on effect of an admin action that has already
+// committed, so a mail outage must not undo or hide a successful "mark as
+// shipped" update.
+export async function sendShippingConfirmationEmail(
+  orderId: string,
+): Promise<void> {
+  try {
+    const config = getEmailConfig();
+
+    if (!config) {
+      console.warn(
+        "Email is not configured, skipping the shipping confirmation email. Set RESEND_API_KEY and EMAIL_FROM to enable it.",
+        { orderId },
+      );
+      return;
+    }
+
+    const order = await loadOrderForEmail(orderId);
+
+    if (!order) {
+      console.error(
+        "Cannot send a shipping confirmation email for an unknown order",
+        { orderId },
+      );
+      return;
+    }
+
+    // Fulfilment validation already requires a courier and tracking number
+    // before an order can reach 'shipped', so this only guards a caller bug or
+    // a race with a concurrent fulfilment change. A shipping email must never
+    // go out without a way to trace the parcel.
+    if (!order.customer_email || !order.courier || !order.tracking_number) {
+      console.error(
+        "Refusing to send a shipping confirmation without a customer email, courier, or tracking number",
+        { orderId },
+      );
+      return;
+    }
+
+    const items = await loadOrderItemsForEmail(order.id);
+
+    await sendPlannedEmail(
+      config,
+      order,
+      items,
+      plannedEmail("shipping_confirmation", order.customer_email),
+    );
+  } catch (error) {
+    console.error("Failed to process the shipping confirmation email", {
       orderId,
       errorName: getErrorName(error),
     });

@@ -10,6 +10,7 @@ import {
   isFulfilmentStatus,
   requiresCourierAndTracking,
 } from "@/lib/admin/fulfilment-rules";
+import { sendShippingConfirmationEmail } from "@/lib/email/order-emails";
 import {
   createSupabaseAuthClient,
   getAdminUser,
@@ -34,6 +35,27 @@ export type EmailRetryActionState = {
   error: string | null;
   success: string | null;
 };
+
+// sendShippingConfirmationEmail already swallows its own errors; this second
+// boundary mirrors the same defense-in-depth used around
+// sendOrderStatusEmails in the Stripe webhook route, so an unexpected
+// rejection here cannot turn a successful "mark as shipped" update into a
+// failed Server Action response.
+async function sendShippingConfirmationEmailWithoutFailingAction(
+  orderId: string,
+) {
+  try {
+    await sendShippingConfirmationEmail(orderId);
+  } catch (error) {
+    console.error(
+      "Unexpected shipping confirmation email processing rejection",
+      {
+        orderId,
+        errorName: error instanceof Error ? error.name : "UnknownError",
+      },
+    );
+  }
+}
 
 export async function signInAdmin(
   _previousState: AdminLoginState,
@@ -125,6 +147,15 @@ export async function updateOrderFulfilment(
   revalidatePath(`/admin/orders/${orderId}`);
   revalidatePath("/admin/orders");
   revalidatePath("/admin");
+
+  // Only the "mark as shipped" transition sends this email. Moving an order
+  // back to unfulfilled/processing, marking it delivered, or repeating an
+  // already-shipped status never reaches this branch, and the order_emails
+  // idempotency claim also stops a resubmitted "shipped" request from sending
+  // a second copy.
+  if (status === "shipped") {
+    await sendShippingConfirmationEmailWithoutFailingAction(orderId);
+  }
 
   return { error: null, success: `Order marked ${status}.` };
 }

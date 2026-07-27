@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   renderCustomerOrderConfirmation,
+  renderCustomerShippingConfirmation,
   type OrderEmailItem,
   type OrderEmailOrder,
 } from "./templates";
@@ -27,6 +28,8 @@ function order(
     subtotal: "3073.75",
     shipping_fee: "50.00",
     total: "3123.75",
+    courier: null,
+    tracking_number: null,
     ...overrides,
   };
 }
@@ -173,5 +176,45 @@ describe("order confirmation email discount snapshots", () => {
 
     expect(currentCouponConfiguration.active).toBe(false);
     expect(after).toEqual(before);
+  });
+});
+
+describe("shipping confirmation email", () => {
+  it("includes the customer name, order number, products, courier, tracking number, and support email", () => {
+    const rendered = renderCustomerShippingConfirmation(
+      order({
+        id: "order-456",
+        customer_name: "Jamie Fragrance",
+        courier: "SF Express",
+        tracking_number: "SF1234567890",
+      }),
+      [item({ product_name: "Product A" })],
+    );
+
+    expect(rendered.subject).toContain("order-456");
+    expect(rendered.text).toContain("Jamie Fragrance");
+    expect(rendered.text).toContain("Order number: order-456");
+    expect(rendered.text).toContain("Product A");
+    expect(rendered.text).toContain("Courier: SF Express");
+    expect(rendered.text).toContain(
+      "Tracking number: SF1234567890",
+    );
+    expect(rendered.text).toContain("support@sombrebeauty.com");
+    expect(rendered.html).toContain("SF Express");
+    expect(rendered.html).toContain("SF1234567890");
+    expect(rendered.html).toContain("Jamie Fragrance");
+  });
+
+  it("escapes courier and tracking values so they cannot inject markup", () => {
+    const rendered = renderCustomerShippingConfirmation(
+      order({
+        courier: "<img src=x onerror=alert(1)>",
+        tracking_number: "</td><script>1</script>",
+      }),
+      [item()],
+    );
+
+    expect(rendered.html).not.toContain("<img src=x");
+    expect(rendered.html).not.toContain("<script>1</script>");
   });
 });

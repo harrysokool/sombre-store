@@ -1,3 +1,4 @@
+import { BUSINESS_DETAILS } from "@/lib/legal/business-details";
 import { formatPrice } from "@/lib/storefront/format-price";
 import {
   getDiscountedOrderDisplay,
@@ -34,6 +35,8 @@ export type OrderEmailOrder = {
   subtotal: number | string;
   shipping_fee: number | string;
   total: number | string;
+  courier: string | null;
+  tracking_number: string | null;
 };
 
 export type RenderedEmail = {
@@ -264,6 +267,46 @@ export function renderSellerOrderNotification(
     text: `New order received
 
 ${intro}
+
+${renderOrderSummaryText(order, items)}`,
+  };
+}
+
+function renderShippingDetailsHtml(order: OrderEmailOrder) {
+  return renderBlockHtml("Shipment details", [
+    `Courier: ${order.courier ?? "-"}`,
+    `Tracking number: ${order.tracking_number ?? "-"}`,
+  ]);
+}
+
+function renderShippingDetailsText(order: OrderEmailOrder) {
+  return `Courier: ${order.courier ?? "-"}
+Tracking number: ${order.tracking_number ?? "-"}`;
+}
+
+export function renderCustomerShippingConfirmation(
+  order: OrderEmailOrder,
+  items: OrderEmailItem[],
+): RenderedEmail {
+  const courier = order.courier ?? "our courier";
+  const introText = `Your order is on its way with ${courier}. Use the tracking number below to follow its progress. Questions about your delivery? Email ${BUSINESS_DETAILS.supportEmail}.`;
+  // renderShell inserts the intro directly into the HTML body, so the courier
+  // name (admin-entered, not otherwise escaped) needs its own escaped copy.
+  const introHtml = `Your order is on its way with ${escapeHtml(courier)}. Use the tracking number below to follow its progress. Questions about your delivery? Email ${escapeHtml(BUSINESS_DETAILS.supportEmail)}.`;
+
+  return {
+    subject: `Your Sombre order has shipped (${order.id})`,
+    html: renderShell(
+      "Your order has shipped",
+      introHtml,
+      `${renderShippingDetailsHtml(order)}
+${renderOrderSummaryHtml(order, items)}`,
+    ),
+    text: `Your order has shipped
+
+${introText}
+
+${renderShippingDetailsText(order)}
 
 ${renderOrderSummaryText(order, items)}`,
   };

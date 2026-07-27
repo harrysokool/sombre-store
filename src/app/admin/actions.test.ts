@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   revalidatePath: vi.fn(),
   restoreOrderItemStock: vi.fn(),
   retryUnsentOrderEmail: vi.fn(),
+  sendShippingConfirmationEmail: vi.fn(),
   setOrderFulfilment: vi.fn(),
 }));
 
@@ -31,6 +32,10 @@ vi.mock("@/lib/admin/stock-restoration", () => ({
 
 vi.mock("@/lib/admin/operations", () => ({
   retryUnsentOrderEmail: mocks.retryUnsentOrderEmail,
+}));
+
+vi.mock("@/lib/email/order-emails", () => ({
+  sendShippingConfirmationEmail: mocks.sendShippingConfirmationEmail,
 }));
 
 vi.mock("@/lib/admin/fulfilment-rules", () => ({
@@ -77,6 +82,7 @@ describe("admin order actions", () => {
       status: "sent",
       orderId: "11111111-1111-4111-8111-111111111111",
     });
+    mocks.sendShippingConfirmationEmail.mockResolvedValue(undefined);
   });
 
   it("revalidates the detail, Orders list, and Home after fulfilment changes", async () => {
@@ -100,6 +106,122 @@ describe("admin order actions", () => {
       ["/admin/orders"],
       ["/admin"],
     ]);
+    expect(mocks.sendShippingConfirmationEmail).not.toHaveBeenCalled();
+  });
+
+  it("sends a shipping confirmation email after marking an order shipped", async () => {
+    const orderId = "11111111-1111-4111-8111-111111111111";
+    mocks.requiresCourierAndTracking.mockReturnValue(true);
+    const formData = new FormData();
+    formData.set("orderId", orderId);
+    formData.set("status", "shipped");
+    formData.set("courier", "SF Express");
+    formData.set("trackingNumber", "SF1234567890");
+
+    await expect(
+      updateOrderFulfilment({ error: null, success: null }, formData),
+    ).resolves.toEqual({
+      error: null,
+      success: "Order marked shipped.",
+    });
+
+    expect(mocks.sendShippingConfirmationEmail).toHaveBeenCalledWith(
+      orderId,
+    );
+    expect(mocks.sendShippingConfirmationEmail).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not send a shipping confirmation email after marking an order delivered", async () => {
+    const orderId = "11111111-1111-4111-8111-111111111111";
+    mocks.requiresCourierAndTracking.mockReturnValue(true);
+    const formData = new FormData();
+    formData.set("orderId", orderId);
+    formData.set("status", "delivered");
+    formData.set("courier", "SF Express");
+    formData.set("trackingNumber", "SF1234567890");
+
+    await expect(
+      updateOrderFulfilment({ error: null, success: null }, formData),
+    ).resolves.toEqual({
+      error: null,
+      success: "Order marked delivered.",
+    });
+
+    expect(mocks.sendShippingConfirmationEmail).not.toHaveBeenCalled();
+  });
+
+  it("blocks marking an order shipped when the courier is empty", async () => {
+    const orderId = "11111111-1111-4111-8111-111111111111";
+    mocks.requiresCourierAndTracking.mockReturnValue(true);
+    const formData = new FormData();
+    formData.set("orderId", orderId);
+    formData.set("status", "shipped");
+    formData.set("courier", "");
+    formData.set("trackingNumber", "SF1234567890");
+
+    await expect(
+      updateOrderFulfilment({ error: null, success: null }, formData),
+    ).resolves.toEqual({
+      error: "Enter a courier before marking this order shipped.",
+      success: null,
+    });
+
+    expect(mocks.setOrderFulfilment).not.toHaveBeenCalled();
+    expect(mocks.sendShippingConfirmationEmail).not.toHaveBeenCalled();
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("blocks marking an order shipped when the tracking number is empty", async () => {
+    const orderId = "11111111-1111-4111-8111-111111111111";
+    mocks.requiresCourierAndTracking.mockReturnValue(true);
+    const formData = new FormData();
+    formData.set("orderId", orderId);
+    formData.set("status", "shipped");
+    formData.set("courier", "SF Express");
+    formData.set("trackingNumber", "");
+
+    await expect(
+      updateOrderFulfilment({ error: null, success: null }, formData),
+    ).resolves.toEqual({
+      error: "Enter a tracking number before marking this order shipped.",
+      success: null,
+    });
+
+    expect(mocks.setOrderFulfilment).not.toHaveBeenCalled();
+    expect(mocks.sendShippingConfirmationEmail).not.toHaveBeenCalled();
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("keeps the fulfilment update successful when the shipping email rejects unexpectedly", async () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    const orderId = "11111111-1111-4111-8111-111111111111";
+    mocks.requiresCourierAndTracking.mockReturnValue(true);
+    mocks.sendShippingConfirmationEmail.mockRejectedValue(
+      new Error("Unexpected rejection"),
+    );
+    const formData = new FormData();
+    formData.set("orderId", orderId);
+    formData.set("status", "shipped");
+    formData.set("courier", "SF Express");
+    formData.set("trackingNumber", "SF1234567890");
+
+    await expect(
+      updateOrderFulfilment({ error: null, success: null }, formData),
+    ).resolves.toEqual({
+      error: null,
+      success: "Order marked shipped.",
+    });
+
+    expect(consoleError).toHaveBeenCalledWith(
+      "Unexpected shipping confirmation email processing rejection",
+      {
+        orderId,
+        errorName: "Error",
+      },
+    );
+    consoleError.mockRestore();
   });
 
   it("restores an inspected partial quantity and revalidates stock views", async () => {

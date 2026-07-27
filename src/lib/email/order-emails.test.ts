@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   renderCustomerRefundFailed: vi.fn(),
   renderCustomerRefundPending: vi.fn(),
   renderCustomerRefunded: vi.fn(),
+  renderCustomerShippingConfirmation: vi.fn(),
   renderSellerOrderNotification: vi.fn(),
   send: vi.fn(),
 }));
@@ -21,6 +22,8 @@ vi.mock("@/lib/email/templates", () => ({
   renderCustomerRefundFailed: mocks.renderCustomerRefundFailed,
   renderCustomerRefundPending: mocks.renderCustomerRefundPending,
   renderCustomerRefunded: mocks.renderCustomerRefunded,
+  renderCustomerShippingConfirmation:
+    mocks.renderCustomerShippingConfirmation,
   renderSellerOrderNotification: mocks.renderSellerOrderNotification,
 }));
 
@@ -33,6 +36,7 @@ import {
   retryFailedOrderEmail,
   sanitizeEmailErrorMessage,
   sendOrderStatusEmails,
+  sendShippingConfirmationEmail,
   type OrderEmailKind,
 } from "./order-emails";
 
@@ -72,6 +76,9 @@ const order = {
   shipping_fee: "50.00",
   total: "1238.00",
   order_status: "confirmed",
+  fulfilment_status: "unfulfilled",
+  courier: null as string | null,
+  tracking_number: null as string | null,
 };
 
 const items = [
@@ -792,5 +799,143 @@ describe("manual order email retry", () => {
     expect(sanitized).toBe(
       "Email delivery failed. Review the server logs before retrying.",
     );
+  });
+});
+
+describe("shipping confirmation email", () => {
+  beforeEach(() => {
+    for (const mock of Object.values(mocks)) {
+      mock.mockReset();
+    }
+
+    emailRows = new Map();
+    allowPendingRetry = false;
+    markFailedError = null;
+    markSentError = null;
+    order.order_status = "confirmed";
+    order.fulfilment_status = "shipped";
+    order.courier = "SF Express";
+    order.tracking_number = "SF1234567890";
+    mocks.createSupabaseServiceRoleClient.mockImplementation(
+      createSupabaseClient,
+    );
+    mocks.getEmailConfig.mockReturnValue({
+      resend: { emails: { send: mocks.send } },
+      from: "Sombre <orders@example.com>",
+      replyTo: "support@example.com",
+      sellerEmail: "seller@example.com",
+    });
+    mocks.send.mockResolvedValue({
+      data: { id: "provider-message-1" },
+      error: null,
+    });
+    mocks.renderCustomerShippingConfirmation.mockReturnValue({
+      subject: "shipped",
+      html: "<p>shipped</p>",
+      text: "shipped",
+    });
+  });
+
+  it("sends a shipping confirmation using the order's current customer and shipment details", async () => {
+    await sendShippingConfirmationEmail(ORDER_ID);
+
+    expect(mocks.renderCustomerShippingConfirmation).toHaveBeenCalledWith(
+      order,
+      items,
+    );
+    expect(mocks.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: "customer@example.com",
+        subject: "shipped",
+      }),
+      { idempotencyKey: "sombre-email-email-shipping_confirmation" },
+    );
+    expect(
+      emailRows.get("email-shipping_confirmation"),
+    ).toMatchObject({
+      status: "sent",
+      email_kind: "shipping_confirmation",
+      recipient: "customer@example.com",
+    });
+  });
+
+  it("does not send when the order has no courier recorded", async () => {
+    order.courier = null;
+
+    await sendShippingConfirmationEmail(ORDER_ID);
+
+    expect(mocks.send).not.toHaveBeenCalled();
+    expect(emailRows.size).toBe(0);
+  });
+
+  it("does not send when the order has no tracking number recorded", async () => {
+    order.tracking_number = null;
+
+    await sendShippingConfirmationEmail(ORDER_ID);
+
+    expect(mocks.send).not.toHaveBeenCalled();
+    expect(emailRows.size).toBe(0);
+  });
+
+  it("does not send a second email when called again for the same order", async () => {
+    await sendShippingConfirmationEmail(ORDER_ID);
+    await sendShippingConfirmationEmail(ORDER_ID);
+
+    expect(mocks.send).toHaveBeenCalledTimes(1);
+    expect(
+      emailRows.get("email-shipping_confirmation"),
+    ).toMatchObject({ status: "sent", attempt_count: 1 });
+  });
+
+  it("records a retryable failure when Resend rejects the send, leaving the order's shipped state untouched", async () => {
+    mocks.send.mockResolvedValue({
+      data: null,
+      error: {
+        name: "invalid_recipient",
+        statusCode: 422,
+        message: "Invalid recipient address.",
+      },
+    });
+
+    await sendShippingConfirmationEmail(ORDER_ID);
+
+    expect(
+      emailRows.get("email-shipping_confirmation"),
+    ).toMatchObject({
+      status: "failed",
+      retry_disposition: "retryable",
+    });
+    // Sending never touches the orders table, so a delivery failure has no way
+    // to change fulfilment_status back off 'shipped'.
+    expect(order.fulfilment_status).toBe("shipped");
+  });
+
+  it("can be resent through the generic retry system after a provider failure", async () => {
+    mocks.send.mockResolvedValueOnce({
+      data: null,
+      error: {
+        name: "invalid_recipient",
+        statusCode: 422,
+        message: "Invalid recipient address.",
+      },
+    });
+
+    await sendShippingConfirmationEmail(ORDER_ID);
+    const emailId = emailRows.get("email-shipping_confirmation")!.id;
+
+    expect(
+      emailRows.get("email-shipping_confirmation"),
+    ).toMatchObject({ status: "failed", retry_disposition: "retryable" });
+
+    mocks.send.mockResolvedValueOnce({
+      data: { id: "provider-retry-1" },
+      error: null,
+    });
+
+    await expect(retryFailedOrderEmail(emailId)).resolves.toEqual({
+      status: "sent",
+      orderId: ORDER_ID,
+    });
+    expect(emailRows.get(emailId)).toMatchObject({ status: "sent" });
   });
 });
