@@ -210,7 +210,18 @@ Before live mode, configure the deployed webhook URL as:
 https://<trusted-host>/api/stripe/webhook
 ```
 
-Subscribe it only to the event types the application handles, and complete the full checkout and refund workflow in test mode first.
+Subscribe it only to the event types the application handles, as listed above.
+For Dashboard refund status tracking, the endpoint must specifically include:
+
+- `refund.created`;
+- `refund.updated`; and
+- `refund.failed`.
+
+`charge.refunded` is not a substitute for the three `refund.*` events: its
+payload is a Charge, while Sombre's Dashboard-refund path expects a Refund
+object and matches it through its PaymentIntent reference. Complete the full
+checkout and Dashboard refund workflow in test mode after changing an
+endpoint's event selection.
 
 ## Deployment notes
 

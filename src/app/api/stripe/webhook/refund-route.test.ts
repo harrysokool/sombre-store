@@ -43,6 +43,7 @@ const ORDER_ID = "11111111-1111-4111-8111-111111111111";
 type FinancialOrderState = {
   id: string;
   total: string;
+  stripe_payment_intent_id: string;
   order_status: string;
   refund_id: string | null;
   refund_status: string | null;
@@ -58,38 +59,76 @@ let rpcNames: string[];
 let selectedTables: string[];
 let emailObservedRefundStatus: string | null;
 
-function refundEvent(refund: Stripe.Refund) {
+function refundEvent(
+  refund: Stripe.Refund,
+  type: "refund.created" | "refund.updated" | "refund.failed" = "refund.created",
+  livemode = false,
+) {
   return {
-    id: "evt_refund_succeeded",
+    id: `evt_${type.replace(".", "_")}_${refund.status}`,
     object: "event",
-    api_version: "2026-06-30.basil",
+    api_version: "2026-03-25.dahlia",
     created: 0,
     data: { object: refund },
-    livemode: false,
+    livemode,
     pending_webhooks: 1,
     request: { id: null, idempotency_key: null },
-    type: "refund.updated",
+    type,
   } as Stripe.Event;
 }
 
-function succeededFullRefund() {
+function dashboardFullRefund(
+  overrides: Partial<Stripe.Refund> = {},
+): Stripe.Refund {
   return {
-    id: "re_test_full_refund",
+    id: "re_dashboard_full_refund",
     object: "refund",
     amount: 10_000,
     balance_transaction: null,
-    charge: "ch_test_sombre",
+    charge: "ch_dashboard_sombre",
     created: 0,
     currency: "hkd",
     destination_details: null,
-    metadata: { order_id: ORDER_ID },
-    payment_intent: "pi_test_sombre",
+    // Refunds created in the Stripe Dashboard do not inherit Sombre's order
+    // metadata. They are linked through the Checkout PaymentIntent instead.
+    metadata: {},
+    payment_intent: "pi_dashboard_sombre",
     reason: "requested_by_customer",
     receipt_number: null,
     source_transfer_reversal: null,
     status: "succeeded",
     transfer_reversal: null,
+    ...overrides,
   } as unknown as Stripe.Refund;
+}
+
+function chargeRefundedEvent(refund: Stripe.Refund) {
+  return {
+    id: "evt_charge_refunded",
+    object: "event",
+    api_version: "2026-03-25.dahlia",
+    created: 0,
+    data: {
+      object: {
+        id: "ch_dashboard_sombre",
+        object: "charge",
+        amount_refunded: refund.amount,
+        payment_intent: refund.payment_intent,
+        refunded: true,
+        refunds: {
+          object: "list",
+          data: [refund],
+          has_more: false,
+          url: "/v1/charges/ch_dashboard_sombre/refunds",
+        },
+        status: "succeeded",
+      },
+    },
+    livemode: false,
+    pending_webhooks: 1,
+    request: { id: null, idempotency_key: null },
+    type: "charge.refunded",
+  } as unknown as Stripe.Event;
 }
 
 function createOrderQuery() {
@@ -138,13 +177,26 @@ function createOrderQuery() {
     updateValues = values;
     return query;
   });
-  query.maybeSingle.mockImplementation(async () => ({
-    data:
-      equalFilters.get("id") === orderState.id
-        ? { id: orderState.id, total: orderState.total }
-        : null,
-    error: null,
-  }));
+  query.maybeSingle.mockImplementation(async () => {
+    const hasSupportedLookup =
+      equalFilters.has("id") ||
+      equalFilters.has("stripe_payment_intent_id");
+    const idMatches =
+      !equalFilters.has("id") ||
+      equalFilters.get("id") === orderState.id;
+    const paymentIntentMatches =
+      !equalFilters.has("stripe_payment_intent_id") ||
+      equalFilters.get("stripe_payment_intent_id") ===
+        orderState.stripe_payment_intent_id;
+
+    return {
+      data:
+        hasSupportedLookup && idMatches && paymentIntentMatches
+          ? { id: orderState.id, total: orderState.total }
+          : null,
+      error: null,
+    };
+  });
 
   return query;
 }
@@ -182,11 +234,12 @@ function webhookRequest() {
 
 describe("full-refund webhook inventory separation", () => {
   beforeEach(() => {
-    currentRefund = succeededFullRefund();
+    currentRefund = dashboardFullRefund();
     currentEvent = refundEvent(currentRefund);
     orderState = {
       id: ORDER_ID,
       total: "100.00",
+      stripe_payment_intent_id: "pi_dashboard_sombre",
       order_status: "confirmed",
       refund_id: null,
       refund_status: null,
@@ -214,14 +267,14 @@ describe("full-refund webhook inventory separation", () => {
     );
   });
 
-  it("records an unfulfilled order's full refund and sends email without restoring stock", async () => {
+  it("matches a succeeded Dashboard refund.created through its PaymentIntent", async () => {
     const response = await POST(webhookRequest());
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ received: true });
     expect(orderState).toMatchObject({
       order_status: "refunded",
-      refund_id: "re_test_full_refund",
+      refund_id: "re_dashboard_full_refund",
       refund_status: "succeeded",
       refunded_at: expect.any(String),
     });
@@ -231,6 +284,91 @@ describe("full-refund webhook inventory separation", () => {
     expect(selectedTables.every((table) => table === "orders")).toBe(true);
     expect(rpcNames).toEqual(["resolve_stripe_webhook_failure"]);
     expect(rpcNames).not.toContain("restore_order_stock_after_refund");
+  });
+
+  it("keeps a pending refund incomplete until a later refund.updated succeeds", async () => {
+    currentRefund = dashboardFullRefund({ status: "pending" });
+    currentEvent = refundEvent(currentRefund, "refund.created");
+
+    const pendingResponse = await POST(webhookRequest());
+
+    expect(pendingResponse.status).toBe(200);
+    expect(orderState).toMatchObject({
+      order_status: "refund_pending",
+      refund_id: "re_dashboard_full_refund",
+      refund_status: "pending",
+      refunded_at: null,
+    });
+
+    currentRefund = dashboardFullRefund({ status: "succeeded" });
+    currentEvent = refundEvent(currentRefund, "refund.updated");
+
+    const succeededResponse = await POST(webhookRequest());
+
+    expect(succeededResponse.status).toBe(200);
+    expect(orderState).toMatchObject({
+      order_status: "refunded",
+      refund_id: "re_dashboard_full_refund",
+      refund_status: "succeeded",
+      refunded_at: expect.any(String),
+    });
+    expect(orderUpdates).toHaveLength(2);
+    expect(mocks.sendOrderStatusEmails).toHaveBeenCalledTimes(2);
+    expect(selectedTables.every((table) => table === "orders")).toBe(true);
+    expect(rpcNames).not.toContain("restore_order_stock_after_refund");
+  });
+
+  it("records a failed refund as refund_failed without touching inventory", async () => {
+    currentRefund = dashboardFullRefund({ status: "failed" });
+    currentEvent = refundEvent(currentRefund, "refund.failed");
+
+    const response = await POST(webhookRequest());
+
+    expect(response.status).toBe(200);
+    expect(orderState).toMatchObject({
+      order_status: "refund_failed",
+      refund_id: "re_dashboard_full_refund",
+      refund_status: "failed",
+      refunded_at: null,
+    });
+    expect(mocks.sendOrderStatusEmails).toHaveBeenCalledWith(ORDER_ID);
+    expect(selectedTables.every((table) => table === "orders")).toBe(true);
+    expect(rpcNames).not.toContain("restore_order_stock_after_refund");
+  });
+
+  it("still rejects a signed live-mode refund before lookup or side effects", async () => {
+    currentEvent = refundEvent(currentRefund, "refund.created", true);
+
+    const response = await POST(webhookRequest());
+
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({
+      error: "Live-mode Stripe webhook events are not accepted.",
+    });
+    expect(mocks.retrieveRefund).not.toHaveBeenCalled();
+    expect(mocks.createSupabaseServiceRoleClient).not.toHaveBeenCalled();
+    expect(mocks.sendOrderStatusEmails).not.toHaveBeenCalled();
+    expect(orderUpdates).toHaveLength(0);
+  });
+
+  it("reproduces the configured charge.refunded delivery as unhandled", async () => {
+    currentEvent = chargeRefundedEvent(currentRefund);
+
+    const response = await POST(webhookRequest());
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ received: true });
+    expect(mocks.retrieveRefund).not.toHaveBeenCalled();
+    expect(orderState).toMatchObject({
+      order_status: "confirmed",
+      refund_id: null,
+      refund_status: null,
+      refunded_at: null,
+    });
+    expect(orderUpdates).toHaveLength(0);
+    expect(selectedTables).toHaveLength(0);
+    expect(mocks.sendOrderStatusEmails).not.toHaveBeenCalled();
+    expect(rpcNames).toEqual(["resolve_stripe_webhook_failure"]);
   });
 
   it("keeps replayed refund status idempotent without any inventory RPC", async () => {
