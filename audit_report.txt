@@ -1,194 +1,196 @@
-Sombre — Complete Read-Only Launch Audit
-Read-only. No files modified, no packages installed, no DB writes, no Stripe/email/auth actions. Working tree verified clean at start and end.
-
+Launch readiness audit
 1. Executive summary
-Sombre is a genuinely well-engineered fragrance ecommerce MVP. The payment/inventory/refund engine, database design, and security posture are production-grade and, in several areas, exemplary — atomic Postgres RPCs with consistent lock ordering, full idempotency against Stripe's at-least-once delivery, RLS with service-role-only private data, 4-layer admin authorization, and clean secret hygiene (zero server-secret leakage into the client bundle). lint, tsc --noEmit, and next build all pass with zero errors and zero warnings. Every prior audit item I could re-verify in code (error boundaries, security headers, shared rate limiting, hero preload, receipt masking, responsive fixes, keyboard a11y) is now implemented and committed.
+Rating: Not ready
+The core storefront is in good shape: linting, type checking, all 896 tests, and a launch-configured production build passed. Checkout prices and stock are server-authoritative, webhook signatures are verified, order creation and stock reduction are concurrency-safe, private database tables are protected, and the live storefront behaved correctly across desktop and mobile checks.
+Launch is blocked by two confirmed code issues:
+The application does not enforce Stripe sandbox mode. A mistakenly configured live secret would enable real charges, and live-mode webhook events are accepted.
+Every successful full refund automatically returns all items to sellable inventory, even when products are damaged, lost, opened, or otherwise unsuitable for resale.
+No files were modified. The existing coupon_system.txt deletion in the working tree was left untouched.
+Confirmed strengths
+Server re-fetches product prices, availability, discounts, shipping, and currency; the browser cannot choose trusted totals.
+Stripe raw-body signature verification is correctly implemented.
+Duplicate checkout events, line items, stock reduction, and refund restoration have database-level idempotency protections.
+Unrelated Stripe events are safely ignored.
+Customer/order tables are not exposed through public RLS policies.
+No configured secret values were found in .next/static.
+Admin pages, actions, and data functions independently re-check authentication.
+Email templates escape customer-controlled HTML and use stable Resend idempotency keys.
+Apex HTTPS, canonical URLs, sitemap, robots rules, checkout/cart noindex, and responsive layouts worked live.
+The published return, refund, processing, and delivery periods match the requested policies.
+2. Critical launch blockers
+C1 — Stripe sandbox mode is not enforced
+Severity: Critical
+Evidence: [src/lib/stripe/server.ts (line 3)](/Users/harrysocool/Desktop/sombre/src/lib/stripe/server.ts:3), [src/app/api/stripe/webhook/route.ts (line 825)](/Users/harrysocool/Desktop/sombre/src/app/api/stripe/webhook/route.ts:825)
+What is wrong: The Stripe client accepts any non-empty secret. There is no sk_test_ check, and webhook processing does not reject event.livemode === true.
+Why it matters: A Vercel configuration mistake could switch the store from sandbox to real charging, contrary to the explicit business requirement. A matching live webhook secret would also let live events create orders and change inventory.
+Recommended fix: Fail startup/build when STRIPE_SECRET_KEY is not a test key, reject live-mode webhook events, and add automated tests for both guards. Confirm production and preview Vercel environments contain only sandbox credentials.
+Current state: The local secret was confirmed to identify as test mode; external Vercel configuration could not be verified.
+C2 — Full refunds automatically restock potentially unsellable goods
+Severity: Critical
+Evidence: [src/app/api/stripe/webhook/route.ts (line 453)](/Users/harrysocool/Desktop/sombre/src/app/api/stripe/webhook/route.ts:453), [20260722020000_add_refund_stock_restoration.sql (line 20)](/Users/harrysocool/Desktop/sombre/supabase/migrations/20260722020000_add_refund_stock_restoration.sql:20)
+What is wrong: Any succeeded refund whose individual amount equals the order total calls restore_order_stock_after_refund. The SQL adds every order-item quantity back to products.stock_quantity without checking return receipt, condition, hygiene eligibility, loss, damage, or individual lines.
+Why it matters: Refunded perfume, skincare, or beauty goods may be opened, damaged, lost, or unsafe to resell. Treating them as available stock can cause overselling and incorrect fulfilment.
+Recommended fix: Separate financial refund status from inventory disposition. Require an inspected, per-line restock decision, with an explicit reason and audit trail. Only automatically restock clearly safe cases such as a pre-dispatch cancellation.
+3. High-priority issues
+H1 — Failed transactional emails have no automatic or manual retry path
+Evidence: [src/lib/email/order-emails.ts (line 193)](/Users/harrysocool/Desktop/sombre/src/lib/email/order-emails.ts:193), [src/app/admin/(dashboard)/operations/page.tsx (line 377)](/Users/harrysocool/Desktop/sombre/src/app/admin/(dashboard\)/operations/page.tsx:377)
+Problem: Failed sends are recorded and swallowed so Stripe receives success, which is correct, but nothing schedules another attempt. The operations page is explicitly read-only.
+Impact: Customers or the seller can permanently miss order/refund notifications after a temporary Resend outage.
+Fix: Add a scheduled queue worker or authenticated retry action using the existing claim and idempotency mechanism. Alert when retries are exhausted.
+H2 — The shipping policy promises tracking details, but no shipping email exists
+Evidence: [shipping-policy/page.tsx (line 41)](/Users/harrysocool/Desktop/sombre/src/app/(storefront\)/shipping-policy/page.tsx:41), [src/app/admin/actions.ts (line 58)](/Users/harrysocool/Desktop/sombre/src/app/admin/actions.ts:58), [src/lib/email/order-emails.ts (line 255)](/Users/harrysocool/Desktop/sombre/src/lib/email/order-emails.ts:255)
+Problem: Admin fulfilment updates store courier and tracking information, but do not trigger a customer email. Email kinds cover orders/refunds, not dispatch.
+Impact: The store cannot reliably fulfil its customer-facing tracking promise.
+Fix: Add an idempotent customer_shipped email triggered by the first dispatched state, or revise the policy and establish a documented manual process.
+H3 — Inventory controls are display-only
+Evidence: [src/lib/admin/inventory-data.ts (line 39)](/Users/harrysocool/Desktop/sombre/src/lib/admin/inventory-data.ts:39), [src/app/admin/(dashboard)/inventory/page.tsx](/Users/harrysocool/Desktop/sombre/src/app/admin/(dashboard\)/inventory/page.tsx)
+Problem: Admin inventory reads and filters stock, but there is no audited stock-adjustment action or RPC.
+Impact: Stock receipts, breakage, supplier corrections, and safe partial-return adjustments require direct database access.
+Fix: Add a concurrency-safe inventory-adjustment RPC and authenticated UI requiring quantity delta, reason, operator, and immutable history.
+H4 — Partial refunds cannot be reconciled correctly
+Evidence: [src/app/api/stripe/webhook/route.ts (line 479)](/Users/harrysocool/Desktop/sombre/src/app/api/stripe/webhook/route.ts:479)
+Problem: Each refund is compared individually to the order total. Multiple partial refunds that cumulatively reach the full amount never become a fully refunded order. Partial-refund events are recorded as permanent manual failures.
+Impact: Refund status and stock can remain unresolved indefinitely, especially because inventory adjustments are absent.
+Fix: Maintain a refund ledger and use Stripe’s aggregate refunded amount, while recording per-line inventory disposition separately.
+H5 — Coupons can be reused without limit
+Evidence: [20260724010000_add_discount_codes.sql (line 1)](/Users/harrysocool/Desktop/sombre/supabase/migrations/20260724010000_add_discount_codes.sql:1)
+Problem: Coupons have no total redemption limit, per-customer limit, minimum spend, or redemption audit record.
+Impact: A leaked active code can be reused indefinitely and materially reduce margin.
+Fix: Add atomic redemption tracking and configurable usage limits, or explicitly approve unlimited reuse as a business decision.
+H6 — Legal operator and courier details remain unresolved
+Evidence: [src/lib/legal/business-details.ts (line 3)](/Users/harrysocool/Desktop/sombre/src/lib/legal/business-details.ts:3), [terms/page.tsx (line 14)](/Users/harrysocool/Desktop/sombre/src/app/(storefront\)/terms/page.tsx:14)
+Problem: Legal name, registration number, address, and courier are placeholders. The Terms identify only “Sombre” as the operator.
+Impact: Customers may not know the contracting business or return address, and the operational/legal sufficiency of the policies cannot be confirmed.
+Fix: Obtain appropriate Hong Kong legal review, finalize the operating identity and return address, and update the policy pages before accepting orders.
+H7 — www.sombrebeauty.com does not resolve
+Evidence: Live DNS/browser check; apex sombrebeauty.com works, while www.sombrebeauty.com returned ERR_NAME_NOT_RESOLVED.
+Problem: No working www record or redirect was found.
+Impact: Visitors using the common www hostname receive a hard failure.
+Fix: Add the Cloudflare DNS record and permanent redirect to the canonical apex domain, then verify HTTPS certificate coverage.
+H8 — Supplier-after-order fulfilment is not modelled
+Evidence: [products/[slug\]/page.tsx (line 76)](/Users/harrysocool/Desktop/sombre/src/app/(storefront\)/products/[slug]/page.tsx:76), [shipping-policy/page.tsx (line 33)](/Users/harrysocool/Desktop/sombre/src/app/(storefront\)/shipping-policy/page.tsx:33)
+Problem: Availability is based entirely on stored stock_quantity, and the storefront presents positive quantities as in stock. There is no supplier availability, purchase-order, preorder, backorder, or lead-time state.
+Impact: If goods are purchased from a supplier only after checkout, displayed availability and the 3–7-day processing promise can become inaccurate.
+Fix: Either expose only physically/firmly reserved stock or implement an explicit supplier/preorder workflow with availability checks and appropriate customer copy.
+4. Medium-priority issues
+Finding	Evidence	Impact and recommended fix
+No Content Security Policy	[next.config.ts (line 3)](/Users/harrysocool/Desktop/sombre/next.config.ts:3); absent in live headers	Reduces browser-side XSS containment. Introduce report-only CSP, tune it for Next.js/Stripe, then enforce it.
+Hosted Supabase Auth could drift to weak local defaults	[supabase/config.toml (line 155)](/Users/harrysocool/Desktop/sombre/supabase/config.toml:155)	Local config permits signups, six-character passwords, and unconfirmed email. Confirm hosted settings disable public signup, use stronger credentials and MFA for the sole admin.
+No application-level admin-login throttle	[src/app/admin/actions.ts (line 26)](/Users/harrysocool/Desktop/sombre/src/app/admin/actions.ts:26)	The app relies on Supabase’s hosted rate limiting. Add IP/account throttling and monitoring; verify hosted Auth limits.
+Service-role module lacks compile-time server-only protection	[src/lib/supabase/service-role.ts (line 1)](/Users/harrysocool/Desktop/sombre/src/lib/supabase/service-role.ts:1)	Current imports are server-side and the runtime guard works, but accidental future client imports should fail at compile time. Add import "server-only".
+Missing Resend configuration silently disables email	[src/lib/email/order-emails.ts (line 260)](/Users/harrysocool/Desktop/sombre/src/lib/email/order-emails.ts:260)	A production env mistake produces no claim row or visible failed email. Validate required email configuration at deployment/startup.
+Stripe events lack an application marker	[checkout session metadata (line 537)](/Users/harrysocool/Desktop/sombre/src/app/api/checkout/route.ts:537), [webhook dispatcher (line 825)](/Users/harrysocool/Desktop/sombre/src/app/api/stripe/webhook/route.ts:825)	Another Checkout integration sharing the Stripe account could enter this webhook. Use a dedicated account or require an integration/version marker in metadata.
+Async payment failures are log-only	[webhook route.ts:837 (line 837)](/Users/harrysocool/Desktop/sombre/src/app/api/stripe/webhook/route.ts:837)	No persistent operational record or customer notice is created. Record failures and surface them in operations.
+Product structured data is absent	[products/[slug\]/page.tsx (line 115)](/Users/harrysocool/Desktop/sombre/src/app/(storefront\)/products/[slug]/page.tsx:115)	Live product pages had no Product, Offer, or Breadcrumb JSON-LD. Add schema with price, HKD currency, availability, URL, brand, and images.
+Home Open Graph metadata is incomplete	[src/app/layout.tsx (line 28)](/Users/harrysocool/Desktop/sombre/src/app/layout.tsx:28), [storefront page.tsx:18 (line 18)](/Users/harrysocool/Desktop/sombre/src/app/(storefront\)/page.tsx:18)	Live home page had no og:url or social image. Add explicit home OG/Twitter URL, title, description, and image.
+Catalog routes query more data than needed and disable caching	[storefront page.tsx:24 (line 24)](/Users/harrysocool/Desktop/sombre/src/app/(storefront\)/page.tsx:24)	The homepage fetches all active products and filters in memory. Use targeted queries and short-lived catalog caching while keeping checkout stock uncached.
+Builds depend on Google font availability	[src/app/layout.tsx (line 2)](/Users/harrysocool/Desktop/sombre/src/app/layout.tsx:2)	An initial restricted-network build failed fetching three fonts. Self-host fonts to remove this deployment dependency.
+Large/mislabelled source images	[public](/Users/harrysocool/Desktop/sombre/public)	Public assets total roughly 16 MB; several .jpg files contain WebP, PNG, or AVIF data and individual files reach roughly 2–2.8 MB. Normalize formats and pre-compress sources.
+Support address is not clickable	[contact/page.tsx (line 75)](/Users/harrysocool/Desktop/sombre/src/app/(storefront\)/contact/page.tsx:75)	The only contact method is rendered as plain text. Use a mailto:support@sombrebeauty.com link with a visible keyboard focus state.
+Two configured public variables are unused	Repository search and local env-name-only inspection	NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY and NEXT_PUBLIC_SITE_URL have no code references. Remove them from deployment configuration or document their future purpose.
+No real-service or browser E2E suite	[package.json](/Users/harrysocool/Desktop/sombre/package.json)	Unit/mock coverage is extensive, but deployed checkout, real webhook delivery, database migration/concurrency, Resend delivery, admin MFA, and cart recovery are not automated. Add a sandbox integration/E2E suite.
 
-What blocks real trading is not the code — it is business/legal configuration, deployment, and unproven runtime paths: every legal identity field is an unreplaced [PLACEHOLDER], customers are told to "contact us at [SUPPORT EMAIL ADDRESS]", the app is not deployed, Stripe is in test mode, transactional email is unconfigured (yet the UI promises order-update emails), and the entire payment→webhook→refund→email chain has never executed against real data. There is also no test suite of any kind.
+Privacy review
+No confirmed customer-data exposure was found. Shipping details and order data are handled server-side, private routes are noindex, receipt rendering masks the email and omits the full address/phone, and no obvious customer PII logging was found. Stripe Checkout session IDs do appear in success-page URLs, so they may enter browser history; retain the current no-referrer/noindex protections and avoid expanding the receipt without stronger authorization.
+5. Environment-variable audit
+Required on Vercel
+Variable	Purpose
+NEXT_PUBLIC_SUPABASE_URL	Public Supabase API origin
+NEXT_PUBLIC_SUPABASE_ANON_KEY	RLS-limited browser/server public client
+SUPABASE_SERVICE_ROLE_KEY	Private order/admin/database operations
+STRIPE_SECRET_KEY	Stripe server API; must be sandbox/test
+STRIPE_WEBHOOK_SECRET	Webhook signature verification
+SITE_URL	Must be exactly https://sombrebeauty.com in production
+ADMIN_EMAIL	Approved administrator identity
+RESEND_API_KEY	Transactional email
+EMAIL_FROM	Verified sender address
+SELLER_NOTIFICATION_EMAIL	Seller order notifications
+EMAIL_REPLY_TO	Customer reply destination
+UPSTASH_REDIS_REST_URL	Distributed rate limiting
+UPSTASH_REDIS_REST_TOKEN	Distributed rate limiting
+RATE_LIMIT_HASH_SECRET	Hashing rate-limit identifiers
 
-2. Overall launch readiness: ~62%
-Engineering foundation ~85%; business/ops/deployment/testing readiness ~30%. The gap is almost entirely non-code.
+NODE_ENV is used but is platform-managed. .env.example documents the application variables adequately.
+Local Supabase-only references
+SUPABASE_AUTH_SMS_TWILIO_AUTH_TOKEN, SUPABASE_AUTH_EXTERNAL_APPLE_SECRET, and OPENAI_API_KEY appear in disabled/local Supabase configuration and are not currently required by the application.
+No configured secret values were found in 44 inspected client bundle files.
+6. Manual checks outside the repository
+Cloudflare
+Confirmed: Apex HTTPS works; HTTP redirects to HTTPS; live apex returns HSTS.
+Blocked: Add and validate www DNS plus apex redirect.
+Confirm SSL mode is Full (strict), certificate coverage includes both hosts, and Always Use HTTPS is enabled.
+Confirm DNSSEC and suitable WAF/bot protections.
+Bypass or carefully test caching for /api/*, /admin/*, /checkout/*, and receipt responses.
+Ensure Cloudflare transforms or script optimizers do not interfere with Stripe redirects or security headers.
+Vercel
+Confirm all variables above separately for production and preview.
+Confirm SITE_URL=https://sombrebeauty.com.
+Confirm STRIPE_SECRET_KEY and webhook secret are sandbox credentials only.
+Confirm all three Upstash/rate-limit variables are present together.
+Verify function logs and alerts for webhook failures, email failures, and database errors.
+Production-like build passed, but actual deployment configuration remains unverified.
+Stripe
+Confirm the account/dashboard is in test mode.
+Configure https://sombrebeauty.com/api/stripe/webhook.
+Confirm subscriptions for checkout completed, async succeeded/failed, and refund created/updated/failed events.
+Confirm the endpoint secret matches the sandbox endpoint.
+Replay duplicate events and concurrent refund events in sandbox.
+Test successful, declined, delayed, cancelled, duplicate-click, partial-refund, and full-refund flows.
+Do not share this Stripe account with unrelated Checkout integrations unless an application marker is added.
+Supabase
+Confirm all 18 migrations are applied in the linked hosted project.
+Review effective RLS policies, grants, and security-definer ownership in hosted Supabase.
+Disable public signup if only the administrator needs Auth.
+Require a strong admin password and MFA.
+Confirm backups/PITR, recovery procedure, connection limits, and query/index performance.
+Confirm production seed data is not unintentionally applied.
+The linked migration list could not be checked because the CLI had no platform access token.
+Resend
+Verify EMAIL_FROM and its sending domain.
+Send sandbox order, refund, and failure emails to multiple providers.
+Confirm EMAIL_REPLY_TO reaches the monitored support mailbox.
+Validate bounce/complaint handling and alerts.
+Add delivery webhooks or monitoring if delivery state matters operationally.
+Domain email and forwarding
+Confirm support@sombrebeauty.com is a functioning mailbox or forward, not merely a published address.
+Verify MX, SPF, DKIM, and DMARC.
+Confirm alignment between the order-sending subdomain and visible From address.
+Test inbound replies and assign responsibility for monitoring them.
+7. Test results
+Command/check	Result
+npm run lint	Passed, no warnings
+npx tsc --noEmit	Passed, no diagnostics
+npm test	Passed: 65 files, 896 tests
+SITE_URL=https://sombrebeauty.com npm run build	Passed: compiled, type checked, and generated 17 static pages
+npm run build with current local env	Failed after compilation: local SITE_URL=http://localhost:3000 is rejected for a production build
+Initial restricted-network build	Failed: Google font downloads were unavailable
+npm ls --depth=0	Passed, but reported five extraneous optional WASM-related packages
+npm audit --json	Blocked: external npm advisory request was not authorized; vulnerability status remains unconfirmed
+npx supabase migration list --linked	Blocked: no Supabase platform access token
+Client-bundle secret scan	Passed: no configured server-secret values found
+Live apex/mobile smoke checks	Passed, except missing www, home OG fields, product structured data, and non-clickable support email
+git diff --check	Passed
 
-3. Scores (0–10)
-#	Area	Score	Basis
-1	Architecture	8	Clean lib/ separation, 3 Supabase trust levels, single-source pricing, clean server/client boundaries. Webhook route is large (917 lines) but cohesive.
-2	Code quality	9	lint/tsc/build all clean; no as any/@ts-ignore/@ts-nocheck; no NUL bytes; no debug logs; only structured logging; 2 documented eslint-disable.
-3	Storefront	7	All routes build/200; error boundaries exist; but placeholder /brands /login, empty categories, unbacked "Best Sellers", legal typography, "Eau de Toilette" fallback.
-4	Accessibility	8	Focus trap/restore/Escape, ARIA status regions, labels+autocomplete+inputmode, no overflow at 320–1440 — verified across prior runtime tasks.
-5	Performance	8	Hero single-image <picture> preload, responsive sizes, server components, no duplicate downloads. Source images 2–3 MB (Next-optimized on delivery); format/extension mismatch.
-6	Payment safety	9	Signature verify, raw body, idempotency, permanent/retryable taxonomy, correct status codes. Live mode + delayed-payment paths never exercised.
-7	Inventory & refunds	9	Atomic reduce/restore RPCs, oversell auto-refund, full-vs-partial handling, out-of-order guards. Untested against real refunds.
-8	Admin & fulfilment	8	4-layer auth, RPC writes only fulfilment columns, state machine, partial-refund hold. No product admin, no audit log, no login throttle.
-9	Database security	9	RLS on all 7 tables, private data service-role-only, security definer + pinned search_path, function EXECUTE locked to service_role.
-10	Application security	8	No secret leakage, headers on all routes, clean boundaries. No CSP/HSTS (deliberately deferred); sharp/postcss vulns via next.
-11	Privacy	7	Masked email, no phone/address on receipt, no-referrer, no-store. Gaps: no noindex; session_id in URL/history.
-12	Email	7	Idempotent, non-throwing, HTML-escaped, provider id stored. Never run at runtime; requires config; UI promises emails.
-13	Testing	1	No framework, no tests of any kind.
-14	Deployment	3	Not deployed; no monitoring/alerts/error-tracking. Headers + rate limiting code-ready; env documented.
-15	Business operations	2	Legal placeholders live, support dead-end, email off, no product/refund admin UI.
-4. Critical blockers before real payments
-Label	Blocker
-Business information required	Legal identity is entirely placeholder — src/lib/legal/business-details.ts renders [LEGAL BUSINESS NAME], [HONG KONG BUSINESS REGISTRATION NUMBER], [REGISTERED BUSINESS ADDRESS], [SUPPORT EMAIL ADDRESS], [PRIVACY CONTACT EMAIL ADDRESS], return window, refund/delivery timing, courier, last-updated — all publicly rendered on /terms, /privacy-policy, /refund-policy, /shipping-policy. Cannot legally accept orders.
-Business information required	Support dead-end. Every "contact us at …" resolves to the placeholder email (privacy-policy:64, terms:96, shipping-policy:62, refund-policy, product-details.tsx:74). Worst case: paid order + failed auto-refund → checkout/success/page.tsx:125 tells the customer to "contact us" at a non-existent address.
-Configuration required	Not deployed / Stripe test mode. No Vercel deployment, no production webhook endpoint, no live signing secret, no HTTPS SITE_URL.
-Configuration required	Transactional email unconfigured (RESEND_API_KEY/EMAIL_FROM unset) — customers receive nothing, yet the success page promises "We will use the email below for order updates."
-Implemented but untested	The live payment → webhook → order → stock → refund → email chain has never executed against real Stripe/Supabase data.
-5. High-priority problems
-Configuration required — No monitoring/alerting/error-tracking for the operational queues that already exist (webhook_failures, order_emails, refund failures). The failure-capture infrastructure is built but nothing surfaces it.
-Verified defect (Low-impact, business) — Unbacked "Best Sellers" collection (shop.ts:213-214) returns all products with a truthful code comment but a misleading customer-facing label.
-Verified defect (business) — Navigation exposes empty "Body Care" / "Home Fragrance" categories (nav-drawer.tsx:15-16, shop.ts:90-104) though the catalog is perfume-only.
-Possible risk (privacy) — Receipt page has no noindex (X-Robots-Tag/robots meta absent) and the session_id is in the URL (browser history). Cache is correctly private, no-store and no-referrer is set, and a valid session_id is required to render data, so exposure is limited — but a shared/crawled link is a residual risk.
-Dependency (high, low real exposure) — sharp libvips CVEs and postcss XSS reach the tree via next; npm's "fix" would downgrade Next 16→9 (do not run).
-6. Medium-priority problems
-Documentation outdated — CLAUDE.md is materially stale (see §11).
-Documentation outdated — audit_report.txt and frontend_audit.txt list many now-fixed items as open (see §10).
-Possible risk — No app-level rate limit on the admin login Server Action (signInAdmin); relies solely on Supabase Auth's built-in throttling.
-Verified defect (low) — Placeholder routes /brands, /login are publicly buildable stubs (PagePlaceholder), unlinked but reachable.
-Verified defect (low) — signature-showcase.tsx:74 invents "Eau de Toilette" when size_label is null (dormant — all current products have a size).
-Possible risk — Image files carry misleading extensions (model-1.jpg/model-3.jpg contain PNG data; product .jpg files are WebP; model-5.png is a 2.1 MB committed, unreferenced asset — not touched per instruction).
-7. Low-priority improvements
-Consider security definer functions using set search_path = '' (they already fully schema-qualify) for maximal hardening.
-orders.postal_code was NOT NULL originally (relaxed in 20260722000000); confirm no residual empty-string rows.
-The webhook route (917 lines) could be split into webhook/handlers/* for maintainability (no defect).
-Extraneous @emnapi/*, @napi-rs/wasm-runtime, @tybys/wasm-util in node_modules (sharp's optional WASM runtime) — cosmetic lockfile noise.
-8. Verified working systems (Verified working)
-Build/quality: npm run lint clean · npx tsc --noEmit clean · npm run build clean (16 routes, ~4s) · git diff --check clean.
-Secrets: zero hardcoded secrets; only NEXT_PUBLIC_SUPABASE_URL/_ANON_KEY client-exposed; 0 server-secret occurrences in .next/static.
-DB (live, read-only): supabase migration list --linked → 14/14 applied, local == remote, no drift.
-RLS/privileges: private tables (profiles, orders, order_items, webhook_failures, order_emails) revoked from anon/authenticated, no policies → service-role only; catalog readable (active only). All RPCs EXECUTE granted only to service_role.
-Security headers (live): all 4 present on static/dynamic/API/redirect/404, no duplicates; dynamic routes Cache-Control: private, no-store.
-Hero (live): 0 preload links, single-image <picture media>; server-rendered (works without JS).
-Server-controlled checkout: price/stock/active/slug re-validated from DB; subtotal reconciled (route.ts:441); currency hardcoded HKD.
-Admin authorization: page (layout.tsx force-dynamic + requireAdminUser) → action (getAdminUser) → data layer (assertAdmin throws) → RPC eligibility; fulfilment RPC writes only fulfilment columns.
-9. Implemented but not runtime-verified (Implemented but untested)
-All require live Stripe/Supabase and could not be exercised in this read-only audit:
-
-checkout.session.completed / async_payment_succeeded order creation & atomic stock reduction.
-no_payment_required and delayed payment success/failure branches.
-Paid oversell → automatic Stripe refund (handlePaidOversellRefund).
-refund.created/updated/failed: full refund + stock restoration, partial-refund manual-hold, out-of-order events, dashboard-initiated refund (PaymentIntent match).
-webhook_failures record/resolve and permanent-vs-retryable responses.
-All email kinds (confirmation, seller, refund pending/succeeded/failed) — never sent.
-Admin fulfilment state transitions end-to-end through the UI.
-Multi-instance Upstash rate limiting (needs configured Upstash).
-10. Outdated audit findings now fixed (Documentation outdated)
-Re-verified against current code — these prior-audit items are resolved:
-
-Branded not-found + global error boundaries → src/app/not-found.tsx, src/app/error.tsx exist.
-Security headers absent → now in next.config.ts (verified live on all routes).
-Serverless rate limiting ineffective → Upstash shared limiter + in-memory fallback (rate-limit.ts).
-Search dialog focus trap/Escape/scroll-lock/restore/retry/status → fixed (product-search-panel.tsx).
-Hidden navbar tab order → inert + focus-within guard (navbar.tsx).
-Cart/checkout loading not announced → role="status"/aria-live/aria-busy.
-Checkout field limits/labels/autocomplete/inputmode → checkout-form-field.tsx mirrors server limits.
-Dynamic string wrapping → min-w-0/[overflow-wrap:anywhere] across cart/summary/details/legal.
-Hero preloads both images → single-image <picture> (0 preloads).
-768px tablet grid too dense → md:grid-cols-3 lg:grid-cols-5.
-320px shop image sizes → sub-360 85vw candidate added.
-Receipt privacy → masked email, phone/address removed.
-Raw NUL byte in order-fulfilment-panel.tsx → resolved (\u0000 escaped; full-repo NUL scan clean).
-Still open from those audits: legal placeholders, support dead-end, legal-page typography, catalog/Best-Sellers claims, empty categories, email promise vs config, /brands /login stubs, image format mismatch.
-
-11. Documentation conflicts (Documentation outdated)
-CLAUDE.md — materially stale:
-
-Line 32: claims "there is no @supabase/ssr dependency and no middleware.ts" — false: both now exist.
-Line 33: service-role "used exclusively by the Stripe webhook and checkout-success" — incomplete: also admin/fulfilment.ts, admin/orders.ts, email/order-emails.ts.
-Line 56 / Line 11: "admin … unbuilt placeholder", "no auth, no admin backend" — false: full Supabase-Auth admin area with fulfilment exists; only /login and /brands remain placeholders.
-README.md — largely accurate (correctly flags legal placeholders, RLS, service-role, seed-not-for-prod). audit_report.txt/frontend_audit.txt — historically useful but now list resolved items as open (see §10). PROJECT_STATUS_SUMMARY.md referenced by CLAUDE.md:13 but not present in the repo (dangling reference).
-
-12. Dependency findings
-6 vulns total (1 low, 1 moderate, 4 high); production-relevant subset = 3, all via next:
-
-Package	Sev	Direct?	Build/Runtime	Real exposure	npm "fix"	Safe action
-next	high	direct	both	—	downgrade→9.3.3 (breaking, false fix)	Upgrade to a patched Next 16.x when released; never --force.
-sharp (via next)	high	transitive	image optimizer	Low — processes only app-owned local images, no uploads/remote patterns	via next@9	Wait for Next bump.
-postcss (via next)	moderate	transitive	build (CSS)	None — no untrusted CSS stringified	via next@9	Wait for Next bump.
-@babel/core	low	transitive	dev/build	None at runtime	non-breaking	Optional npm audit fix (not run here).
-brace-expansion	high	transitive	dev/build	None at runtime	non-breaking	Optional npm audit fix.
-js-yaml	high	transitive	dev tooling	None at runtime	non-breaking	Optional npm audit fix.
-Other: all production deps are imported (react-dom used implicitly by Next — normal). Lockfile consistent apart from sharp's optional WASM extraneous entries. No missing deps; no server-only package imported by a client component.
-
-13. Security findings
-Verified working: no hardcoded secrets; only intended NEXT_PUBLIC_ vars reach the browser; service-role client has a runtime typeof window guard and is imported only server-side; headers present everywhere; admin gate fails closed with getUser() revalidation and generic login errors (no account enumeration).
-Configuration required: CSP can be added now but needs care — the app uses Tailwind (inline <style>) and Next inline bootstrap scripts, so a strict CSP needs nonce/hashes or strict-dynamic; start in Report-Only. HSTS should be added only after the production HTTPS domain is live and verified (avoid locking out a misconfigured domain).
-Possible risk: no app-level admin-login throttle (Supabase Auth throttles); consider reusing the existing limiter.
-14. Privacy findings
-Verified working: receipt masks email (j***n@…), omits phone/full address; Referrer-Policy: no-referrer; dynamic pages no-store; unverified/missing session shows no data; the page is a Server Component and the only client component receives just booleans + sessionId (no PII to client).
-Possible risk: no noindex on receipt; session_id in URL/history; emails legitimately carry full customer PII (expected). Assessment: current masking is adequate for a test-mode launch; for scale, add X-Robots-Tag: noindex to /checkout/* and consider a short-lived signed token instead of the raw session_id.
-15. Database & migration findings (Verified working)
-14 migrations, correctly ordered/timestamped, replay-guarded (if [not] exists, create or replace, guarded backfills). numeric(10,2) money (never float); stock integer >= 0; order-item snapshots preserved (product_id on delete set null); FK on delete restrict on brand/category; one-primary-image partial unique index; comprehensive check constraints for payment/order/refund/fulfilment/email states. Atomic RPCs (confirm_paid_order_and_reduce_stock, restore_order_stock_after_refund, set_order_fulfilment, email/webhook-failure functions) all security definer + set search_path = public, consistent lock ordering (order row → products ascending by id) preventing deadlocks, guard columns (stock_reduced_at/stock_restored_at) for exactly-once. RLS + service_role-only EXECUTE throughout. supabase/manual/ cleanly separated; cleanup_demo_products.sql is scoped/transactional; seed.sql refuses to run on a non-empty catalog. Minor: create policy/add constraint aren't idempotent (irrelevant for forward-only migrations); consider search_path = ''.
-
-16. Frontend & accessibility findings
-Verified (this audit + committed prior work): no horizontal overflow 320–1440; dynamic-string wrapping; loading/error/empty states; keyboard focus trap/Escape/restore in drawer & search; ARIA status regions; form labels + required/optional + autocomplete + inputmode + maxLength mirroring server; masked receipt; single-image hero; 3-col tablet grid; sub-360 image sizing. Open: legal-page typography not aligned to the editorial system; /brands /login placeholders; "Best Sellers"/empty-category claims; "Eau de Toilette" fallback. Admin pages were not driven (no safe read-only session available without logging in).
-
-17. Performance findings
-Measured (live): homepage emits 0 hero preloads and one <picture>; only the viewport-matched hero downloads; shop sizes correct; ~12 JS chunks; homepage server-rendered. Code-based: source hero images are 2–3 MB PNG-in-.jpg (Next optimizes on delivery, but re-encoding/renaming would improve maintainability and origin serving); success page polls with a capped, backing-off, single-timer client loop (verified in prior work). No duplicate Supabase/Stripe calls observed in the hot paths.
-
-18. Deployment requirements (Configuration required)
-Env (server-only unless noted): NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY (browser), SUPABASE_SERVICE_ROLE_KEY, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, SITE_URL (HTTPS), ADMIN_EMAIL, RESEND_API_KEY, EMAIL_FROM, SELLER_NOTIFICATION_EMAIL, EMAIL_REPLY_TO, UPSTASH_REDIS_REST_URL, UPSTASH_REDIS_REST_TOKEN, RATE_LIMIT_HASH_SECRET. Needed: Vercel project + prod/preview env separation; production Stripe webhook endpoint subscribing to checkout.session.completed, checkout.session.async_payment_succeeded/failed, refund.created/updated/failed, with the matching signing secret; Upstash DB; verified Resend sender domain; the single admin Supabase Auth account; monitoring/alerts/error-tracking/uptime/backups/rollback/runbooks (all absent).
-
-19. Tests still required (Testing score 1)
-No framework, no tests. Local (no external deps): cart validation/limits, maskEmail, HMAC key hashing, subtotal/shipping math, fulfilment state-machine rules, error taxonomy. Require services: Postgres RPC tests (stock reduce/restore, oversell, fulfilment eligibility, email/webhook-failure idempotency); Stripe webhook signature + event-flow (mocked & CLI); checkout route validation (Supabase); admin authorization; rate-limit multi-instance (Upstash); email (Resend sandbox); accessibility + deployment smoke (Vercel). Recommend Vitest (unit) + Playwright (browser/a11y) + a seeded ephemeral Supabase branch for DB/webhook integration.
-
-20. Discount system readiness
-Not implemented. Architecture is favorable because pricing is already server-authoritative (route.ts recomputes from DB) — the correct integration seam. Risks to resolve before building it:
-
-Subtotal reconciliation (route.ts:441) compares client vs server subtotal with 0.01 tolerance — a discount must be computed server-side only and folded into this check, never trusted from the client payload.
-Stripe line items are built from validated cart items; discounts must map to Stripe discounts/coupon or adjusted unit_amount, and the stored subtotal/total/metadata must record pre/post-discount amounts for later refund math (full vs partial detection in the webhook keys on order.total).
-order_items has no discount columns; receipts/emails render unit_price×qty; admin shows totals — all need discount-aware fields.
-Provide idempotency, usage limits, code validity, per-product %, and an audit trail (the app currently has no admin action audit log — build that first).
-21. Recommended task order
-Business/legal content → replace all business-details.ts placeholders; stand up a real monitored support/privacy inbox.
-Configure email (Resend domain + env) or soften the "email updates" promise until live.
-Deploy to Vercel (Stripe test mode): env, HTTPS SITE_URL, webhook endpoint + signing secret, Upstash, admin account.
-Runtime-prove the whole payment→webhook→stock→refund→email chain with Stripe test cards (incl. delayed/oversell/refund).
-Add monitoring/alerts/error-tracking on the existing failure queues.
-Add the test suite (§19), starting with DB RPC + webhook + checkout.
-Fix storefront truth issues (Best Sellers label, empty categories, /brands /login, EdT fallback); align legal-page typography.
-Privacy hardening (noindex on /checkout/*); CSP in Report-Only; HSTS after HTTPS is confirmed.
-Refresh CLAUDE.md (and remove/refresh audit_report.txt/frontend_audit.txt; fix the PROJECT_STATUS_SUMMARY.md reference).
-Plan the discount system per §20 (audit log first).
-22. The ten most important actions before launch
-Replace every legal/business placeholder with verified values.
-Establish a real, monitored support email and repoint all "contact us" copy.
-Deploy to Vercel and wire the production Stripe webhook (correct events + signing secret).
-Configure email (or remove the delivery promise).
-Runtime-test payment success, delayed payment, oversell auto-refund, full & partial refund, and each email.
-Add alerting on webhook_failures, order_emails, and refund failures.
-Add error tracking + uptime monitoring.
-Introduce a test suite for payment/DB/checkout/admin-auth.
-Privacy hardening: noindex on receipt routes; evaluate signed receipt token.
-Plan Next.js upgrade to clear the sharp/postcss advisories (never audit fix --force).
-23. Important files & line numbers
-src/app/api/stripe/webhook/route.ts — POST/signature 853-879; dispatch 826-851; confirm+oversell 637-687; refund full/partial 469-530; error taxonomy 694-749; item idempotency 567-635.
-src/app/api/checkout/session/route.ts — rate limit 316-334; body limit 337-356; server pricing/stock/subtotal 380-446; Stripe session 448-504.
-src/lib/checkout/receipt.ts — Stripe/order/amount cross-checks 152-197.
-src/lib/supabase/{service-role,admin-auth}.ts — client guard service-role.ts:34-37; fail-closed admin-auth.ts:38-54; getUser() 56-67.
-src/app/admin/actions.ts:66 + src/lib/admin/fulfilment.ts:45-56 — server-action & data-layer re-auth.
-src/lib/legal/business-details.ts:9-21 — placeholder blocker.
-src/components/home/signature-showcase.tsx:74 — EdT fallback.
-src/lib/storefront/shop.ts:213 — Best Sellers.
-next.config.ts:7-27 — headers; middleware.ts:44-46 — admin-only matcher.
-Migrations: atomic stock 20260717000000; oversell refunds 20260721020000; RLS 20260721030000; refund restoration 20260722020000; fulfilment 20260722030000/…40000.
-CLAUDE.md:32,33,56 — outdated.
-24. Commands run & results
-Command	Result
-git status/branch/log/diff/diff --cached/--check	Clean tree, branch main, 10 recent commits; no changes
-npm run lint	Pass, 0 problems
-npx tsc --noEmit	Pass, 0 errors
-npm run build	Pass, 16 routes, no warnings
-repo scans (TODO/console/as any/NUL/binary)	Only legal TODO; structured logs only; no unsafe casts; no NUL bytes; no unexpected binaries
-npm ls --depth=0 / npm audit / --omit=dev	6 vulns (3 prod via next); 3 dev-only; extraneous WASM entries
-secret scans (source + .next/static)	0 hardcoded secrets; 0 server-secret client leaks
-supabase migration list --linked	14/14 applied, in sync
-supabase db push --linked --dry-run	Could not connect (see §25)
-Prod server curl (headers/hero/sizes/no-JS)	Headers on all routes, no duplicates; 0 hero preloads; correct sizes; SSR content present
-Final git status/diff/--check	Clean — identical to start; model-5.png untouched
-25. Checks that could not be completed & why
-supabase db push --linked --dry-run — direct Postgres connection failed (IPv6/TLS socket is not connected) in this sandbox. Mitigated by migration list --linked, which did connect and confirmed 14/14 applied with no drift.
-All live payment/refund/webhook/email paths — require real Stripe/Supabase/Resend actions, which are out of scope for a read-only audit (see §9).
-Admin dashboard runtime UI — no safe pre-existing read-only admin session; logging in was out of scope, so admin pages were audited by code only.
-Real Lighthouse/network waterfall & DPR-3 image sharpness — approximated via production-build HTML + Resource Timing rather than a full profiler.
-Multi-instance Upstash rate limiting — verified by code + local fallback behavior only; true cross-instance sharing needs configured Upstash credentials.
-Final confirmation: working tree re-verified unchanged from start (git status --short empty, git diff empty, git diff --check clean), public/images/products/maison-margiela/model-5.png untouched, branch main. Nothing was modified, staged, committed, or pushed; no packages installed; no database writes; no Stripe/email/auth actions performed.
+8. Launch checklist
+Status	Item
+Complete	Lint, TypeScript, 896 automated tests, and launch-configured production build
+Complete	Server-authoritative prices, discounts, stock, shipping, currency, and totals
+Complete	Stripe signature verification and duplicate-event/order/stock protections
+Complete	Private-table RLS design, layered admin authorization, and clean client secret scan
+Complete	Apex HTTPS, canonical origin, sitemap, robots, private-page noindex
+Complete	Requested policy durations and mobile checkout/catalog layout
+Needs a code change	Enforce Stripe sandbox key and reject live-mode events
+Needs a code change	Separate refund processing from inspected per-line restocking
+Needs a code change	Add failed-email retries and dispatch/tracking email
+Needs a code change	Add audited inventory adjustments and partial-refund reconciliation
+Needs a code change	Add coupon redemption limits or explicitly accept unlimited use
+Needs a code change	Add CSP and recommended SEO/operational hardening
+Needs manual confirmation	Vercel environment variables and sandbox credentials
+Needs manual confirmation	Hosted Supabase migrations, Auth policy, RLS/grants, and backups
+Needs manual confirmation	Stripe webhook endpoint/events and sandbox end-to-end testing
+Needs manual confirmation	Resend domain, delivery, bounce handling, and reply-to
+Needs manual confirmation	Legal operator, return address, courier, and supplier fulfilment model
+Needs manual confirmation	Support mailbox/forwarding and email DNS records
+Blocked	Production launch until C1 and C2 are fixed
+Blocked	Branded-domain readiness until www and legal/business details are resolved
+Blocked	Complete security sign-off until npm audit and hosted migration verification are run

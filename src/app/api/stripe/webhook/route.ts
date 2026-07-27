@@ -881,6 +881,23 @@ export async function POST(request: Request) {
     );
   }
 
+  // Verify the signature first, then stop live-mode events before creating the
+  // processing context or invoking any checkout, refund, email, or database path.
+  if (event.livemode) {
+    console.error(
+      "Rejected a live-mode Stripe webhook event during prelaunch.",
+      {
+        eventId: event.id,
+        eventType: event.type,
+      },
+    );
+
+    return NextResponse.json(
+      { error: "Live-mode Stripe webhook events are not accepted." },
+      { status: 403 },
+    );
+  }
+
   const context: WebhookEventContext = {
     stripeSessionId: null,
     orderId: null,

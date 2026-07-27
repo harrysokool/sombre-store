@@ -475,6 +475,52 @@ describe("Stripe webhook discount snapshots", () => {
     );
   });
 
+  it("accepts a signed test-mode webhook event", async () => {
+    currentLineItems = [checkoutLine()];
+    const session = checkoutSession({ lines: currentLineItems });
+    currentEvent = checkoutEvent(session);
+
+    const response = await POST(webhookRequest());
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ received: true });
+    expect(mocks.constructEvent).toHaveBeenCalledTimes(1);
+    expect(mocks.constructEvent).toHaveBeenCalledWith(
+      "{}",
+      "signature",
+      "whsec_test",
+    );
+    expect(insertedOrderPayloads).toHaveLength(1);
+    expect(stockReductionCount).toBe(1);
+    expect(mocks.sendOrderStatusEmails).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects a signed live-mode webhook event without side effects", async () => {
+    currentLineItems = [checkoutLine()];
+    const session = checkoutSession({ lines: currentLineItems });
+    currentEvent = {
+      ...checkoutEvent(session),
+      livemode: true,
+    } as Stripe.Event;
+
+    const response = await POST(webhookRequest());
+
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({
+      error: "Live-mode Stripe webhook events are not accepted.",
+    });
+    expect(mocks.constructEvent).toHaveBeenCalledTimes(1);
+    expect(mocks.listLineItems).not.toHaveBeenCalled();
+    expect(mocks.createSupabaseServiceRoleClient).not.toHaveBeenCalled();
+    expect(mocks.sendOrderStatusEmails).not.toHaveBeenCalled();
+    expect(insertedOrderPayloads).toHaveLength(0);
+    expect(insertedItemPayloads).toHaveLength(0);
+    expect(recordedFailures).toHaveLength(0);
+    expect(resolvedFailures).toHaveLength(0);
+    expect(stockReductionCount).toBe(0);
+    expect(ordersBySession.size).toBe(0);
+  });
+
   it("persists truthful no-coupon order and item snapshots", async () => {
     currentLineItems = [
       checkoutLine({ quantity: 2 }),
