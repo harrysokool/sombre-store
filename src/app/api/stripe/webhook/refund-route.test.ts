@@ -343,6 +343,37 @@ describe("full-refund webhook inventory separation", () => {
     expect(rpcNames).not.toContain("restore_order_stock_after_refund");
   });
 
+  it("keeps a completed refund webhook successful when email processing rejects", async () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    mocks.sendOrderStatusEmails.mockRejectedValue(
+      new Error("temporary email provider failure"),
+    );
+    currentEvent = refundEvent(currentRefund, "refund.updated");
+
+    const response = await POST(webhookRequest());
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ received: true });
+    expect(orderState).toMatchObject({
+      order_status: "refunded",
+      refund_id: REAL_REFUND_ID,
+      refund_status: "succeeded",
+      refunded_at: expect.any(String),
+    });
+    expect(recordedFailures).toHaveLength(0);
+    expect(rpcNames).not.toContain("restore_order_stock_after_refund");
+    expect(consoleError).toHaveBeenCalledWith(
+      "Unexpected order email processing rejection",
+      {
+        orderId: ORDER_ID,
+        errorName: "Error",
+      },
+    );
+    consoleError.mockRestore();
+  });
+
   it("matches a Dashboard refund when PaymentIntent and charge are expanded", async () => {
     currentRefund = dashboardFullRefund({
       payment_intent: {

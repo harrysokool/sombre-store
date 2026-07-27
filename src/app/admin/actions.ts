@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { setOrderFulfilment } from "@/lib/admin/fulfilment";
+import { retryUnsentOrderEmail } from "@/lib/admin/operations";
 import { restoreOrderItemStock } from "@/lib/admin/stock-restoration";
 import {
   isFulfilmentStatus,
@@ -25,6 +26,11 @@ export type FulfilmentActionState = {
 };
 
 export type StockRestorationActionState = {
+  error: string | null;
+  success: string | null;
+};
+
+export type EmailRetryActionState = {
   error: string | null;
   success: string | null;
 };
@@ -209,6 +215,101 @@ export async function restoreOrderItemStockAction(
     error: null,
     success: `Restored ${restoration.quantityRestored} unit(s) to sellable stock.${refreshMessage}`,
   };
+}
+
+export async function retryOrderEmailAction(
+  _previousState: EmailRetryActionState,
+  formData: FormData,
+): Promise<EmailRetryActionState> {
+  // The action is independently reachable, so authenticate before passing the
+  // opaque row ID to the admin service, which repeats the same gate.
+  const adminUser = await getAdminUser();
+
+  if (!adminUser) {
+    return {
+      error: "Your admin session has ended. Sign in again to retry email.",
+      success: null,
+    };
+  }
+
+  const emailId = String(formData.get("emailId") ?? "").trim();
+  let result: Awaited<ReturnType<typeof retryUnsentOrderEmail>>;
+
+  try {
+    result = await retryUnsentOrderEmail(emailId);
+  } catch (error) {
+    console.error("Unable to confirm the transactional email retry outcome", {
+      emailId,
+      errorName: error instanceof Error ? error.name : "UnknownError",
+    });
+
+    return {
+      error:
+        "The retry outcome could not be confirmed. Refresh Operations before trying again.",
+      success: null,
+    };
+  }
+
+  let refreshFailed = false;
+
+  try {
+    revalidatePath("/admin/operations");
+    revalidatePath("/admin");
+  } catch (error) {
+    refreshFailed = true;
+    console.error("Email retry completed but cache refresh failed", {
+      emailId,
+      resultStatus: result.status,
+      errorName: error instanceof Error ? error.name : "UnknownError",
+    });
+  }
+
+  const refreshMessage = refreshFailed
+    ? " Refresh Operations to see the latest delivery status."
+    : "";
+
+  switch (result.status) {
+    case "sent":
+      return {
+        error: null,
+        success: `Email sent successfully.${refreshMessage}`,
+      };
+    case "already_sent":
+      return {
+        error: null,
+        success: `This email was already sent and was not sent again.${refreshMessage}`,
+      };
+    case "in_progress":
+      return {
+        error: `This email is already being processed. Refresh Operations before retrying.${refreshMessage}`,
+        success: null,
+      };
+    case "requires_review":
+      return {
+        error: `This delivery must be verified with the email provider before it can be retried.${refreshMessage}`,
+        success: null,
+      };
+    case "failed":
+      return {
+        error: `Email delivery failed again. The attempt was recorded; refresh Operations to see whether another retry is safe.${refreshMessage}`,
+        success: null,
+      };
+    case "not_applicable":
+      return {
+        error: `This email no longer matches the order's current status and was not sent.${refreshMessage}`,
+        success: null,
+      };
+    case "outcome_unknown":
+      return {
+        error: `The provider outcome could not be confirmed. Refresh Operations and check the email provider before retrying.${refreshMessage}`,
+        success: null,
+      };
+    case "not_found":
+      return {
+        error: "That failed email no longer exists or cannot be retried.",
+        success: null,
+      };
+  }
 }
 
 export async function signOutAdmin() {

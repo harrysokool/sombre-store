@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   requiresCourierAndTracking: vi.fn(),
   revalidatePath: vi.fn(),
   restoreOrderItemStock: vi.fn(),
+  retryUnsentOrderEmail: vi.fn(),
   setOrderFulfilment: vi.fn(),
 }));
 
@@ -28,6 +29,10 @@ vi.mock("@/lib/admin/stock-restoration", () => ({
   restoreOrderItemStock: mocks.restoreOrderItemStock,
 }));
 
+vi.mock("@/lib/admin/operations", () => ({
+  retryUnsentOrderEmail: mocks.retryUnsentOrderEmail,
+}));
+
 vi.mock("@/lib/admin/fulfilment-rules", () => ({
   isFulfilmentStatus: mocks.isFulfilmentStatus,
   requiresCourierAndTracking: mocks.requiresCourierAndTracking,
@@ -41,6 +46,7 @@ vi.mock("@/lib/supabase/admin-auth", () => ({
 
 import {
   restoreOrderItemStockAction,
+  retryOrderEmailAction,
   updateOrderFulfilment,
 } from "./actions";
 
@@ -66,6 +72,10 @@ describe("admin order actions", () => {
         newStockQuantity: 12,
         alreadyApplied: false,
       },
+    });
+    mocks.retryUnsentOrderEmail.mockResolvedValue({
+      status: "sent",
+      orderId: "11111111-1111-4111-8111-111111111111",
     });
   });
 
@@ -256,6 +266,182 @@ describe("admin order actions", () => {
     });
 
     expect(mocks.restoreOrderItemStock).not.toHaveBeenCalled();
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("fails closed before retrying email without an admin session", async () => {
+    mocks.getAdminUser.mockResolvedValue(null);
+    const formData = new FormData();
+    formData.set("emailId", "22222222-2222-4222-8222-222222222222");
+
+    await expect(
+      retryOrderEmailAction(
+        { error: null, success: null },
+        formData,
+      ),
+    ).resolves.toEqual({
+      error: "Your admin session has ended. Sign in again to retry email.",
+      success: null,
+    });
+
+    expect(mocks.retryUnsentOrderEmail).not.toHaveBeenCalled();
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("retries a failed email and refreshes both operations summaries", async () => {
+    const emailId = "22222222-2222-4222-8222-222222222222";
+    const formData = new FormData();
+    formData.set("emailId", emailId);
+
+    await expect(
+      retryOrderEmailAction(
+        { error: null, success: null },
+        formData,
+      ),
+    ).resolves.toEqual({
+      error: null,
+      success: "Email sent successfully.",
+    });
+
+    expect(mocks.retryUnsentOrderEmail).toHaveBeenCalledWith(emailId);
+    expect(mocks.revalidatePath.mock.calls).toEqual([
+      ["/admin/operations"],
+      ["/admin"],
+    ]);
+  });
+
+  it("reports an already-sent email without claiming it was sent again", async () => {
+    mocks.retryUnsentOrderEmail.mockResolvedValue({
+      status: "already_sent",
+      orderId: "11111111-1111-4111-8111-111111111111",
+    });
+    const formData = new FormData();
+    formData.set("emailId", "22222222-2222-4222-8222-222222222222");
+
+    await expect(
+      retryOrderEmailAction(
+        { error: null, success: null },
+        formData,
+      ),
+    ).resolves.toEqual({
+      error: null,
+      success: "This email was already sent and was not sent again.",
+    });
+  });
+
+  it("keeps provider failures safe while allowing a later retry", async () => {
+    mocks.retryUnsentOrderEmail.mockResolvedValue({
+      status: "failed",
+      orderId: "11111111-1111-4111-8111-111111111111",
+    });
+    const formData = new FormData();
+    formData.set("emailId", "22222222-2222-4222-8222-222222222222");
+
+    const result = await retryOrderEmailAction(
+      { error: null, success: null },
+      formData,
+    );
+
+    expect(result).toEqual({
+      error:
+        "Email delivery failed again. The attempt was recorded; refresh Operations to see whether another retry is safe.",
+      success: null,
+    });
+    expect(JSON.stringify(result)).not.toContain("Resend");
+    expect(JSON.stringify(result)).not.toContain("secret");
+    expect(mocks.revalidatePath).toHaveBeenCalledWith(
+      "/admin/operations",
+    );
+  });
+
+  it("does not send an email that no longer matches the order status", async () => {
+    mocks.retryUnsentOrderEmail.mockResolvedValue({
+      status: "not_applicable",
+      orderId: "11111111-1111-4111-8111-111111111111",
+    });
+    const formData = new FormData();
+    formData.set("emailId", "22222222-2222-4222-8222-222222222222");
+
+    await expect(
+      retryOrderEmailAction(
+        { error: null, success: null },
+        formData,
+      ),
+    ).resolves.toEqual({
+      error:
+        "This email no longer matches the order's current status and was not sent.",
+      success: null,
+    });
+  });
+
+  it("requires provider verification when delivery outcome is uncertain", async () => {
+    mocks.retryUnsentOrderEmail.mockResolvedValue({
+      status: "outcome_unknown",
+      orderId: "11111111-1111-4111-8111-111111111111",
+    });
+    const formData = new FormData();
+    formData.set("emailId", "22222222-2222-4222-8222-222222222222");
+
+    await expect(
+      retryOrderEmailAction(
+        { error: null, success: null },
+        formData,
+      ),
+    ).resolves.toEqual({
+      error:
+        "The provider outcome could not be confirmed. Refresh Operations and check the email provider before retrying.",
+      success: null,
+    });
+  });
+
+  it("requires provider verification for a quarantined historical failure", async () => {
+    mocks.retryUnsentOrderEmail.mockResolvedValue({
+      status: "requires_review",
+      orderId: "11111111-1111-4111-8111-111111111111",
+    });
+    const formData = new FormData();
+    formData.set("emailId", "22222222-2222-4222-8222-222222222222");
+
+    await expect(
+      retryOrderEmailAction(
+        { error: null, success: null },
+        formData,
+      ),
+    ).resolves.toEqual({
+      error:
+        "This delivery must be verified with the email provider before it can be retried.",
+      success: null,
+    });
+  });
+
+  it("does not expose an unexpected provider or database error", async () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    mocks.retryUnsentOrderEmail.mockRejectedValue(
+      new Error("Bearer re_super_secret_provider_key"),
+    );
+    const formData = new FormData();
+    formData.set("emailId", "22222222-2222-4222-8222-222222222222");
+
+    const result = await retryOrderEmailAction(
+      { error: null, success: null },
+      formData,
+    );
+
+    expect(result).toEqual({
+      error:
+        "The retry outcome could not be confirmed. Refresh Operations before trying again.",
+      success: null,
+    });
+    expect(JSON.stringify(result)).not.toContain("re_super_secret");
+    expect(consoleError).toHaveBeenCalledWith(
+      "Unable to confirm the transactional email retry outcome",
+      {
+        emailId: "22222222-2222-4222-8222-222222222222",
+        errorName: "Error",
+      },
+    );
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
 });

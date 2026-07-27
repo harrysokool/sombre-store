@@ -63,6 +63,21 @@ type ConfirmedPaymentStatus = Extract<
   "paid" | "no_payment_required"
 >;
 
+// Email delivery is a follow-on effect. The email module already records and
+// swallows expected failures, and this second boundary protects Stripe from an
+// unexpected rejection so a completed payment or refund is never retried just
+// because customer communication is temporarily unavailable.
+async function sendOrderStatusEmailsWithoutFailingWebhook(orderId: string) {
+  try {
+    await sendOrderStatusEmails(orderId);
+  } catch (error) {
+    console.error("Unexpected order email processing rejection", {
+      orderId,
+      errorName: error instanceof Error ? error.name : "UnknownError",
+    });
+  }
+}
+
 function isConfirmedPaymentStatus(
   paymentStatus: CheckoutPaymentStatus,
 ): paymentStatus is ConfirmedPaymentStatus {
@@ -488,7 +503,7 @@ async function handleRefundUpdate(
   }
 
   // Follow-on only. This never throws, so refund handling is unaffected.
-  await sendOrderStatusEmails(order.id);
+  await sendOrderStatusEmailsWithoutFailingWebhook(order.id);
 }
 
 async function getPersistedOrderItemReferences(orderId: string) {
@@ -664,7 +679,7 @@ async function handleConfirmedCheckoutSession(
 
   // Follow-on only. This never throws, so payment, stock, and refund handling
   // are unaffected by an email provider outage.
-  await sendOrderStatusEmails(order.id);
+  await sendOrderStatusEmailsWithoutFailingWebhook(order.id);
 }
 
 // Postgres error codes that cannot succeed on a redelivery of the same event.

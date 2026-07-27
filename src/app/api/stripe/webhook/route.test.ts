@@ -495,6 +495,35 @@ describe("Stripe webhook discount snapshots", () => {
     expect(mocks.sendOrderStatusEmails).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps a completed order webhook successful when email processing rejects", async () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    mocks.sendOrderStatusEmails.mockRejectedValue(
+      new Error("temporary email provider failure"),
+    );
+    currentLineItems = [checkoutLine()];
+    const session = checkoutSession({ lines: currentLineItems });
+    currentEvent = checkoutEvent(session);
+
+    const response = await POST(webhookRequest());
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ received: true });
+    expect(insertedOrderPayloads).toHaveLength(1);
+    expect(insertedItemPayloads).toHaveLength(1);
+    expect(stockReductionCount).toBe(1);
+    expect(recordedFailures).toHaveLength(0);
+    expect(consoleError).toHaveBeenCalledWith(
+      "Unexpected order email processing rejection",
+      {
+        orderId: ORDER_ID,
+        errorName: "Error",
+      },
+    );
+    consoleError.mockRestore();
+  });
+
   it("rejects a signed live-mode webhook event without side effects", async () => {
     currentLineItems = [checkoutLine()];
     const session = checkoutSession({ lines: currentLineItems });

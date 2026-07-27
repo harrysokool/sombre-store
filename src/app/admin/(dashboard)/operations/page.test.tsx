@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   requireAdminUser: vi.fn(),
   listUnresolvedWebhookFailures: vi.fn(),
   listUnsentOrderEmails: vi.fn(),
+  retryOrderEmailAction: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/admin-auth", () => ({
@@ -19,6 +20,10 @@ vi.mock("@/lib/supabase/admin-auth", () => ({
 vi.mock("@/lib/admin/operations", () => ({
   listUnresolvedWebhookFailures: mocks.listUnresolvedWebhookFailures,
   listUnsentOrderEmails: mocks.listUnsentOrderEmails,
+}));
+
+vi.mock("@/app/admin/actions", () => ({
+  retryOrderEmailAction: mocks.retryOrderEmailAction,
 }));
 
 vi.mock("next/link", () => ({
@@ -59,6 +64,9 @@ const EMAIL = {
   attempt_count: 2,
   first_attempt_at: "2026-07-24T20:00:00.000Z",
   last_attempt_at: "2026-07-24T21:15:00.000Z",
+  failure_at: "2026-07-24T21:15:00.000Z",
+  retry_available: true,
+  retry_blocked: false,
 };
 
 // Both queues render twice on purpose: stacked cards for small screens and a
@@ -85,12 +93,17 @@ describe("admin operations page", () => {
     mocks.requireAdminUser.mockReset();
     mocks.listUnresolvedWebhookFailures.mockReset();
     mocks.listUnsentOrderEmails.mockReset();
+    mocks.retryOrderEmailAction.mockReset();
     mocks.requireAdminUser.mockResolvedValue({
       id: "admin-1",
       email: "admin@example.com",
     });
     mocks.listUnresolvedWebhookFailures.mockResolvedValue([]);
     mocks.listUnsentOrderEmails.mockResolvedValue([]);
+    mocks.retryOrderEmailAction.mockResolvedValue({
+      error: null,
+      success: "Email sent successfully.",
+    });
   });
 
   afterEach(() => {
@@ -186,7 +199,8 @@ describe("admin operations page", () => {
       "Attempts",
       "Last error",
       "First attempted",
-      "Last attempted",
+      "Failure / processing time",
+      "Action",
     ]) {
       expect(
         table.getByRole("columnheader", { name: header }),
@@ -227,7 +241,11 @@ describe("admin operations page", () => {
     expect(emailCard.getByText("customer@example.com")).toBeInTheDocument();
     expect(emailCard.getByText("Last error")).toBeInTheDocument();
     expect(emailCard.getByText("First attempted")).toBeInTheDocument();
-    expect(emailCard.getByText("Last attempted")).toBeInTheDocument();
+    expect(emailCard.getByText("Failure time")).toBeInTheDocument();
+    expect(emailCard.getByText("Action")).toBeInTheDocument();
+    expect(
+      emailCard.getByRole("button", { name: "Retry email" }),
+    ).toBeInTheDocument();
   });
 
   it("hides the cards at desktop widths and the tables below them", async () => {
@@ -287,7 +305,12 @@ describe("admin operations page", () => {
     ]);
     mocks.listUnsentOrderEmails.mockResolvedValue([
       EMAIL,
-      { ...EMAIL, id: "email-2", status: "pending" },
+      {
+        ...EMAIL,
+        id: "email-2",
+        status: "pending",
+        retry_available: false,
+      },
     ]);
 
     render(await AdminOperationsPage());
@@ -387,14 +410,45 @@ describe("admin operations page", () => {
     expect(failureTable().getByText("refund.updated")).toBeInTheDocument();
   });
 
-  it("stays read-only, offering no retry, resolve, resend, or delete control", async () => {
+  it("offers retry only for failed emails and leaves webhook failures read-only", async () => {
     mocks.listUnresolvedWebhookFailures.mockResolvedValue([FAILURE]);
-    mocks.listUnsentOrderEmails.mockResolvedValue([EMAIL]);
+    mocks.listUnsentOrderEmails.mockResolvedValue([
+      EMAIL,
+      {
+        ...EMAIL,
+        id: "email-2",
+        status: "pending",
+        retry_available: false,
+      },
+      {
+        ...EMAIL,
+        id: "email-3",
+        status: "failed",
+        retry_available: false,
+        retry_blocked: true,
+      },
+    ]);
 
     render(await AdminOperationsPage());
 
-    expect(screen.queryAllByRole("button")).toHaveLength(0);
-    expect(document.querySelector("form")).toBeNull();
+    expect(
+      emailTable().getByRole("button", { name: "Retry email" }),
+    ).toBeInTheDocument();
+    expect(
+      emailCards().getByRole("button", { name: "Retry email" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByText(
+        "A send is currently in progress or requires provider verification. Retry is disabled.",
+      ),
+    ).toHaveLength(2);
+    expect(
+      screen.getAllByText(
+        "This email no longer applies and cannot be retried.",
+      ),
+    ).toHaveLength(2);
+    expect(failureTable().queryByRole("button")).toBeNull();
+    expect(failureCards().queryByRole("button")).toBeNull();
   });
 
   it("keeps informational labels off the failing low-contrast class", async () => {

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { RetryEmailForm } from "@/app/admin/(dashboard)/operations/retry-email-form";
 import { StatusBadge } from "@/components/admin/status-badge";
 import {
   listUnresolvedWebhookFailures,
@@ -14,9 +15,9 @@ import { requireAdminUser } from "@/lib/supabase/admin-auth";
 
 export const dynamic = "force-dynamic";
 
-// Read-only in this phase. Nothing here retries, resolves, resends, or deletes:
-// the page exists so an operator can see that something needs attention, and
-// the settling itself still happens in Stripe, Resend, or the database.
+// Webhook failures remain read-only. A failed transactional email can be
+// retried through its authenticated action; the database claim decides whether
+// that specific row is still eligible before any provider call is made.
 
 function formatOperationsTimestamp(value: string | null) {
   return formatHongKongDateTime(value, {
@@ -309,8 +310,26 @@ function UnsentEmailsSection({ queue }: { queue: Queue<AdminUnsentEmail> }) {
                   <CardField label="First attempted">
                     {formatOperationsTimestamp(email.first_attempt_at)}
                   </CardField>
-                  <CardField label="Last attempted">
-                    {formatOperationsTimestamp(email.last_attempt_at)}
+                  <CardField
+                    label={
+                      email.status === "failed"
+                        ? "Failure time"
+                        : "Processing since"
+                    }
+                  >
+                    {formatOperationsTimestamp(
+                      email.status === "failed"
+                        ? email.failure_at
+                        : email.last_attempt_at,
+                    )}
+                  </CardField>
+                  <CardField label="Action">
+                    <RetryEmailForm
+                      emailId={email.id}
+                      status={email.status}
+                      retryAvailable={email.retry_available}
+                      retryBlocked={email.retry_blocked}
+                    />
                   </CardField>
                 </dl>
               </li>
@@ -318,7 +337,7 @@ function UnsentEmailsSection({ queue }: { queue: Queue<AdminUnsentEmail> }) {
           </ul>
 
           <div className="hidden overflow-x-auto rounded-2xl border border-white/10 lg:block">
-            <table className="w-full min-w-[62rem] border-collapse text-left text-sm">
+            <table className="w-full min-w-[72rem] border-collapse text-left text-sm">
               <caption className="sr-only">Unsent emails</caption>
               <thead>
                 <tr className="border-b border-white/10 text-xs uppercase tracking-[0.18em] text-stone-400">
@@ -328,7 +347,10 @@ function UnsentEmailsSection({ queue }: { queue: Queue<AdminUnsentEmail> }) {
                   <th className="px-4 py-4 font-normal">Attempts</th>
                   <th className="px-4 py-4 font-normal">Last error</th>
                   <th className="px-4 py-4 font-normal">First attempted</th>
-                  <th className="px-4 py-4 font-normal">Last attempted</th>
+                  <th className="px-4 py-4 font-normal">
+                    Failure / processing time
+                  </th>
+                  <th className="px-4 py-4 font-normal">Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -361,7 +383,19 @@ function UnsentEmailsSection({ queue }: { queue: Queue<AdminUnsentEmail> }) {
                       {formatOperationsTimestamp(email.first_attempt_at)}
                     </td>
                     <td className="whitespace-nowrap px-4 py-4 text-stone-400">
-                      {formatOperationsTimestamp(email.last_attempt_at)}
+                      {formatOperationsTimestamp(
+                        email.status === "failed"
+                          ? email.failure_at
+                          : email.last_attempt_at,
+                      )}
+                    </td>
+                    <td className="min-w-[12rem] px-4 py-4">
+                      <RetryEmailForm
+                        emailId={email.id}
+                        status={email.status}
+                        retryAvailable={email.retry_available}
+                        retryBlocked={email.retry_blocked}
+                      />
                     </td>
                   </tr>
                 ))}
@@ -393,7 +427,8 @@ export default async function AdminOperationsPage() {
           Operations
         </h1>
         <p className="text-sm leading-6 text-stone-400">
-          Everything still waiting on attention. This page is read-only.
+          Review failed webhooks and retry transactional emails that did not
+          reach their recipient.
         </p>
       </div>
 
