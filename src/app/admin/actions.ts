@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { setOrderFulfilment } from "@/lib/admin/fulfilment";
+import { restoreOrderItemStock } from "@/lib/admin/stock-restoration";
 import {
   isFulfilmentStatus,
   requiresCourierAndTracking,
@@ -19,6 +20,11 @@ export type AdminLoginState = {
 };
 
 export type FulfilmentActionState = {
+  error: string | null;
+  success: string | null;
+};
+
+export type StockRestorationActionState = {
   error: string | null;
   success: string | null;
 };
@@ -115,6 +121,94 @@ export async function updateOrderFulfilment(
   revalidatePath("/admin");
 
   return { error: null, success: `Order marked ${status}.` };
+}
+
+export async function restoreOrderItemStockAction(
+  _previousState: StockRestorationActionState,
+  formData: FormData,
+): Promise<StockRestorationActionState> {
+  // Server Actions are directly callable endpoints, so authenticate here and
+  // again inside restoreOrderItemStock before its service-role RPC is created.
+  const adminUser = await getAdminUser();
+
+  if (!adminUser) {
+    return {
+      error: "Your admin session has ended. Sign in again to restore stock.",
+      success: null,
+    };
+  }
+
+  const requestId = String(formData.get("requestId") ?? "").trim();
+  const orderId = String(formData.get("orderId") ?? "").trim();
+  const orderItemId = String(formData.get("orderItemId") ?? "").trim();
+  const quantity = String(formData.get("quantity") ?? "").trim();
+  const reason = String(formData.get("reason") ?? "").trim();
+  let result: Awaited<ReturnType<typeof restoreOrderItemStock>>;
+
+  try {
+    result = await restoreOrderItemStock({
+      requestId,
+      orderId,
+      orderItemId,
+      quantity,
+      reason,
+    });
+  } catch (error) {
+    // A lost response can happen after PostgreSQL committed the atomic stock
+    // change. Do not claim that nothing changed or encourage a fresh request
+    // until the administrator has checked the append-only audit history.
+    console.error("Unable to confirm the stock restoration outcome", {
+      orderId,
+      orderItemId,
+      errorName: error instanceof Error ? error.name : "UnknownError",
+    });
+
+    return {
+      error:
+        "The restoration outcome could not be confirmed. Refresh this order and check the restoration audit history before trying again.",
+      success: null,
+    };
+  }
+
+  if (!result.restoration) {
+    return {
+      error: result.error ?? "That stock restoration was refused.",
+      success: null,
+    };
+  }
+
+  const { restoration } = result;
+  let refreshFailed = false;
+
+  try {
+    revalidatePath(`/admin/orders/${orderId}`);
+    revalidatePath("/admin/orders");
+    revalidatePath("/admin/inventory");
+    revalidatePath("/admin");
+  } catch (error) {
+    refreshFailed = true;
+    console.error("Stock restoration succeeded but cache refresh failed", {
+      orderId,
+      orderItemId,
+      errorName: error instanceof Error ? error.name : "UnknownError",
+    });
+  }
+
+  const refreshMessage = refreshFailed
+    ? " Refresh this order to update the displayed audit history."
+    : "";
+
+  if (restoration.alreadyApplied) {
+    return {
+      error: null,
+      success: `This restoration was already applied. Sellable stock was not increased again.${refreshMessage}`,
+    };
+  }
+
+  return {
+    error: null,
+    success: `Restored ${restoration.quantityRestored} unit(s) to sellable stock.${refreshMessage}`,
+  };
 }
 
 export async function signOutAdmin() {

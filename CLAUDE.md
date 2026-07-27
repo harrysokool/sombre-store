@@ -71,8 +71,8 @@ Vitest and React Testing Library tests cover: checkout validation, coupon calcul
 2. Checkout Session creation validates the guest payload and creates Stripe Checkout only; it does not create an order.
 3. Signature-verified Stripe webhooks create or resume orders after confirmed payment, including delayed-payment completion.
 4. Webhook processing must remain idempotent across repeated and concurrent delivery. Preserve unique Stripe references, item upserts, guarded transitions, RPC guards, and stable provider idempotency keys.
-5. Stock reduction uses `confirm_paid_order_and_reduce_stock`; succeeded full-refund restoration uses `restore_order_stock_after_refund`. Both are atomic Supabase RPC paths and must remain exactly-once.
-6. Paid oversells enter the refund path. Partial refunds do not automatically restore stock and require manual inventory and fulfilment review.
+5. Stock reduction uses `confirm_paid_order_and_reduce_stock`. A succeeded refund updates financial state only; sellable inventory can increase only through the audited, per-item `restore_order_item_sellable_stock` administrator RPC.
+6. Paid oversells enter the refund path without restoration because stock was never reduced. Customer returns and partial refunds require explicit inventory review; the reversible fulfilment model is not proof that an order was never shipped.
 7. The Supabase service-role key and client must remain server-only. Trusted webhook, receipt, admin, fulfilment, and email code may use them; client code must not.
 8. Public catalog reads use RLS-controlled anonymous access. Private order, customer, webhook-failure, and email data remain trusted-server data.
 9. Admin authorization must fail closed. Middleware refreshes sessions, while pages/layouts, Server Actions, the admin data layer, and the database fulfilment RPC independently enforce eligibility. A missing or mismatched `ADMIN_EMAIL` grants no access.

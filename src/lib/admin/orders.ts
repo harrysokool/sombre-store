@@ -30,6 +30,8 @@ export type AdminOrderDetail = AdminOrderListItem & {
   refund_status: string | null;
   refund_id: string | null;
   refunded_at: string | null;
+  stock_reduced_at: string | null;
+  stock_restored_at: string | null;
   courier: string | null;
   tracking_number: string | null;
   shipped_at: string | null;
@@ -39,6 +41,7 @@ export type AdminOrderDetail = AdminOrderListItem & {
 
 export type AdminOrderItem = {
   id: string;
+  product_id: string | null;
   product_name: string;
   size_label: string | null;
   unit_price: number | string;
@@ -50,10 +53,24 @@ export type AdminOrderItem = {
   discounted_line_total: number | string | null;
 };
 
+export type AdminStockRestoration = {
+  id: string;
+  request_id: string;
+  order_id: string;
+  order_item_id: string;
+  product_id: string;
+  quantity_restored: number;
+  reason: string;
+  administrator_user_id: string | null;
+  administrator_email: string | null;
+  source: "administrator" | "legacy_automatic";
+  restored_at: string;
+};
+
 const ORDER_LIST_COLUMNS =
   "id, created_at, customer_name, customer_email, total, currency, payment_status, order_status, fulfilment_status";
 
-const ORDER_DETAIL_COLUMNS = `${ORDER_LIST_COLUMNS}, customer_phone, address_line_1, address_line_2, district, city, postal_code, country, coupon_code, original_subtotal, discount_total, subtotal, shipping_fee, refund_status, refund_id, refunded_at, courier, tracking_number, shipped_at, delivered_at, fulfilment_updated_at`;
+const ORDER_DETAIL_COLUMNS = `${ORDER_LIST_COLUMNS}, customer_phone, address_line_1, address_line_2, district, city, postal_code, country, coupon_code, original_subtotal, discount_total, subtotal, shipping_fee, refund_status, refund_id, refunded_at, stock_reduced_at, stock_restored_at, courier, tracking_number, shipped_at, delivered_at, fulfilment_updated_at`;
 
 // Orders hold private customer data, so every read here re-checks the admin
 // gate itself rather than trusting the caller to have done it. Throws instead of
@@ -105,7 +122,7 @@ export async function getAdminOrder(orderId: string) {
   const { data: items, error: itemsError } = await supabase
     .from("order_items")
     .select(
-      "id, product_name, size_label, unit_price, original_unit_price, discount_percent, quantity, original_line_total, discount_amount, discounted_line_total",
+      "id, product_id, product_name, size_label, unit_price, original_unit_price, discount_percent, quantity, original_line_total, discount_amount, discounted_line_total",
     )
     .eq("order_id", order.id)
     .order("created_at", { ascending: true })
@@ -130,9 +147,24 @@ export async function getAdminOrder(orderId: string) {
     throw refundReviewError;
   }
 
+  const { data: stockRestorations, error: stockRestorationsError } =
+    await supabase
+      .from("order_item_stock_restorations")
+      .select(
+        "id, request_id, order_id, order_item_id, product_id, quantity_restored, reason, administrator_user_id, administrator_email, source, restored_at",
+      )
+      .eq("order_id", order.id)
+      .order("restored_at", { ascending: false })
+      .returns<AdminStockRestoration[]>();
+
+  if (stockRestorationsError) {
+    throw stockRestorationsError;
+  }
+
   return {
     order,
     items: items ?? [],
     hasUnresolvedRefundReview: Boolean(refundReview),
+    stockRestorations: stockRestorations ?? [],
   };
 }

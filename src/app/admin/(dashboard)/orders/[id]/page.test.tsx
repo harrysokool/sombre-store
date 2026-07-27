@@ -14,6 +14,7 @@ import type {
 const mocks = vi.hoisted(() => ({
   getAdminOrder: vi.fn(),
   requireAdminUser: vi.fn(),
+  stockRestorationPanel: vi.fn(),
 }));
 
 vi.mock("@/lib/admin/orders", () => ({
@@ -49,6 +50,16 @@ vi.mock(
   }),
 );
 
+vi.mock(
+  "@/app/admin/(dashboard)/orders/[id]/order-stock-restoration-panel",
+  () => ({
+    OrderStockRestorationPanel: (props: unknown) => {
+      mocks.stockRestorationPanel(props);
+      return <div data-testid="stock-restoration-panel" />;
+    },
+  }),
+);
+
 import AdminOrderDetailPage from "./page";
 
 const ORDER_ID = "11111111-1111-4111-8111-111111111111";
@@ -81,6 +92,8 @@ function adminOrder(
     refund_status: null,
     refund_id: null,
     refunded_at: null,
+    stock_reduced_at: "2026-07-24T12:00:00.000Z",
+    stock_restored_at: null,
     courier: null,
     tracking_number: null,
     shipped_at: null,
@@ -95,6 +108,7 @@ function adminItem(
 ): AdminOrderItem {
   return {
     id: "item-123",
+    product_id: "22222222-2222-4222-8222-222222222222",
     product_name: "Product A",
     size_label: "100 mL",
     unit_price: "800.00",
@@ -112,6 +126,7 @@ describe("admin saved discount display", () => {
   beforeEach(() => {
     mocks.getAdminOrder.mockReset();
     mocks.requireAdminUser.mockReset();
+    mocks.stockRestorationPanel.mockReset();
     mocks.requireAdminUser.mockResolvedValue({});
   });
 
@@ -245,6 +260,67 @@ describe("admin saved discount display", () => {
     );
     expect(refundReference.className).toContain("break-words");
     expect(refundReference.className).toContain("overflow-wrap:anywhere");
+  });
+
+  it("passes remaining quantities and audit history to refunded-order stock controls", async () => {
+    mocks.getAdminOrder.mockResolvedValue({
+      order: adminOrder({
+        order_status: "refunded",
+        refund_status: "succeeded",
+        refund_id: "re_test_refunded",
+        refunded_at: "2026-07-24T12:00:00.000Z",
+      }),
+      items: [adminItem({ quantity: 3 })],
+      hasUnresolvedRefundReview: false,
+      stockRestorations: [
+        {
+          id: "restoration-1",
+          request_id: "33333333-3333-4333-8333-333333333333",
+          order_id: ORDER_ID,
+          order_item_id: "item-123",
+          product_id: "22222222-2222-4222-8222-222222222222",
+          quantity_restored: 2,
+          reason: "Two sealed units passed inspection.",
+          administrator_user_id:
+            "44444444-4444-4444-8444-444444444444",
+          administrator_email: "admin@example.com",
+          source: "administrator",
+          restored_at: "2026-07-24T13:00:00.000Z",
+        },
+      ],
+    });
+
+    render(
+      await AdminOrderDetailPage({
+        params: Promise.resolve({ id: ORDER_ID }),
+      }),
+    );
+
+    expect(screen.getByTestId("stock-restoration-panel")).toBeInTheDocument();
+    expect(mocks.stockRestorationPanel).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderId: ORDER_ID,
+        lockedReason: null,
+        items: [
+          expect.objectContaining({
+            id: "item-123",
+            purchasedQuantity: 3,
+            restoredQuantity: 2,
+            remainingQuantity: 1,
+            requestId: expect.stringMatching(
+              /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+            ),
+          }),
+        ],
+        history: [
+          expect.objectContaining({
+            quantityRestored: 2,
+            reason: "Two sealed units passed inspection.",
+            administratorIdentity: "admin@example.com",
+          }),
+        ],
+      }),
+    );
   });
 
   it("keeps field labels off the failing low-contrast class", async () => {

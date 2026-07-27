@@ -44,7 +44,7 @@ The webhook handles:
 - `refund.updated`; and
 - `refund.failed`.
 
-Paid orders that cannot be fulfilled because stock is no longer available enter the refund flow. A succeeded full refund restores previously reduced stock once. Partial refunds and unresolved refund events require operational review.
+Paid orders that cannot be fulfilled because stock is no longer available enter the refund flow. A succeeded full refund updates financial status without changing sellable inventory. An administrator may restore only inspected, eligible order-item quantities through the audited stock-restoration control. Partial refunds and unresolved refund events require operational review.
 
 ### Admin fulfilment
 
@@ -239,8 +239,9 @@ Run these checks in an isolated test environment before release and after releva
 - [ ] Replaying the same checkout event creates no duplicate order items and does not reduce stock again.
 - [ ] The order appears in the authenticated admin area with correct customer, amount, payment, order, and fulfilment state.
 - [ ] Eligible fulfilment transitions work, and ineligible or refunded orders remain locked.
-- [ ] A succeeded full refund updates the order and restores previously reduced stock.
-- [ ] Replaying refund events does not restore stock more than once.
+- [ ] A succeeded full refund updates the order and sends the appropriate email without changing sellable stock.
+- [ ] An administrator can restore only inspected item quantities, with a required reason and audit record.
+- [ ] Replaying or concurrently submitting the same stock-restoration decision does not increase stock twice or exceed the purchased quantity.
 - [ ] The customer receives the appropriate confirmation or refund email when email is enabled.
 - [ ] The configured seller receives one new-order notification when seller notifications are enabled.
 
@@ -252,7 +253,7 @@ Run these checks in an isolated test environment before release and after releva
 - Checkout currently supports delivery to Hong Kong only and applies a flat HK$50 shipping fee.
 - Stripe Checkout creation does not configure a separate automatic tax calculation.
 - Admin access is intentionally limited to one configured Supabase Auth email.
-- Automatic inventory restoration applies to succeeded full refunds. Partial refunds require manual operational review.
+- Refunded inventory returns to sellable stock only after an explicit, per-item administrator inspection decision. The current fulfilment model does not support automatic pre-dispatch restoration.
 - The `best-sellers` shop view has no sales-ranking source and currently displays the full edit.
 
 ## Security rules

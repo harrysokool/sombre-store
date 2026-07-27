@@ -1,7 +1,14 @@
+import { randomUUID } from "node:crypto";
+
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { OrderFulfilmentPanel } from "@/app/admin/(dashboard)/orders/[id]/order-fulfilment-panel";
+import {
+  OrderStockRestorationPanel,
+  type RestorableOrderItem,
+  type StockRestorationHistoryEntry,
+} from "@/app/admin/(dashboard)/orders/[id]/order-stock-restoration-panel";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { getFulfilmentBlockReason } from "@/lib/admin/fulfilment-rules";
 import type { StatusKind } from "@/lib/admin/status-tone";
@@ -78,7 +85,12 @@ export default async function AdminOrderDetailPage({
     notFound();
   }
 
-  const { order, items, hasUnresolvedRefundReview } = result;
+  const {
+    order,
+    items,
+    hasUnresolvedRefundReview,
+    stockRestorations = [],
+  } = result;
   const orderDiscount = getDiscountedOrderDisplay(order);
   const fulfilmentBlockReason = getFulfilmentBlockReason({
     paymentStatus: order.payment_status,
@@ -94,6 +106,51 @@ export default async function AdminOrderDetailPage({
     [order.city, order.postal_code].filter((part) => Boolean(part)).join(", "),
     order.country,
   ].filter((line): line is string => Boolean(line));
+  const itemById = new Map(items.map((item) => [item.id, item]));
+  const restoredQuantityByItem = new Map<string, number>();
+
+  for (const restoration of stockRestorations) {
+    restoredQuantityByItem.set(
+      restoration.order_item_id,
+      (restoredQuantityByItem.get(restoration.order_item_id) ?? 0) +
+        restoration.quantity_restored,
+    );
+  }
+
+  const restorableItems: RestorableOrderItem[] = items.map((item) => {
+    const restoredQuantity = restoredQuantityByItem.get(item.id) ?? 0;
+
+    return {
+      id: item.id,
+      productId: item.product_id,
+      productName: item.product_name,
+      purchasedQuantity: item.quantity,
+      restoredQuantity,
+      remainingQuantity: Math.max(item.quantity - restoredQuantity, 0),
+      requestId: randomUUID(),
+    };
+  });
+  const restorationHistory: StockRestorationHistoryEntry[] =
+    stockRestorations.map((restoration) => ({
+      id: restoration.id,
+      productName:
+        itemById.get(restoration.order_item_id)?.product_name ??
+        "Historical product",
+      productId: restoration.product_id,
+      quantityRestored: restoration.quantity_restored,
+      reason: restoration.reason,
+      administratorIdentity:
+        restoration.administrator_email ??
+        restoration.administrator_user_id ??
+        "Legacy system",
+      restoredAtLabel: formatHongKongDateTime(restoration.restored_at),
+      isLegacy: restoration.source === "legacy_automatic",
+    }));
+  const stockRestorationLockedReason = order.stock_restored_at
+    ? "This older order already had its full stock quantity restored automatically. No further units can be added."
+    : !order.stock_reduced_at
+      ? "This order did not reduce sellable stock, so there is nothing to restore."
+      : null;
 
   return (
     <div className="space-y-8">
@@ -250,6 +307,16 @@ export default async function AdminOrderDetailPage({
           <p className="text-sm text-stone-400">No line items recorded.</p>
         )}
       </div>
+
+      {order.order_status === "refunded" &&
+      order.refund_status === "succeeded" ? (
+        <OrderStockRestorationPanel
+          orderId={order.id}
+          items={restorableItems}
+          history={restorationHistory}
+          lockedReason={stockRestorationLockedReason}
+        />
+      ) : null}
 
       <div className="grid gap-8 rounded-2xl border border-white/10 bg-white/[0.02] px-5 py-6 sm:grid-cols-2 sm:px-6">
         <div className="space-y-3">

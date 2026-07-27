@@ -432,24 +432,6 @@ async function resolveRefundOrder(refund: Stripe.Refund) {
   return { order: null, source: "unresolved" as const };
 }
 
-async function restoreOrderStockAfterRefund(orderId: string, refundId: string) {
-  const supabase = createSupabaseServiceRoleClient();
-  const { data, error } = await supabase.rpc(
-    "restore_order_stock_after_refund",
-    {
-      p_order_id: orderId,
-      p_refund_id: refundId,
-      p_refund_status: "succeeded",
-    },
-  );
-
-  if (error) {
-    throw error;
-  }
-
-  return data === true;
-}
-
 async function handleRefundUpdate(
   refund: Stripe.Refund,
   context: WebhookEventContext,
@@ -489,19 +471,15 @@ async function handleRefundUpdate(
   }
 
   if (refundStatus === "succeeded") {
-    // Refund state and inventory move together or not at all. The RPC is the
-    // only writer here, so a failure rolls back both and leaves the order in its
-    // previous state rather than showing refunded with stock still missing.
-    const didRestoreStock = await restoreOrderStockAfterRefund(
-      order.id,
-      currentRefund.id,
-    );
+    // A financial refund does not prove that returned goods are sellable. Only
+    // record the refund here; inspected quantities can be restored separately
+    // through the explicit administrator stock-restoration workflow.
+    await saveRefundState(order.id, currentRefund);
 
-    console.info("Recorded a succeeded Stripe refund atomically", {
+    console.info("Recorded a succeeded Stripe refund without restoring stock", {
       refundId: currentRefund.id,
       orderId: order.id,
       linkedBy: source,
-      didRestoreStock,
     });
   } else {
     // Pending, requires_action, failed and canceled never touch inventory, so
