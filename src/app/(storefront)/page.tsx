@@ -123,7 +123,7 @@ export default async function Home() {
                     body="Each Replica reconstructs a moment — woodsmoke in a shuttered room, salt drying on skin, the low hum of a late bar. Worn quietly, they read as memory rather than perfume."
                     ctaLabel="Explore Replica"
                     ctaHref={maisonMargielaShopHref}
-                    imageSrc="/images/products/maison-margiela/model-2.jpg"
+                    imageSrc="/images/products/maison-margiela/model-6.jpg"
                     imageAlt="Sombre fragrance styled in an editorial setting"
                     imageSide="left"
                 />
@@ -135,7 +135,7 @@ export default async function Home() {
                 body="Applied at the pulse, a Replica settles within the hour and stays near. Nothing announces itself across a room — the intent is atmosphere, held at conversational distance."
                 ctaLabel="Shop the collection"
                 ctaHref={maisonMargielaShopHref}
-                imageSrc="/images/products/maison-margiela/model-4.png"
+                imageSrc="/images/products/maison-margiela/model-5.jpg"
                 imageAlt="Sombre fragrance campaign still life"
                 imageSide="right"
             />

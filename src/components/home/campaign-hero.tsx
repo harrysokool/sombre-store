@@ -15,12 +15,12 @@ type CampaignHeroProps = {
 // is fetched, not both — while getImageProps keeps Next.js' optimized,
 // responsive srcSet and quality.
 const DESKTOP_IMAGE = {
-    src: "/images/products/maison-margiela/model-6.jpg",
+    src: "/images/products/maison-margiela/model-7.jpg",
     alt: "Sombre fragrance campaign portrait",
 };
 
 const MOBILE_IMAGE = {
-    src: "/images/products/maison-margiela/model-3.jpg",
+    src: "/images/products/maison-margiela/model-6.jpg",
     alt: "Sombre fragrance campaign portrait",
 };
 
