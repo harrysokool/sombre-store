@@ -53,6 +53,9 @@ const EXPECTED: Array<[StatusKind, string, StatusTone]> = [
   ["stock", "in_stock", "success"],
   ["stock", "low_stock", "pending"],
   ["stock", "out_of_stock", "danger"],
+
+  ["announcement", "active", "success"],
+  ["announcement", "inactive", "neutral"],
 ];
 
 describe("admin status tone mapping", () => {
@@ -85,6 +88,7 @@ describe("admin status tone mapping", () => {
       "email",
       "product",
       "stock",
+      "announcement",
     ] as const) {
       expect(getStatusTone(kind, "not_a_real_status")).not.toBe("success");
     }

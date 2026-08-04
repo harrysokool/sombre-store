@@ -27,7 +27,8 @@ export type StatusKind =
   | "webhook"
   | "email"
   | "product"
-  | "stock";
+  | "stock"
+  | "announcement";
 
 // Keys are the values the database check constraints allow for each column.
 // A refund that succeeded is deliberately red rather than green: the money went
@@ -90,6 +91,13 @@ const TONES_BY_KIND: Record<StatusKind, Record<string, StatusTone>> = {
     in_stock: "success",
     low_stock: "pending",
     out_of_stock: "danger",
+  },
+  // announcements.is_active, rendered as a word rather than the raw boolean.
+  // An inactive announcement is not a problem, just one the storefront is not
+  // showing, so it stays neutral rather than reading as a failure.
+  announcement: {
+    active: "success",
+    inactive: "neutral",
   },
 };
 

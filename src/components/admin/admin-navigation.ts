@@ -2,6 +2,7 @@ import {
   Activity,
   ClipboardList,
   House,
+  Megaphone,
   Package,
   TicketPercent,
 } from "lucide-react";
@@ -57,6 +58,12 @@ export const adminNavigation: readonly AdminNavigationGroup[] = [
         href: "/admin/coupons",
         match: "section",
         icon: TicketPercent,
+      },
+      {
+        label: "Announcements",
+        href: "/admin/announcements",
+        match: "section",
+        icon: Megaphone,
       },
       {
         label: "Operations",
