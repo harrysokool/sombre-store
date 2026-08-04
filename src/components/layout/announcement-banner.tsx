@@ -4,9 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 
-const PROMO_PREFIX = "Use code";
-const COUPON_CODE = "HAPPY2026";
-const PROMO_SUFFIX = "for up to 60% off selected products";
+import type { StorefrontAnnouncement } from "@/lib/storefront/announcements";
 
 function CloseIcon() {
     return (
@@ -23,7 +21,11 @@ function CloseIcon() {
     );
 }
 
-export function AnnouncementBanner() {
+export function AnnouncementBanner({
+    announcement,
+}: {
+    announcement: StorefrontAnnouncement;
+}) {
     const pathname = usePathname();
     // Local component state only: dismissing clears on unmount (a full page
     // reload or revisit), never written to localStorage or cookies, so the
@@ -36,23 +38,36 @@ export function AnnouncementBanner() {
         return null;
     }
 
+    // The three text fields are optional individually, so an absent one is
+    // skipped rather than rendered as a gap. The database guarantees at least
+    // one is present, and that a link has both halves or neither.
+    const hasLink = Boolean(announcement.link_label && announcement.link_href);
+
     return (
         <div className="relative border-b border-stone-900/10 bg-stone-100 text-stone-900">
             <div className="flex items-center gap-3 px-10 py-3 sm:px-14 sm:py-2.5">
                 <div className="flex flex-1 flex-wrap items-center justify-center gap-x-4 gap-y-1 text-center sm:flex-nowrap">
                     <p className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-[0.65rem] uppercase leading-relaxed tracking-[0.14em] sm:flex-nowrap sm:whitespace-nowrap sm:text-xs sm:tracking-[0.2em]">
-                        <span>{PROMO_PREFIX}</span>
-                        <span className="inline-flex items-center rounded-full border border-stone-900 bg-stone-900 px-2 py-0.5 font-medium text-stone-100 sm:px-2.5">
-                            {COUPON_CODE}
-                        </span>
-                        <span>{PROMO_SUFFIX}</span>
+                        {announcement.prefix_text ? (
+                            <span>{announcement.prefix_text}</span>
+                        ) : null}
+                        {announcement.highlight_text ? (
+                            <span className="inline-flex items-center rounded-full border border-stone-900 bg-stone-900 px-2 py-0.5 font-medium text-stone-100 sm:px-2.5">
+                                {announcement.highlight_text}
+                            </span>
+                        ) : null}
+                        {announcement.suffix_text ? (
+                            <span>{announcement.suffix_text}</span>
+                        ) : null}
                     </p>
-                    <Link
-                        href="/shop"
-                        className="shrink-0 border-b border-stone-900/40 pb-0.5 text-[0.65rem] uppercase tracking-[0.2em] transition-colors hover:border-stone-900 sm:text-xs"
-                    >
-                        Shop Now
-                    </Link>
+                    {hasLink ? (
+                        <Link
+                            href={announcement.link_href as string}
+                            className="shrink-0 border-b border-stone-900/40 pb-0.5 text-[0.65rem] uppercase tracking-[0.2em] transition-colors hover:border-stone-900 sm:text-xs"
+                        >
+                            {announcement.link_label}
+                        </Link>
+                    ) : null}
                 </div>
             </div>
 

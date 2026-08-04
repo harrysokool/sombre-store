@@ -10,6 +10,13 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/shop",
 }));
 
+// The shell's banner slot is an async Server Component reading server-only
+// data. This test is about the public chrome, so it is stubbed out; the slot's
+// own behaviour is covered in announcement-banner-slot.test.tsx.
+vi.mock("@/components/layout/announcement-banner-slot", () => ({
+  AnnouncementBannerSlot: () => null,
+}));
+
 vi.mock("next/link", () => ({
   default: ({ children, href, ...props }: ComponentProps<"a">) => (
     <a href={href} {...props}>

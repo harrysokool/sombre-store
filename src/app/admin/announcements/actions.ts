@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 
 import {
   createAdminAnnouncement,
@@ -10,6 +10,7 @@ import {
   updateAdminAnnouncement,
   updateAdminAnnouncementSettings,
 } from "@/lib/admin/announcements";
+import { ANNOUNCEMENTS_CACHE_TAG } from "@/lib/storefront/announcement-cache-tag";
 import { getAdminUser } from "@/lib/supabase/admin-auth";
 
 export type AnnouncementSettingsActionState = {
@@ -48,9 +49,11 @@ export async function updateAnnouncementSettingsAction(
       return { error: result.error, success: null };
     }
 
-    // Only after a confirmed write. A refused or failed save leaves the cached
-    // page alone, because nothing about it changed.
+    // Only after a confirmed write. A refused or failed save leaves both the
+    // cached admin page and the storefront cache alone, because nothing about
+    // them changed.
     revalidatePath("/admin/announcements");
+    updateTag(ANNOUNCEMENTS_CACHE_TAG);
 
     return {
       error: null,
@@ -98,12 +101,18 @@ function readAnnouncementSubmission(formData: FormData) {
   };
 }
 
+// Called only after a confirmed change. updateTag expires the storefront's
+// cached banner immediately; revalidatePath keeps the admin views fresh.
+// A validation, authorization, or database failure must not reach here — the
+// storefront is still correct, so discarding its cache would be wasted work.
 function refreshAnnouncementViews(announcementId?: string) {
   revalidatePath("/admin/announcements");
 
   if (announcementId) {
     revalidatePath(`/admin/announcements/${announcementId}`);
   }
+
+  updateTag(ANNOUNCEMENTS_CACHE_TAG);
 }
 
 export async function createAnnouncementAction(
@@ -282,6 +291,7 @@ export async function moveAnnouncementAction(
     }
 
     revalidatePath("/admin/announcements");
+    updateTag(ANNOUNCEMENTS_CACHE_TAG);
 
     return {
       error: null,

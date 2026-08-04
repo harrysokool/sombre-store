@@ -9,10 +9,12 @@ const mocks = vi.hoisted(() => ({
   deleteAdminAnnouncement: vi.fn(),
   moveAdminAnnouncement: vi.fn(),
   revalidatePath: vi.fn(),
+  updateTag: vi.fn(),
 }));
 
 vi.mock("next/cache", () => ({
   revalidatePath: mocks.revalidatePath,
+  updateTag: mocks.updateTag,
 }));
 
 vi.mock("@/lib/supabase/admin-auth", () => ({
@@ -62,6 +64,7 @@ describe("updateAnnouncementSettingsAction", () => {
     mocks.getAdminUser.mockReset();
     mocks.updateAdminAnnouncementSettings.mockReset();
     mocks.revalidatePath.mockReset();
+    mocks.updateTag.mockReset();
     mocks.getAdminUser.mockResolvedValue({
       id: "admin-1",
       email: "admin@example.com",
@@ -271,6 +274,7 @@ describe("announcement item actions", () => {
     mocks.setAdminAnnouncementActive.mockReset();
     mocks.deleteAdminAnnouncement.mockReset();
     mocks.revalidatePath.mockReset();
+    mocks.updateTag.mockReset();
     mocks.getAdminUser.mockResolvedValue({
       id: "admin-1",
       email: "admin@example.com",
@@ -594,6 +598,7 @@ describe("moveAnnouncementAction", () => {
     mocks.getAdminUser.mockReset();
     mocks.moveAdminAnnouncement.mockReset();
     mocks.revalidatePath.mockReset();
+    mocks.updateTag.mockReset();
     mocks.getAdminUser.mockResolvedValue({
       id: "admin-1",
       email: "admin@example.com",
@@ -727,5 +732,187 @@ describe("moveAnnouncementAction", () => {
     expect(state.error).not.toContain("relation");
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
     consoleError.mockRestore();
+  });
+});
+
+describe("storefront cache invalidation", () => {
+  const TAG = "announcements";
+
+  beforeEach(() => {
+    mocks.getAdminUser.mockReset();
+    mocks.updateAdminAnnouncementSettings.mockReset();
+    mocks.createAdminAnnouncement.mockReset();
+    mocks.updateAdminAnnouncement.mockReset();
+    mocks.setAdminAnnouncementActive.mockReset();
+    mocks.deleteAdminAnnouncement.mockReset();
+    mocks.moveAdminAnnouncement.mockReset();
+    mocks.revalidatePath.mockReset();
+    mocks.updateTag.mockReset();
+    mocks.getAdminUser.mockResolvedValue({
+      id: "admin-1",
+      email: "admin@example.com",
+    });
+    mocks.updateAdminAnnouncementSettings.mockResolvedValue({
+      ok: true,
+      settings: SETTINGS,
+    });
+    mocks.createAdminAnnouncement.mockResolvedValue({
+      ok: true,
+      announcement: ANNOUNCEMENT,
+    });
+    mocks.updateAdminAnnouncement.mockResolvedValue({
+      ok: true,
+      announcement: ANNOUNCEMENT,
+    });
+    mocks.setAdminAnnouncementActive.mockResolvedValue({
+      ok: true,
+      announcement: ANNOUNCEMENT,
+    });
+    mocks.deleteAdminAnnouncement.mockResolvedValue({
+      ok: true,
+      announcementId: ANNOUNCEMENT_ID,
+    });
+    mocks.moveAdminAnnouncement.mockResolvedValue({
+      ok: true,
+      moved: true,
+      announcements: [ANNOUNCEMENT],
+    });
+  });
+
+  const successfulMutations: Array<[string, () => Promise<unknown>]> = [
+    [
+      "settings save",
+      () =>
+        updateAnnouncementSettingsAction(
+          initialState,
+          formData({ isEnabled: "on", rotationIntervalSeconds: "10" }),
+        ),
+    ],
+    [
+      "create",
+      () => createAnnouncementAction(formState, contentFormData()),
+    ],
+    [
+      "edit",
+      () =>
+        updateAnnouncementAction(
+          formState,
+          contentFormData({ announcementId: ANNOUNCEMENT_ID }),
+        ),
+    ],
+    [
+      "activate or deactivate",
+      () =>
+        setAnnouncementActiveAction(
+          listState,
+          formData({ announcementId: ANNOUNCEMENT_ID, isActive: "false" }),
+        ),
+    ],
+    [
+      "delete",
+      () =>
+        deleteAnnouncementAction(
+          listState,
+          formData({ announcementId: ANNOUNCEMENT_ID }),
+        ),
+    ],
+    [
+      "move",
+      () =>
+        moveAnnouncementAction(
+          listState,
+          formData({ announcementId: ANNOUNCEMENT_ID, direction: "up" }),
+        ),
+    ],
+  ];
+
+  it.each(successfulMutations)(
+    "expires the storefront tag after a successful %s",
+    async (_name, run) => {
+      await run();
+
+      // Without this the storefront keeps serving its cached banner until the
+      // TTL backstop expires.
+      expect(mocks.updateTag).toHaveBeenCalledWith(TAG);
+    },
+  );
+
+  it.each(successfulMutations)(
+    "keeps the admin path revalidation alongside the tag for %s",
+    async (_name, run) => {
+      await run();
+
+      expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/announcements");
+    },
+  );
+
+  describe("no invalidation without a change", () => {
+    it("does not expire the tag when the session has ended", async () => {
+      mocks.getAdminUser.mockResolvedValue(null);
+
+      for (const [, run] of successfulMutations) {
+        await run();
+      }
+
+      expect(mocks.updateTag).not.toHaveBeenCalled();
+    });
+
+    it("does not expire the tag on a validation refusal", async () => {
+      mocks.createAdminAnnouncement.mockResolvedValue({
+        ok: false,
+        error: "Enter at least one of prefix, highlight, or suffix text.",
+      });
+
+      await createAnnouncementAction(formState, contentFormData());
+
+      expect(mocks.updateTag).not.toHaveBeenCalled();
+    });
+
+    it("does not expire the tag on a database failure", async () => {
+      mocks.deleteAdminAnnouncement.mockResolvedValue({
+        ok: false,
+        error: "Announcement could not be deleted. Try again.",
+      });
+
+      await deleteAnnouncementAction(
+        listState,
+        formData({ announcementId: ANNOUNCEMENT_ID }),
+      );
+
+      expect(mocks.updateTag).not.toHaveBeenCalled();
+    });
+
+    it("does not expire the tag on an unexpected rejection", async () => {
+      mocks.updateAdminAnnouncement.mockRejectedValue(new Error("boom"));
+      const consoleError = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+
+      await updateAnnouncementAction(
+        formState,
+        contentFormData({ announcementId: ANNOUNCEMENT_ID }),
+      );
+
+      expect(mocks.updateTag).not.toHaveBeenCalled();
+      consoleError.mockRestore();
+    });
+
+    it("does not expire the tag on a no-op boundary move", async () => {
+      mocks.moveAdminAnnouncement.mockResolvedValue({
+        ok: true,
+        moved: false,
+        announcements: [ANNOUNCEMENT],
+      });
+
+      const state = await moveAnnouncementAction(
+        listState,
+        formData({ announcementId: ANNOUNCEMENT_ID, direction: "up" }),
+      );
+
+      // Nothing moved, so the storefront's cached banner is still correct.
+      expect(state.success).toContain("already first");
+      expect(mocks.updateTag).not.toHaveBeenCalled();
+      expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    });
   });
 });
