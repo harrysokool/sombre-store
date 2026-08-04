@@ -1,119 +1,91 @@
 # CLAUDE.md
 
-Concise guidance for working in the current Sombre repository. Inspect code and migrations before editing or making architecture claims.
+Concise guidance for working in the Sombre repository. Inspect code and migrations before editing or making architecture claims — this file is a summary, not the source of truth.
 
 ## 1. Project overview
 
-Sombre is a fragrance ecommerce storefront with a Supabase catalog, browser-local guest cart, Stripe Checkout, webhook-created orders, stock and refund handling, authenticated admin fulfilment, and optional transactional email.
+Sombre is a Hong Kong ecommerce store for high-end perfume, skincare, body care, and beauty products, at [sombrebeauty.com](https://sombrebeauty.com).
 
-The frontend uses the Next.js App Router with server-rendered catalog pages, a `localStorage` cart, a responsive hero built with `getImageProps` and `<picture>`, admin routes, and branded error/not-found pages.
+Stack:
 
-`/admin` is a real protected area using Supabase Auth. `/admin/login` is its authentication flow. The public `/login` route is a separate placeholder, and `/brands` is also a public placeholder.
+- Next.js App Router (Next.js 16, React 19, TypeScript 5), deployed on Vercel
+- Supabase (Postgres, Auth, RLS) for the catalog, orders, and admin data
+- Stripe Checkout and signed webhooks for payment
+- Resend for transactional email (sender domain verified)
+- Cloudflare for DNS
 
-## 2. Project status
+## 2. Current business model
 
-Code is ready for Stripe test-mode runtime testing. Production launch configuration is not complete. Nothing below has been runtime-verified against live Stripe or Supabase services — only code-level review and mocked-test coverage. Resend is the exception: the sender domain is verified, and production customer and seller order emails have been tested successfully.
+Not every product is physically held in stock. Some items may be purchased from suppliers only after a customer places an order, so fulfilment time can vary by product.
 
-**Coupon system** — implemented end to end: cart coupon input, checkout revalidation, server-authoritative pricing, Stripe metadata, webhook persistence, order snapshots, receipt/email/admin display, and private admin coupon management.
+Refunds are full or none — there is no partial-refund feature in the customer-facing flow. The codebase still defends against a partial refund arriving from Stripe (e.g. issued manually in the Stripe Dashboard) by flagging the order for manual review rather than guessing at stock impact.
 
-**Admin platform** — implemented: standalone admin layout (no storefront navigation or footer), responsive order and coupon lists (desktop tables, mobile cards), admin authentication, fulfilment controls, coupon creation and editing, and status badges.
+## 3. Implemented customer flow
 
-**Remaining before launch:**
+1. Browse the catalog and add items to a browser-local (`localStorage`) cart.
+2. Checkout Session creation (`src/app/api/checkout/session/route.ts`) revalidates cart, coupon, and shipping server-side and creates a Stripe Checkout Session — it does not create an order.
+3. Customer pays through Stripe Checkout.
+4. The signed webhook (`src/app/api/stripe/webhook/route.ts`) creates the order, reduces stock via `confirm_paid_order_and_reduce_stock`, and records the order snapshot.
+5. Order confirmation and seller-notification emails are queued through `order_emails` and sent via Resend.
+6. Admin reviews and processes the order (`/admin/orders/[id]`): enters courier and tracking number, marks the order **shipped** (triggers a shipping-confirmation email), then later marks it **delivered**.
+7. A full refund is issued in Stripe (Dashboard or API); the `refund.created` / `refund.updated` / `refund.failed` webhook events update the order's payment and refund state.
+8. Refunds never restore stock automatically. An admin manually restores sellable stock per item, after inspection, from the order page.
 
-- Stripe test-mode runtime flows (payment, delayed payment, webhook replay/concurrency, full and partial refunds, paid oversell)
-- production Supabase configuration
-- live Stripe keys and webhook endpoint
-- Upstash credentials for shared rate limiting
-- legal/business placeholders (`src/lib/legal/business-details.ts`)
-- production domain and DNS
-- CSP and HSTS (`next.config.ts`)
-- monitoring and error alerts
-- admin visibility for unresolved webhook failures and unsent emails — the Supabase views `unresolved_webhook_failures` (from `supabase/migrations/20260721040000_add_webhook_failure_tracking.sql`) and `unsent_order_emails` (from `supabase/migrations/20260722010000_add_order_email_delivery.sql`) already exist but have no dedicated admin page yet
-- a production test order
-- soft launch
+## 4. Important safety rules
 
-## 3. Technology stack
+- Stripe must stay in sandbox (test) mode during launch preparation. `src/lib/stripe/server.ts` enforces this: it throws if `STRIPE_SECRET_KEY` is missing, doesn't match `sk_test_...`, or is a live key — live keys and live webhook events are rejected outright.
+- Webhook signatures are verified before processing; duplicate/replayed events are handled idempotently (unique Stripe references, guarded status transitions, RPC guards).
+- Refunds never restore sellable stock automatically — only the audited, per-item `restore_order_item_sellable_stock` admin RPC can, and it requires a quantity and an inspection reason.
+- Transactional emails go through the existing `order_emails` system (order confirmation, seller notification, shipping confirmation). Failed sends can be retried from Admin → Operations, gated by a database claim so a send can't double-fire.
+- Applied Supabase migrations are immutable — add a new migration for every database change, and deploy it before the code that depends on it.
 
-- Next.js 16 App Router, React 19, and TypeScript 5
-- Tailwind CSS 4
-- Supabase Postgres, Auth, `@supabase/supabase-js`, and `@supabase/ssr`
-- Stripe Checkout and signed webhooks
-- Resend transactional email
-- Upstash Redis rate limiting with an in-memory fallback
-- Vitest and React Testing Library for automated tests
+## 5. Main implemented features
 
-## 4. Testing
+- Storefront: catalog/product pages, cart, Stripe Checkout
+- Discount codes: cart coupon input, server-side revalidation at checkout, order snapshot, admin coupon management
+- Admin (`/admin`, Supabase Auth-gated to a single configured email): order list/detail, inventory viewing, fulfilment (courier, tracking, shipped/delivered), refund status visibility, manual stock restoration, and an Operations page for unresolved webhook failures and failed-email retries
+- Shipping confirmation email, sent when an order is marked shipped
+- Announcement banner: a dismissible top bar reading "Use code HAPPY2026 for up to 60% off selected products," linking to `/shop`. It is hidden on `/checkout` routes, and reappears after a reload or fresh visit since the dismissal is only in-memory component state (not persisted).
+- Homepage currently features Maison Margiela campaign imagery (`public/images/products/maison-margiela/`).
 
-Vitest and React Testing Library tests cover: checkout validation, coupon calculations and preview, Stripe Checkout Session pricing, webhook snapshots and idempotency, stock reduction and restoration, refund handling, receipts and emails, admin orders and coupon management, and responsive admin components.
+## 6. Key external setup
 
-`npm test` passes 390 tests across 28 files as of this update (2026-07-25) — re-run to confirm before relying on this count, since it will drift as tests are added. Passing tests verify logic against mocked inputs; they are not a substitute for the Stripe test-mode runtime flows listed in Project status.
+- Cloudflare manages DNS for sombrebeauty.com.
+- Vercel hosts the app.
+- `www.sombrebeauty.com` redirects to `sombrebeauty.com` with a 308 redirect.
+- Stripe refund webhooks must include `refund.created`, `refund.updated`, and `refund.failed` (all three are handled in `src/app/api/stripe/webhook/route.ts`).
+- No secret values are recorded here — see `.env.example` for the required variable names.
 
-## 5. Important repository locations
+## 7. Current launch status
 
-- `src/app/` — storefront, checkout, public pages, admin routes, and API routes
-- `src/app/api/checkout/session/route.ts` — server validation and Stripe Checkout creation
-- `src/app/api/stripe/webhook/route.ts` — payment, order, stock, refund, and failure processing
-- `src/components/` and `src/hooks/` — UI and client behavior
-- `src/lib/cart/` and `src/lib/checkout/` — local cart, shipping/totals, and verified receipts
-- `src/lib/storefront/` — public Supabase catalog reads
-- `src/lib/supabase/` — anonymous, Auth, and server-only service-role clients
-- `src/lib/admin/` and `src/lib/email/` — protected fulfilment and transactional email
-- `src/lib/rate-limit.ts` — Upstash limiter and bounded fallback
-- `middleware.ts` — refreshes Supabase Auth sessions for `/admin`
-- `next.config.ts` — global baseline security headers
-- `supabase/migrations/` — append-only database history and trusted RPCs
-- `supabase/manual/` — deliberate catalog SQL outside automatic migrations
-- `public/images/products/` — local product and campaign assets
+**Completed**
 
-## 6. Critical system invariants
+- Coupon system, admin platform, order fulfilment (courier/tracking/shipped/delivered), refund webhook handling, manual stock restoration, admin Operations queue (webhook failures + email retry), shipping confirmation email, announcement banner
+- Stripe sandbox-only enforcement in code
+- Baseline security headers (`next.config.ts`); lint, type-check, tests, and production build all pass
 
-1. Product prices, supported shipping, stock validation, subtotal, and total are controlled and recalculated by the server. Never trust browser cart values as the charging authority.
-2. Checkout Session creation validates the guest payload and creates Stripe Checkout only; it does not create an order.
-3. Signature-verified Stripe webhooks create or resume orders after confirmed payment, including delayed-payment completion.
-4. Webhook processing must remain idempotent across repeated and concurrent delivery. Preserve unique Stripe references, item upserts, guarded transitions, RPC guards, and stable provider idempotency keys.
-5. Stock reduction uses `confirm_paid_order_and_reduce_stock`. A succeeded refund updates financial state only; sellable inventory can increase only through the audited, per-item `restore_order_item_sellable_stock` administrator RPC.
-6. Paid oversells enter the refund path without restoration because stock was never reduced. Customer returns and partial refunds require explicit inventory review; the reversible fulfilment model is not proof that an order was never shipped.
-7. The Supabase service-role key and client must remain server-only. Trusted webhook, receipt, admin, fulfilment, and email code may use them; client code must not.
-8. Public catalog reads use RLS-controlled anonymous access. Private order, customer, webhook-failure, and email data remain trusted-server data.
-9. Admin authorization must fail closed. Middleware refreshes sessions, while pages/layouts, Server Actions, the admin data layer, and the database fulfilment RPC independently enforce eligibility. A missing or mismatched `ADMIN_EMAIL` grants no access.
-10. Email is optional and requires Resend configuration. Email failure must never reverse payment, alter stock, fail an otherwise processed webhook, or cause payment reprocessing.
-11. Production checkout rate limiting uses shared Upstash Redis when fully configured and falls back to a bounded per-instance in-memory limiter when unavailable.
-12. The success URL is not proof of payment. Receipt data must be cross-checked against Stripe and Supabase, show only confirmed data, mask email, omit phone/full address, reveal no customer data for invalid sessions, and keep polling bounded.
-13. Global baseline security headers are configured in `next.config.ts`; CSP and HSTS are not currently configured.
-14. Applied migrations are immutable. Add a new migration for every database change.
-15. Use `.env.example` as the environment-variable source of truth. Only `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` may use the `NEXT_PUBLIC_` prefix; all credentials, service keys, tokens, and hash secrets remain server-only.
+**Still needed before real customers**
 
-## 7. Current limitations
+- Finish the launch product catalogue
+- Confirm supplier availability and fulfilment process
+- Prepare packaging
+- Run final mobile and desktop customer journey tests
+- Complete business registration and record keeping (`src/lib/legal/business-details.ts` still has bracketed placeholders)
+- Confirm Supabase production Auth and backups
+- Confirm Resend DNS and delivery
+- Complete Stripe account verification
+- CSP and HSTS are not yet configured (`next.config.ts`)
+- Later: a reviewed move from Stripe sandbox to live mode
+- Run one small real payment test after live activation
 
-- Checkout currently supports Hong Kong only, uses a flat HK$50 shipping fee, and does not configure Stripe automatic tax.
-- Admin access is intentionally limited to one configured Supabase Auth email.
-- `/login` and `/brands` remain public placeholders; `/admin/login` is the real operator sign-in.
+## 8. Verification
 
-## 8. Development and verification commands
+Last run 2026-08-04, from a clean working tree:
 
-```bash
-npm install
-npm run dev
-npm test
-npm run lint
-npx tsc --noEmit
-npm run build
-git diff --check
-git status --short
-git diff -- CLAUDE.md
-```
+- `npm run lint` — passes, no errors
+- `npx tsc --noEmit` — passes, no errors
+- `npm test` — 1004 tests passed across 75 files (re-run to confirm before relying on this count; it will drift as tests are added)
+- `SITE_URL=https://sombrebeauty.com npm run build` — succeeds
+- `git diff --check` — clean
 
-For local Stripe test webhooks, run `stripe listen --forward-to localhost:3000/api/stripe/webhook` separately and use that listener's endpoint secret only in local server configuration.
-
-## 9. Rules for modifying the repository
-
-1. Inspect existing code before editing and make the smallest focused change.
-2. Do not change payment, stock, refund, admin, database, email, or customer-data behavior unless explicitly required.
-3. Preserve server-controlled pricing/validation, webhook idempotency, layered admin authorization, receipt privacy, and atomic stock/refund RPC behavior.
-4. Never expose Supabase service-role keys, Stripe secrets, Resend keys, Upstash tokens, or hash secrets to client code or logs.
-5. Never edit a migration that may have been applied; create a new migration.
-6. Use test credentials and verify runtime behavior before claiming a payment-related path works.
-7. Do not run `npm audit fix --force`.
-8. Do not commit, push, or stage files unless explicitly requested.
-9. Preserve unrelated working-tree changes.
-10. Do not stage, modify, rename, or delete `public/images/products/maison-margiela/model-5.png`.
+Re-run these before relying on their results, since the codebase changes over time.
