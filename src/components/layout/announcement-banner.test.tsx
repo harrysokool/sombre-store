@@ -39,7 +39,10 @@ const SEEDED: StorefrontAnnouncement = {
 
 function renderBanner(overrides: Partial<StorefrontAnnouncement> = {}) {
     return render(
-        <AnnouncementBanner announcement={{ ...SEEDED, ...overrides }} />,
+        <AnnouncementBanner
+            announcements={[{ ...SEEDED, ...overrides }]}
+            rotationIntervalSeconds={10}
+        />,
     );
 }
 

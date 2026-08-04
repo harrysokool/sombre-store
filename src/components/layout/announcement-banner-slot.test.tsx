@@ -142,23 +142,19 @@ describe("announcement banner slot", () => {
     });
   });
 
-  describe("single announcement for this phase", () => {
-    it("renders only the first announcement", async () => {
-      mocks.getStorefrontAnnouncementBanner.mockResolvedValue({
-        isEnabled: true,
-        rotationIntervalSeconds: 10,
-        announcements: [FIRST, SECOND],
-      });
-
+  describe("what reaches the banner", () => {
+    it("passes a lone announcement through without carousel controls", async () => {
       render(await AnnouncementBannerSlot());
 
       expect(screen.getByText("HAPPY2026")).toBeInTheDocument();
-      // No rotation yet: the second announcement is not rendered at all.
-      expect(screen.queryByText("OVER500")).toBeNull();
-      expect(screen.queryByText("Free shipping")).toBeNull();
+      // One announcement never rotates, so dismiss is the only control.
+      expect(screen.getAllByRole("button")).toHaveLength(1);
+      expect(
+        screen.getByRole("button", { name: "Dismiss announcement" }),
+      ).toBeInTheDocument();
     });
 
-    it("adds no rotation or navigation controls", async () => {
+    it("passes the whole active list so it can rotate", async () => {
       mocks.getStorefrontAnnouncementBanner.mockResolvedValue({
         isEnabled: true,
         rotationIntervalSeconds: 10,
@@ -167,10 +163,32 @@ describe("announcement banner slot", () => {
 
       render(await AnnouncementBannerSlot());
 
-      // Dismiss is the only button; previous/next arrive with the carousel.
-      expect(screen.getAllByRole("button")).toHaveLength(1);
+      // Every announcement is in the track, which is what keeps the banner
+      // height stable as it advances.
+      expect(screen.getByText("HAPPY2026")).toBeInTheDocument();
+      expect(screen.getByText("OVER500")).toBeInTheDocument();
       expect(
-        screen.getByRole("button", { name: "Dismiss announcement" }),
+        screen.getByRole("button", { name: "Next announcement" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Previous announcement" }),
+      ).toBeInTheDocument();
+    });
+
+    it("falls back to a usable interval if one is somehow absent", async () => {
+      // Unreachable in practice: a missing settings row reads as disabled.
+      // The guard exists so a null can never schedule a rotation.
+      mocks.getStorefrontAnnouncementBanner.mockResolvedValue({
+        isEnabled: true,
+        rotationIntervalSeconds: null,
+        announcements: [FIRST, SECOND],
+      });
+
+      const rendered = await AnnouncementBannerSlot();
+
+      expect(() => render(rendered)).not.toThrow();
+      expect(
+        screen.getByRole("button", { name: "Next announcement" }),
       ).toBeInTheDocument();
     });
   });

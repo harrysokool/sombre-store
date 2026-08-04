@@ -1,6 +1,8 @@
 import { AnnouncementBanner } from "@/components/layout/announcement-banner";
 import { getStorefrontAnnouncementBanner } from "@/lib/storefront/announcements";
 
+const FALLBACK_ROTATION_INTERVAL_SECONDS = 10;
+
 /**
  * Loads the announcement banner for the shared storefront shell.
  *
@@ -28,14 +30,22 @@ export async function AnnouncementBannerSlot() {
     return null;
   }
 
-  // One announcement for now. Rotation across the rest arrives in a later
-  // phase; until then the first in (sort_order, created_at) order is the one
-  // the storefront shows.
-  const [announcement] = banner.announcements;
-
-  if (!announcement) {
+  if (banner.announcements.length === 0) {
     return null;
   }
 
-  return <AnnouncementBanner announcement={announcement} />;
+  // The whole active list, in (sort_order, created_at) order. A single
+  // announcement renders statically; more than one rotates on the interval the
+  // administrator configured.
+  return (
+    <AnnouncementBanner
+      announcements={banner.announcements}
+      rotationIntervalSeconds={
+        // Unreachable in practice: a missing settings row reads as disabled and
+        // has already returned above. The fallback matches the seeded default
+        // so a rotation can never be scheduled from a null.
+        banner.rotationIntervalSeconds ?? FALLBACK_ROTATION_INTERVAL_SECONDS
+      }
+    />
+  );
 }
