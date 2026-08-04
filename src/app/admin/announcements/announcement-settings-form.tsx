@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useState } from "react";
 
 import {
   updateAnnouncementSettingsAction,
@@ -10,6 +10,7 @@ import {
   MAX_ROTATION_INTERVAL_SECONDS,
   MIN_ROTATION_INTERVAL_SECONDS,
 } from "@/lib/admin/announcement-settings-rules";
+import { useCheckboxResetGuard } from "@/hooks/use-checkbox-reset-guard";
 
 const initialActionState: AnnouncementSettingsActionState = {
   error: null,
@@ -39,23 +40,7 @@ export function AnnouncementSettingsForm({
   // save leaves them equal to.
   const [enabled, setEnabled] = useState(isEnabled);
   const [interval, setInterval] = useState(String(rotationIntervalSeconds));
-  const toggleRef = useRef<HTMLInputElement>(null);
-  const intervalRef = useRef<HTMLInputElement>(null);
-
-  // React resets the form element once a form action completes. That reset
-  // changes the DOM without changing React state, so no re-render follows to
-  // undo it: the toggle snaps back to its original position while the state
-  // that would be submitted still says otherwise. Re-asserting both fields
-  // after every render keeps what is displayed equal to what is held.
-  useEffect(() => {
-    if (toggleRef.current && toggleRef.current.checked !== enabled) {
-      toggleRef.current.checked = enabled;
-    }
-
-    if (intervalRef.current && intervalRef.current.value !== interval) {
-      intervalRef.current.value = interval;
-    }
-  });
+  const toggleRef = useCheckboxResetGuard(enabled);
 
   return (
     <form
@@ -90,7 +75,6 @@ export function AnnouncementSettingsForm({
             Rotation interval
           </span>
           <input
-            ref={intervalRef}
             type="number"
             name="rotationIntervalSeconds"
             value={interval}

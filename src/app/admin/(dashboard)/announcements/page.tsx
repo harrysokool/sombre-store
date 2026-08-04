@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { AnnouncementRowControls } from "@/app/admin/announcements/announcement-row-controls";
 import { AnnouncementSettingsForm } from "@/app/admin/announcements/announcement-settings-form";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { StatusBadge } from "@/components/admin/status-badge";
+import { describeAnnouncement } from "@/lib/admin/announcement-content-rules";
 import {
   getAdminAnnouncementSettings,
   listAdminAnnouncements,
@@ -18,9 +21,9 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
-// The banner settings are editable; the announcement list below is still
-// read-only. Creating, editing, toggling, and reordering announcements arrive
-// in later phases, so nothing in the list writes to the database.
+// Banner settings, then every announcement with its edit, activate, and delete
+// controls. The displayed order stays read-only: nothing here can move an
+// announcement, and the controls that do arrive in a later phase.
 
 const EM_DASH = "—";
 
@@ -150,7 +153,15 @@ export default async function AdminAnnouncementsPage() {
     <div className="space-y-6">
       <AdminPageHeader
         title="Announcements"
-        description="Switch the storefront announcement banner on or off and set how fast it rotates. Editing the messages themselves arrives in a later phase."
+        description="Switch the storefront announcement banner on or off, set how fast it rotates, and manage the messages it shows."
+        actions={
+          <Link
+            href="/admin/announcements/new"
+            className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/5 px-5 py-3 text-xs uppercase tracking-[0.2em] text-stone-100 transition-colors hover:border-white/20 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
+          >
+            Add announcement
+          </Link>
+        }
       />
 
       {hasError ? (
@@ -162,9 +173,15 @@ export default async function AdminAnnouncementsPage() {
           <BannerSettings settings={settings} />
 
           {announcements.length === 0 ? (
-            <p className="rounded-2xl border border-white/10 bg-white/[0.02] px-6 py-10 text-center text-sm text-stone-400">
-              No announcements yet.
-            </p>
+            <div className="space-y-4 rounded-2xl border border-white/10 bg-white/[0.02] px-6 py-10 text-center">
+              <p className="text-sm text-stone-400">No announcements yet.</p>
+              <Link
+                href="/admin/announcements/new"
+                className="inline-block text-sm text-stone-200 underline underline-offset-4 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
+              >
+                Create the first announcement
+              </Link>
+            </div>
           ) : (
             <>
               {/* Small screens: one stacked card per announcement. The table
@@ -201,6 +218,12 @@ export default async function AdminAnnouncementsPage() {
                         {orDash(announcement.link_href)}
                       </CardField>
                     </dl>
+
+                    <AnnouncementRowControls
+                      announcementId={announcement.id}
+                      isActive={announcement.is_active}
+                      description={describeAnnouncement(announcement)}
+                    />
                   </li>
                 ))}
               </ul>
@@ -219,6 +242,9 @@ export default async function AdminAnnouncementsPage() {
                       <th className="px-4 py-4 font-normal">Link label</th>
                       <th className="px-4 py-4 font-normal">Link href</th>
                       <th className="px-4 py-4 font-normal">Status</th>
+                      <th className="px-4 py-4 font-normal">
+                        <span className="sr-only">Actions</span>
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -248,6 +274,13 @@ export default async function AdminAnnouncementsPage() {
                         <td className="px-4 py-4">
                           <AnnouncementStatus
                             isActive={announcement.is_active}
+                          />
+                        </td>
+                        <td className="px-4 py-4">
+                          <AnnouncementRowControls
+                            announcementId={announcement.id}
+                            isActive={announcement.is_active}
+                            description={describeAnnouncement(announcement)}
                           />
                         </td>
                       </tr>

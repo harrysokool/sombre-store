@@ -3,6 +3,7 @@
 import "@testing-library/jest-dom/vitest";
 
 import { cleanup, render, screen, within } from "@testing-library/react";
+import type { ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -18,6 +19,14 @@ vi.mock("@/lib/supabase/admin-auth", () => ({
 vi.mock("@/lib/admin/announcements", () => ({
   getAdminAnnouncementSettings: mocks.getAdminAnnouncementSettings,
   listAdminAnnouncements: mocks.listAdminAnnouncements,
+}));
+
+vi.mock("next/link", () => ({
+  default: ({ children, href, ...props }: ComponentProps<"a">) => (
+    <a href={href} {...props}>
+      {children}
+    </a>
+  ),
 }));
 
 import AdminAnnouncementsPage from "./page";
@@ -366,7 +375,7 @@ describe("admin announcements page", () => {
   });
 
   describe("read-only scope", () => {
-    it("keeps the announcement list read-only", async () => {
+    it("gives every row edit, activate, and delete controls", async () => {
       mocks.listAdminAnnouncements.mockResolvedValue([
         BASE_ANNOUNCEMENT,
         { ...BASE_ANNOUNCEMENT, id: SECOND_ID, is_active: false },
@@ -374,26 +383,72 @@ describe("admin announcements page", () => {
 
       render(await AdminAnnouncementsPage());
 
-      // Editing, deleting, per-item toggles, and reordering all arrive in
-      // later phases. The settings form above is the only thing that writes.
-      for (const list of [mobileCards(), desktopTable()]) {
-        expect(list.queryAllByRole("button")).toHaveLength(0);
-        expect(list.queryAllByRole("link")).toHaveLength(0);
-        expect(list.queryAllByRole("textbox")).toHaveLength(0);
-        expect(list.queryAllByRole("checkbox")).toHaveLength(0);
-        expect(list.queryAllByRole("spinbutton")).toHaveLength(0);
-      }
+      const rows = desktopTable().getAllByRole("row").slice(1);
+
+      const active = within(rows[0]);
+      expect(
+        active.getByRole("link", { name: /^Edit announcement/ }),
+      ).toHaveAttribute("href", `/admin/announcements/${ANNOUNCEMENT_ID}`);
+      expect(
+        active.getByRole("button", { name: /^Deactivate announcement/ }),
+      ).toBeInTheDocument();
+      expect(
+        active.getByRole("button", { name: /^Delete announcement/ }),
+      ).toBeInTheDocument();
+
+      // The inactive row offers the opposite toggle.
+      expect(
+        within(rows[1]).getByRole("button", { name: /^Activate announcement/ }),
+      ).toBeInTheDocument();
     });
 
-    it("adds no controls beyond the settings form itself", async () => {
+    it("adds no ordering controls to any row", async () => {
+      mocks.listAdminAnnouncements.mockResolvedValue([
+        BASE_ANNOUNCEMENT,
+        { ...BASE_ANNOUNCEMENT, id: SECOND_ID, sort_order: 1 },
+      ]);
+
       render(await AdminAnnouncementsPage());
 
-      // Exactly one toggle, one interval field, and one save button on the
-      // whole page.
+      // Reordering arrives in a later phase; the displayed order stays
+      // read-only, and the Order column is still plain text.
+      for (const name of [/move/i, /^up$/i, /^down$/i, /reorder/i]) {
+        expect(screen.queryAllByRole("button", { name })).toHaveLength(0);
+      }
+      expect(
+        desktopTable().queryAllByRole("spinbutton"),
+      ).toHaveLength(0);
+    });
+
+    it("offers a route into creating an announcement", async () => {
+      render(await AdminAnnouncementsPage());
+
+      expect(
+        screen.getByRole("link", { name: "Add announcement" }),
+      ).toHaveAttribute("href", "/admin/announcements/new");
+    });
+
+    it("points at the create route from the empty state", async () => {
+      mocks.listAdminAnnouncements.mockResolvedValue([]);
+
+      render(await AdminAnnouncementsPage());
+
+      expect(screen.getByText("No announcements yet.")).toBeInTheDocument();
+      expect(
+        screen.getByRole("link", { name: "Create the first announcement" }),
+      ).toHaveAttribute("href", "/admin/announcements/new");
+    });
+
+    it("keeps the banner settings form the only settings control", async () => {
+      render(await AdminAnnouncementsPage());
+
+      // Row controls added their own buttons, but the settings pair is still
+      // exactly one toggle and one interval field.
       expect(screen.getAllByRole("checkbox")).toHaveLength(1);
       expect(screen.getAllByRole("spinbutton")).toHaveLength(1);
-      expect(screen.getAllByRole("button")).toHaveLength(1);
-      expect(screen.queryAllByRole("link")).toHaveLength(0);
+      expect(
+        screen.getAllByRole("button", { name: "Save settings" }),
+      ).toHaveLength(1);
     });
   });
 });
