@@ -21,6 +21,7 @@ import {
   getAdminAnnouncement,
   getAdminAnnouncementSettings,
   listAdminAnnouncements,
+  moveAdminAnnouncement,
   setAdminAnnouncementActive,
   updateAdminAnnouncement,
   updateAdminAnnouncementSettings,
@@ -796,5 +797,276 @@ describe("admin announcement item management", () => {
       expect(result.ok === false && result.error).not.toContain("permission");
       consoleError.mockRestore();
     });
+  });
+});
+
+describe("moveAdminAnnouncement", () => {
+  const FIRST = { ...ANNOUNCEMENT_ROW, id: "aaaaaaaa-1111-4111-8111-111111111111", sort_order: 0 };
+  const MIDDLE = { ...ANNOUNCEMENT_ROW, id: "bbbbbbbb-2222-4222-8222-222222222222", sort_order: 1 };
+  const LAST = { ...ANNOUNCEMENT_ROW, id: "cccccccc-3333-4333-8333-333333333333", sort_order: 2 };
+
+  beforeEach(() => {
+    mocks.getAdminUser.mockReset();
+    mocks.createSupabase.mockReset();
+    mocks.getAdminUser.mockResolvedValue({
+      id: "admin-1",
+      email: "admin@example.com",
+    });
+  });
+
+  it("refuses without an approved session, before validating anything", async () => {
+    mocks.getAdminUser.mockResolvedValue(null);
+
+    await expect(
+      moveAdminAnnouncement(MIDDLE.id, "up"),
+    ).rejects.toThrow(
+      "Admin announcement data requested without an approved session.",
+    );
+    expect(mocks.createSupabase).not.toHaveBeenCalled();
+  });
+
+  it("moves an announcement up by swapping the two positions", async () => {
+    const listQuery = query({ data: [FIRST, MIDDLE, LAST] });
+    const movingUpdate = query({ data: { id: MIDDLE.id } });
+    const neighbourUpdate = query({ data: { id: FIRST.id } });
+    supabaseWith(listQuery, movingUpdate, neighbourUpdate);
+
+    const result = await moveAdminAnnouncement(MIDDLE.id, "up");
+
+    expect(result.ok).toBe(true);
+    expect(result.ok === true && result.moved).toBe(true);
+    // The mover takes its neighbour's position and vice versa.
+    expect(movingUpdate.update).toHaveBeenCalledWith({ sort_order: 0 });
+    expect(movingUpdate.eq).toHaveBeenCalledWith("id", MIDDLE.id);
+    expect(neighbourUpdate.update).toHaveBeenCalledWith({ sort_order: 1 });
+    expect(neighbourUpdate.eq).toHaveBeenCalledWith("id", FIRST.id);
+    expect(
+      result.ok === true && result.announcements.map((item) => item.id),
+    ).toEqual([MIDDLE.id, FIRST.id, LAST.id]);
+  });
+
+  it("moves an announcement down by swapping the two positions", async () => {
+    const listQuery = query({ data: [FIRST, MIDDLE, LAST] });
+    supabaseWith(
+      listQuery,
+      query({ data: { id: MIDDLE.id } }),
+      query({ data: { id: LAST.id } }),
+    );
+
+    const result = await moveAdminAnnouncement(MIDDLE.id, "down");
+
+    expect(
+      result.ok === true && result.announcements.map((item) => item.id),
+    ).toEqual([FIRST.id, LAST.id, MIDDLE.id]);
+  });
+
+  it("moves across gaps without renumbering the rest", async () => {
+    const sparseFirst = { ...FIRST, sort_order: 0 };
+    const sparseSecond = { ...MIDDLE, sort_order: 5 };
+    const sparseThird = { ...LAST, sort_order: 40 };
+    const listQuery = query({ data: [sparseFirst, sparseSecond, sparseThird] });
+    const movingUpdate = query({ data: { id: sparseSecond.id } });
+    const neighbourUpdate = query({ data: { id: sparseFirst.id } });
+    supabaseWith(listQuery, movingUpdate, neighbourUpdate);
+
+    const result = await moveAdminAnnouncement(sparseSecond.id, "up");
+
+    // Only the two values are exchanged; 40 is left alone and the gap stays.
+    expect(movingUpdate.update).toHaveBeenCalledWith({ sort_order: 0 });
+    expect(neighbourUpdate.update).toHaveBeenCalledWith({ sort_order: 5 });
+    expect(
+      result.ok === true && result.announcements.map((item) => item.sort_order),
+    ).toEqual([0, 5, 40]);
+  });
+
+  it("updates exactly two rows and touches no other column", async () => {
+    const listQuery = query({ data: [FIRST, MIDDLE, LAST] });
+    const movingUpdate = query({ data: { id: MIDDLE.id } });
+    const neighbourUpdate = query({ data: { id: FIRST.id } });
+    const client = supabaseWith(listQuery, movingUpdate, neighbourUpdate);
+
+    await moveAdminAnnouncement(MIDDLE.id, "up");
+
+    // One read plus exactly two writes.
+    expect(client.from).toHaveBeenCalledTimes(3);
+    for (const update of [movingUpdate, neighbourUpdate]) {
+      expect(update.update).toHaveBeenCalledTimes(1);
+      expect(Object.keys(update.update.mock.calls[0][0])).toEqual([
+        "sort_order",
+      ]);
+    }
+  });
+
+  it("does nothing when the first item is moved up", async () => {
+    const listQuery = query({ data: [FIRST, MIDDLE, LAST] });
+    const unusedUpdate = query({ data: { id: FIRST.id } });
+    supabaseWith(listQuery, unusedUpdate);
+
+    const result = await moveAdminAnnouncement(FIRST.id, "up");
+
+    expect(result.ok).toBe(true);
+    expect(result.ok === true && result.moved).toBe(false);
+    expect(unusedUpdate.update).not.toHaveBeenCalled();
+    expect(
+      result.ok === true && result.announcements.map((item) => item.id),
+    ).toEqual([FIRST.id, MIDDLE.id, LAST.id]);
+  });
+
+  it("does nothing when the last item is moved down", async () => {
+    const listQuery = query({ data: [FIRST, MIDDLE, LAST] });
+    const unusedUpdate = query({ data: { id: LAST.id } });
+    supabaseWith(listQuery, unusedUpdate);
+
+    const result = await moveAdminAnnouncement(LAST.id, "down");
+
+    expect(result.ok === true && result.moved).toBe(false);
+    expect(unusedUpdate.update).not.toHaveBeenCalled();
+  });
+
+  it("does nothing in either direction for a single-item list", async () => {
+    for (const direction of ["up", "down"] as const) {
+      const listQuery = query({ data: [FIRST] });
+      const unusedUpdate = query({ data: { id: FIRST.id } });
+      supabaseWith(listQuery, unusedUpdate);
+
+      const result = await moveAdminAnnouncement(FIRST.id, direction);
+
+      expect(result.ok === true && result.moved).toBe(false);
+      expect(unusedUpdate.update).not.toHaveBeenCalled();
+    }
+  });
+
+  it("keeps inactive announcements in the same ordered list", async () => {
+    const inactiveMiddle = { ...MIDDLE, is_active: false };
+    const listQuery = query({ data: [FIRST, inactiveMiddle, LAST] });
+    const movingUpdate = query({ data: { id: LAST.id } });
+    const neighbourUpdate = query({ data: { id: inactiveMiddle.id } });
+    supabaseWith(listQuery, movingUpdate, neighbourUpdate);
+
+    const result = await moveAdminAnnouncement(LAST.id, "up");
+
+    // The inactive row is a real position, not skipped over.
+    expect(
+      result.ok === true && result.announcements.map((item) => item.id),
+    ).toEqual([FIRST.id, LAST.id, inactiveMiddle.id]);
+  });
+
+  it("reports an unknown announcement id", async () => {
+    const listQuery = query({ data: [FIRST, MIDDLE, LAST] });
+    const unusedUpdate = query({ data: { id: FIRST.id } });
+    supabaseWith(listQuery, unusedUpdate);
+
+    const result = await moveAdminAnnouncement(
+      "dddddddd-4444-4444-8444-444444444444",
+      "up",
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.ok === false && result.error).toContain("no longer exists");
+    expect(unusedUpdate.update).not.toHaveBeenCalled();
+  });
+
+  it("refuses a malformed reference without reading anything", async () => {
+    const listQuery = query({ data: [FIRST, MIDDLE, LAST] });
+    supabaseWith(listQuery);
+
+    const result = await moveAdminAnnouncement("not-a-uuid", "up");
+
+    expect(result.ok).toBe(false);
+    expect(listQuery.select).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["an unknown direction", "sideways"],
+    ["the wrong case", "UP"],
+    ["a padded value", " up "],
+    ["an empty string", ""],
+    ["a missing value", null],
+    ["a number", 1],
+  ])("refuses %s without reading anything", async (_name, direction) => {
+    const listQuery = query({ data: [FIRST, MIDDLE, LAST] });
+    supabaseWith(listQuery);
+
+    const result = await moveAdminAnnouncement(MIDDLE.id, direction);
+
+    expect(result.ok).toBe(false);
+    expect(result.ok === false && result.error).toContain(
+      "move direction is not recognised",
+    );
+    expect(listQuery.select).not.toHaveBeenCalled();
+  });
+
+  it("reads positions from the database rather than any caller-supplied value", async () => {
+    const listQuery = query({ data: [FIRST, MIDDLE, LAST] });
+    const movingUpdate = query({ data: { id: MIDDLE.id } });
+    const neighbourUpdate = query({ data: { id: FIRST.id } });
+    supabaseWith(listQuery, movingUpdate, neighbourUpdate);
+
+    await moveAdminAnnouncement(MIDDLE.id, "up");
+
+    // The ordering used to decide the move is the stored one.
+    expect(listQuery.order).toHaveBeenNthCalledWith(1, "sort_order", {
+      ascending: true,
+    });
+    expect(listQuery.order).toHaveBeenNthCalledWith(2, "created_at", {
+      ascending: true,
+    });
+    // Written values come only from the loaded rows.
+    expect(movingUpdate.update).toHaveBeenCalledWith({
+      sort_order: FIRST.sort_order,
+    });
+    expect(neighbourUpdate.update).toHaveBeenCalledWith({
+      sort_order: MIDDLE.sort_order,
+    });
+  });
+
+  it("refuses rather than silently doing nothing when two rows share a position", async () => {
+    const tiedFirst = { ...FIRST, sort_order: 3 };
+    const tiedSecond = { ...MIDDLE, sort_order: 3 };
+    const listQuery = query({ data: [tiedFirst, tiedSecond] });
+    const unusedUpdate = query({ data: { id: tiedSecond.id } });
+    supabaseWith(listQuery, unusedUpdate);
+
+    const result = await moveAdminAnnouncement(tiedSecond.id, "up");
+
+    // Swapping equal values changes nothing, and created_at breaks the tie, so
+    // reporting success here would claim a move that never happened.
+    expect(result.ok).toBe(false);
+    expect(result.ok === false && result.error).toContain("share the same position");
+    expect(unusedUpdate.update).not.toHaveBeenCalled();
+  });
+
+  it("reports a failed read without leaking the database error", async () => {
+    supabaseWith(query({ error: { message: "connection refused" } }));
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await moveAdminAnnouncement(MIDDLE.id, "up");
+
+    expect(result).toEqual({
+      ok: false,
+      error: "Announcement could not be moved. Try again.",
+    });
+    expect(result.ok === false && result.error).not.toContain("connection");
+    consoleError.mockRestore();
+  });
+
+  it("restores the first position when the second write fails", async () => {
+    const listQuery = query({ data: [FIRST, MIDDLE, LAST] });
+    const movingUpdate = query({ data: { id: MIDDLE.id } });
+    const neighbourUpdate = query({ error: { message: "deadlock detected" } });
+    const rollbackUpdate = query({ data: { id: MIDDLE.id } });
+    supabaseWith(listQuery, movingUpdate, neighbourUpdate, rollbackUpdate);
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await moveAdminAnnouncement(MIDDLE.id, "up");
+
+    expect(result.ok).toBe(false);
+    // Without a transaction the first write already landed; leaving it would
+    // put both rows on the same position and block any further move.
+    expect(rollbackUpdate.update).toHaveBeenCalledWith({
+      sort_order: MIDDLE.sort_order,
+    });
+    expect(rollbackUpdate.eq).toHaveBeenCalledWith("id", MIDDLE.id);
+    consoleError.mockRestore();
   });
 });

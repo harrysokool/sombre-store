@@ -5,6 +5,10 @@ import {
   type AdminAnnouncementSubmission,
 } from "@/lib/admin/announcement-content-rules";
 import {
+  getAdjacentIndex,
+  isAnnouncementMoveDirection,
+} from "@/lib/admin/announcement-order-rules";
+import {
   validateAnnouncementSettingsSubmission,
   type AdminAnnouncementSettingsSubmission,
 } from "@/lib/admin/announcement-settings-rules";
@@ -16,8 +20,9 @@ import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 // client, but the admin needs inactive rows too, which the public RLS policy
 // deliberately hides, and every write goes through the service role.
 //
-// Reordering is not here. sort_order is assigned on create and never rewritten
-// by an edit; the controls that move an announcement arrive in a later phase.
+// sort_order is assigned on create and rewritten only by moveAdminAnnouncement,
+// which swaps two neighbours. An edit never changes an announcement's position,
+// and the browser never supplies a position.
 
 const SETTINGS_COLUMNS =
   "id, is_enabled, rotation_interval_seconds, created_at, updated_at";
@@ -39,6 +44,8 @@ const UUID_PATTERN =
 const INVALID_REFERENCE_MESSAGE = "That announcement reference is not valid.";
 const MISSING_ANNOUNCEMENT_MESSAGE =
   "That announcement no longer exists. Refresh the list.";
+const MOVE_FAILED_MESSAGE =
+  "Announcement could not be moved. Try again.";
 
 export type AdminAnnouncementSettings = {
   id: number;
@@ -58,6 +65,10 @@ export type AdminAnnouncementMutationResult =
 
 export type AdminAnnouncementDeletionResult =
   | { ok: true; announcementId: string }
+  | { ok: false; error: string };
+
+export type AdminAnnouncementMoveResult =
+  | { ok: true; moved: boolean; announcements: AdminAnnouncement[] }
   | { ok: false; error: string };
 
 export type AdminAnnouncement = {
@@ -372,4 +383,125 @@ export async function deleteAdminAnnouncement(
   }
 
   return { ok: true, announcementId: data.id };
+}
+
+/**
+ * Moves one announcement a single place up or down.
+ *
+ * The order is a derived view of (sort_order, created_at), so the move is
+ * expressed by swapping the two neighbours' sort_order values and nothing
+ * else. Gaps in the sequence are preserved: swapping 0 and 5 still exchanges
+ * those two positions, and no other row is renumbered.
+ *
+ * Reaching the end of the list is an ordinary outcome, not an error — the
+ * result says the move did not happen rather than claiming one that did not.
+ */
+export async function moveAdminAnnouncement(
+  announcementId: string,
+  direction: unknown,
+): Promise<AdminAnnouncementMoveResult> {
+  await assertAdmin();
+
+  if (!UUID_PATTERN.test(announcementId)) {
+    return { ok: false, error: INVALID_REFERENCE_MESSAGE };
+  }
+
+  if (!isAnnouncementMoveDirection(direction)) {
+    return { ok: false, error: "That move direction is not recognised." };
+  }
+
+  const supabase = createSupabaseServiceRoleClient();
+  // The whole list in display order. Positions are decided here from stored
+  // values; the browser never supplies a sort_order.
+  const { data, error } = await supabase
+    .from("announcements")
+    .select(ANNOUNCEMENT_COLUMNS)
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: true })
+    .returns<AdminAnnouncement[]>();
+
+  if (error) {
+    console.error("Failed to read announcements before moving", error);
+    return { ok: false, error: MOVE_FAILED_MESSAGE };
+  }
+
+  const announcements = data ?? [];
+  const index = announcements.findIndex(
+    (announcement) => announcement.id === announcementId,
+  );
+
+  if (index === -1) {
+    return { ok: false, error: MISSING_ANNOUNCEMENT_MESSAGE };
+  }
+
+  const targetIndex = getAdjacentIndex(index, direction, announcements.length);
+
+  if (targetIndex === null) {
+    // Already at the end it was asked to move toward. The controls disable
+    // this, so reaching here means a stale page or a direct request.
+    return { ok: true, moved: false, announcements };
+  }
+
+  const moving = announcements[index];
+  const neighbour = announcements[targetIndex];
+
+  // Two rows sharing a position are ordered by created_at, which this swap
+  // cannot change: exchanging equal values would leave the list exactly as it
+  // is. Say so rather than reporting a move that did not happen.
+  if (moving.sort_order === neighbour.sort_order) {
+    return {
+      ok: false,
+      error:
+        "These two announcements share the same position, so they cannot be swapped. Recreate one of them to give it a new position.",
+    };
+  }
+
+  const { error: movingError } = await supabase
+    .from("announcements")
+    .update({ sort_order: neighbour.sort_order })
+    .eq("id", moving.id)
+    .select("id")
+    .maybeSingle<{ id: string }>();
+
+  if (movingError) {
+    console.error("Failed to move announcement", movingError);
+    return { ok: false, error: MOVE_FAILED_MESSAGE };
+  }
+
+  const { error: neighbourError } = await supabase
+    .from("announcements")
+    .update({ sort_order: moving.sort_order })
+    .eq("id", neighbour.id)
+    .select("id")
+    .maybeSingle<{ id: string }>();
+
+  if (neighbourError) {
+    console.error("Failed to move the adjacent announcement", neighbourError);
+
+    // Without a transaction the first write already landed, leaving both rows
+    // on the same position. Put it back so the list stays swappable.
+    const { error: rollbackError } = await supabase
+      .from("announcements")
+      .update({ sort_order: moving.sort_order })
+      .eq("id", moving.id)
+      .select("id")
+      .maybeSingle<{ id: string }>();
+
+    if (rollbackError) {
+      console.error(
+        "Failed to restore the announcement position after a partial move",
+        rollbackError,
+      );
+    }
+
+    return { ok: false, error: MOVE_FAILED_MESSAGE };
+  }
+
+  // The result is the loaded list with those two entries exchanged, which is
+  // what re-reading with the same ordering would produce.
+  const reordered = [...announcements];
+  reordered[index] = { ...neighbour, sort_order: moving.sort_order };
+  reordered[targetIndex] = { ...moving, sort_order: neighbour.sort_order };
+
+  return { ok: true, moved: true, announcements: reordered };
 }

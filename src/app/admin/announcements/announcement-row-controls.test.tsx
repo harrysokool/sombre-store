@@ -10,11 +10,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   setAnnouncementActiveAction: vi.fn(),
   deleteAnnouncementAction: vi.fn(),
+  moveAnnouncementAction: vi.fn(),
 }));
 
 vi.mock("@/app/admin/announcements/actions", () => ({
   setAnnouncementActiveAction: mocks.setAnnouncementActiveAction,
   deleteAnnouncementAction: mocks.deleteAnnouncementAction,
+  moveAnnouncementAction: mocks.moveAnnouncementAction,
 }));
 
 vi.mock("next/link", () => ({
@@ -30,15 +32,25 @@ import { AnnouncementRowControls } from "./announcement-row-controls";
 const ANNOUNCEMENT_ID = "11111111-1111-4111-8111-111111111111";
 const DESCRIPTION = "Use code HAPPY2026 for 60% off";
 
-function renderControls(isActive = true) {
+function renderControls(
+  isActive = true,
+  { isFirst = false, isLast = false } = {},
+) {
   return render(
     <AnnouncementRowControls
       announcementId={ANNOUNCEMENT_ID}
       isActive={isActive}
       description={DESCRIPTION}
+      isFirst={isFirst}
+      isLast={isLast}
     />,
   );
 }
+
+const upButton = () =>
+  screen.getByRole("button", { name: /^Move announcement up/ });
+const downButton = () =>
+  screen.getByRole("button", { name: /^Move announcement down/ });
 
 const deleteButton = () => screen.getByRole("button", { name: /^Delete announcement/ });
 const confirmButton = () =>
@@ -55,6 +67,11 @@ describe("announcement row controls", () => {
     mocks.deleteAnnouncementAction.mockResolvedValue({
       error: null,
       success: "Announcement deleted.",
+    });
+    mocks.moveAnnouncementAction.mockReset();
+    mocks.moveAnnouncementAction.mockResolvedValue({
+      error: null,
+      success: "Moved up.",
     });
   });
 
@@ -271,21 +288,214 @@ describe("announcement row controls", () => {
   });
 
   describe("scope", () => {
-    it("offers no ordering controls", () => {
+    it("offers exactly the row actions before confirming", () => {
       renderControls();
 
-      for (const name of [/move/i, /up/i, /down/i, /reorder/i, /position/i]) {
-        expect(screen.queryByRole("button", { name })).toBeNull();
-        expect(screen.queryByRole("link", { name })).toBeNull();
-      }
+      // Up, Down, Deactivate, Delete are buttons; Edit is a link.
+      expect(screen.getAllByRole("button")).toHaveLength(4);
+      expect(screen.getAllByRole("link")).toHaveLength(1);
     });
 
-    it("offers exactly the three row actions before confirming", () => {
+    it("uses no drag and drop affordance", () => {
+      const { container } = renderControls();
+
+      expect(container.querySelector("[draggable]")).toBeNull();
+      expect(container.querySelector('[aria-grabbed]')).toBeNull();
+    });
+  });
+});
+
+describe("announcement move controls", () => {
+  beforeEach(() => {
+    mocks.setAnnouncementActiveAction.mockReset();
+    mocks.deleteAnnouncementAction.mockReset();
+    mocks.moveAnnouncementAction.mockReset();
+    mocks.moveAnnouncementAction.mockResolvedValue({
+      error: null,
+      success: "Moved up.",
+    });
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  describe("submitting", () => {
+    it("submits the id and the up direction", async () => {
+      const user = userEvent.setup();
+      renderControls(true, { isFirst: false, isLast: false });
+
+      await user.click(upButton());
+
+      await waitFor(() => {
+        expect(mocks.moveAnnouncementAction).toHaveBeenCalled();
+      });
+      const submitted = mocks.moveAnnouncementAction.mock.calls[0][1];
+      expect(submitted.get("announcementId")).toBe(ANNOUNCEMENT_ID);
+      expect(submitted.get("direction")).toBe("up");
+      // Position is never sent from the browser.
+      expect(submitted.get("sortOrder")).toBeNull();
+      expect(submitted.get("sort_order")).toBeNull();
+    });
+
+    it("submits the id and the down direction", async () => {
+      const user = userEvent.setup();
       renderControls();
 
-      // Deactivate and Delete are buttons; Edit is a link.
-      expect(screen.getAllByRole("button")).toHaveLength(2);
-      expect(screen.getAllByRole("link")).toHaveLength(1);
+      await user.click(downButton());
+
+      await waitFor(() => {
+        expect(mocks.moveAnnouncementAction).toHaveBeenCalled();
+      });
+      expect(
+        mocks.moveAnnouncementAction.mock.calls[0][1].get("direction"),
+      ).toBe("down");
+    });
+  });
+
+  describe("boundaries", () => {
+    it("disables Up for the first announcement", () => {
+      renderControls(true, { isFirst: true });
+
+      expect(upButton()).toBeDisabled();
+      expect(downButton()).toBeEnabled();
+    });
+
+    it("disables Down for the last announcement", () => {
+      renderControls(true, { isLast: true });
+
+      expect(downButton()).toBeDisabled();
+      expect(upButton()).toBeEnabled();
+    });
+
+    it("disables both for a lone announcement", () => {
+      renderControls(true, { isFirst: true, isLast: true });
+
+      expect(upButton()).toBeDisabled();
+      expect(downButton()).toBeDisabled();
+    });
+
+    it("enables both in the middle of the list", () => {
+      renderControls();
+
+      expect(upButton()).toBeEnabled();
+      expect(downButton()).toBeEnabled();
+    });
+
+    it("does not submit from a disabled control", async () => {
+      const user = userEvent.setup();
+      renderControls(true, { isFirst: true });
+
+      await user.click(upButton());
+
+      expect(mocks.moveAnnouncementAction).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("pending state", () => {
+    it("names the pending state on the pressed direction only", async () => {
+      const user = userEvent.setup();
+      let resolveAction: (state: {
+        error: string | null;
+        success: string | null;
+      }) => void = () => {};
+
+      mocks.moveAnnouncementAction.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveAction = resolve;
+          }),
+      );
+
+      renderControls();
+      await user.click(upButton());
+
+      await waitFor(() => {
+        expect(upButton()).toHaveTextContent("Moving…");
+      });
+      // The other direction stays labelled, so it is clear which move is
+      // in flight.
+      expect(downButton()).toHaveTextContent("Down");
+      expect(downButton()).toBeDisabled();
+
+      resolveAction({ error: null, success: "Moved up." });
+
+      await waitFor(() => {
+        expect(upButton()).toHaveTextContent("Up");
+      });
+    });
+
+    it("disables the other row actions while a move is in flight", async () => {
+      const user = userEvent.setup();
+      let resolveAction: (state: {
+        error: string | null;
+        success: string | null;
+      }) => void = () => {};
+
+      mocks.moveAnnouncementAction.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveAction = resolve;
+          }),
+      );
+
+      renderControls();
+      await user.click(upButton());
+
+      await waitFor(() => {
+        expect(
+          screen.getByRole("button", { name: /^Deactivate announcement/ }),
+        ).toBeDisabled();
+      });
+      expect(
+        screen.getByRole("button", { name: /^Delete announcement/ }),
+      ).toBeDisabled();
+
+      resolveAction({ error: null, success: "Moved up." });
+      await screen.findByRole("status");
+    });
+  });
+
+  describe("feedback", () => {
+    it("reports a completed move", async () => {
+      const user = userEvent.setup();
+      renderControls();
+
+      await user.click(upButton());
+
+      expect(await screen.findByRole("status")).toHaveTextContent("Moved up.");
+    });
+
+    it("reports a refused move as an alert", async () => {
+      const user = userEvent.setup();
+      mocks.moveAnnouncementAction.mockResolvedValue({
+        error: "Announcement could not be moved. Try again.",
+        success: null,
+      });
+
+      renderControls();
+      await user.click(downButton());
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "Announcement could not be moved. Try again.",
+      );
+    });
+  });
+
+  describe("accessible labels", () => {
+    it("names the announcement each direction applies to", () => {
+      renderControls();
+
+      expect(
+        screen.getByRole("button", {
+          name: `Move announcement up: ${DESCRIPTION}`,
+        }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", {
+          name: `Move announcement down: ${DESCRIPTION}`,
+        }),
+      ).toBeInTheDocument();
     });
   });
 });

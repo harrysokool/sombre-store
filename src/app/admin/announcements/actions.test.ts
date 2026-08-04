@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   updateAdminAnnouncement: vi.fn(),
   setAdminAnnouncementActive: vi.fn(),
   deleteAdminAnnouncement: vi.fn(),
+  moveAdminAnnouncement: vi.fn(),
   revalidatePath: vi.fn(),
 }));
 
@@ -24,11 +25,13 @@ vi.mock("@/lib/admin/announcements", () => ({
   updateAdminAnnouncement: mocks.updateAdminAnnouncement,
   setAdminAnnouncementActive: mocks.setAdminAnnouncementActive,
   deleteAdminAnnouncement: mocks.deleteAdminAnnouncement,
+  moveAdminAnnouncement: mocks.moveAdminAnnouncement,
 }));
 
 import {
   createAnnouncementAction,
   deleteAnnouncementAction,
+  moveAnnouncementAction,
   setAnnouncementActiveAction,
   updateAnnouncementAction,
   updateAnnouncementSettingsAction,
@@ -583,5 +586,146 @@ describe("announcement item actions", () => {
       expect(state.error).not.toContain("permission denied");
       consoleError.mockRestore();
     });
+  });
+});
+
+describe("moveAnnouncementAction", () => {
+  beforeEach(() => {
+    mocks.getAdminUser.mockReset();
+    mocks.moveAdminAnnouncement.mockReset();
+    mocks.revalidatePath.mockReset();
+    mocks.getAdminUser.mockResolvedValue({
+      id: "admin-1",
+      email: "admin@example.com",
+    });
+    mocks.moveAdminAnnouncement.mockResolvedValue({
+      ok: true,
+      moved: true,
+      announcements: [ANNOUNCEMENT],
+    });
+  });
+
+  it("refuses an expired session before any database call", async () => {
+    mocks.getAdminUser.mockResolvedValue(null);
+
+    const state = await moveAnnouncementAction(
+      listState,
+      formData({ announcementId: ANNOUNCEMENT_ID, direction: "up" }),
+    );
+
+    expect(state.error).toContain("admin session has ended");
+    expect(mocks.moveAdminAnnouncement).not.toHaveBeenCalled();
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["up", "Moved up."],
+    ["down", "Moved down."],
+  ])("moves %s and revalidates the list", async (direction, message) => {
+    const state = await moveAnnouncementAction(
+      listState,
+      formData({ announcementId: ANNOUNCEMENT_ID, direction }),
+    );
+
+    expect(mocks.moveAdminAnnouncement).toHaveBeenCalledWith(
+      ANNOUNCEMENT_ID,
+      direction,
+    );
+    expect(state.success).toBe(message);
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/announcements");
+  });
+
+  it("passes only the reference and direction, ignoring any submitted position", async () => {
+    await moveAnnouncementAction(
+      listState,
+      formData({
+        announcementId: ANNOUNCEMENT_ID,
+        direction: "up",
+        sortOrder: "99",
+        sort_order: "99",
+      }),
+    );
+
+    // Two arguments only; a crafted position never reaches the data layer.
+    expect(mocks.moveAdminAnnouncement.mock.calls[0]).toEqual([
+      ANNOUNCEMENT_ID,
+      "up",
+    ]);
+  });
+
+  it("forwards an unrecognised direction for the data layer to reject", async () => {
+    mocks.moveAdminAnnouncement.mockResolvedValue({
+      ok: false,
+      error: "That move direction is not recognised.",
+    });
+
+    const state = await moveAnnouncementAction(
+      listState,
+      formData({ announcementId: ANNOUNCEMENT_ID, direction: "sideways" }),
+    );
+
+    expect(mocks.moveAdminAnnouncement).toHaveBeenCalledWith(
+      ANNOUNCEMENT_ID,
+      "sideways",
+    );
+    expect(state.error).toContain("not recognised");
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["up", "This announcement is already first."],
+    ["down", "This announcement is already last."],
+  ])(
+    "reports a boundary %s move without revalidating",
+    async (direction, message) => {
+      mocks.moveAdminAnnouncement.mockResolvedValue({
+        ok: true,
+        moved: false,
+        announcements: [ANNOUNCEMENT],
+      });
+
+      const state = await moveAnnouncementAction(
+        listState,
+        formData({ announcementId: ANNOUNCEMENT_ID, direction }),
+      );
+
+      expect(state.error).toBeNull();
+      expect(state.success).toBe(message);
+      // Nothing changed, so the cached page is still correct.
+      expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    },
+  );
+
+  it("returns a refusal without revalidating", async () => {
+    mocks.moveAdminAnnouncement.mockResolvedValue({
+      ok: false,
+      error: "That announcement no longer exists. Refresh the list.",
+    });
+
+    const state = await moveAnnouncementAction(
+      listState,
+      formData({ announcementId: ANNOUNCEMENT_ID, direction: "up" }),
+    );
+
+    expect(state.error).toContain("no longer exists");
+    expect(state.success).toBeNull();
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("turns an unexpected rejection into one generic message", async () => {
+    mocks.moveAdminAnnouncement.mockRejectedValue(
+      new Error('relation "announcements" does not exist'),
+    );
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const state = await moveAnnouncementAction(
+      listState,
+      formData({ announcementId: ANNOUNCEMENT_ID, direction: "up" }),
+    );
+
+    expect(state.error).toBe("Announcement could not be moved. Try again.");
+    expect(state.error).not.toContain("relation");
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    consoleError.mockRestore();
   });
 });

@@ -402,7 +402,7 @@ describe("admin announcements page", () => {
       ).toBeInTheDocument();
     });
 
-    it("adds no ordering controls to any row", async () => {
+    it("gives every row an up and a down control", async () => {
       mocks.listAdminAnnouncements.mockResolvedValue([
         BASE_ANNOUNCEMENT,
         { ...BASE_ANNOUNCEMENT, id: SECOND_ID, sort_order: 1 },
@@ -410,14 +410,29 @@ describe("admin announcements page", () => {
 
       render(await AdminAnnouncementsPage());
 
-      // Reordering arrives in a later phase; the displayed order stays
-      // read-only, and the Order column is still plain text.
-      for (const name of [/move/i, /^up$/i, /^down$/i, /reorder/i]) {
-        expect(screen.queryAllByRole("button", { name })).toHaveLength(0);
+      const rows = desktopTable().getAllByRole("row").slice(1);
+
+      for (const row of rows) {
+        expect(
+          within(row).getByRole("button", { name: /^Move announcement up/ }),
+        ).toBeInTheDocument();
+        expect(
+          within(row).getByRole("button", { name: /^Move announcement down/ }),
+        ).toBeInTheDocument();
       }
-      expect(
-        desktopTable().queryAllByRole("spinbutton"),
-      ).toHaveLength(0);
+    });
+
+    it("uses buttons rather than drag and drop, and no editable position", async () => {
+      mocks.listAdminAnnouncements.mockResolvedValue([
+        BASE_ANNOUNCEMENT,
+        { ...BASE_ANNOUNCEMENT, id: SECOND_ID, sort_order: 1 },
+      ]);
+
+      const { container } = render(await AdminAnnouncementsPage());
+
+      expect(container.querySelector("[draggable]")).toBeNull();
+      // The Order column stays plain text; position is never typed in.
+      expect(desktopTable().queryAllByRole("spinbutton")).toHaveLength(0);
     });
 
     it("offers a route into creating an announcement", async () => {
@@ -450,5 +465,126 @@ describe("admin announcements page", () => {
         screen.getAllByRole("button", { name: "Save settings" }),
       ).toHaveLength(1);
     });
+  });
+});
+
+describe("admin announcements ordering controls", () => {
+  const THIRD_ID = "33333333-3333-4333-8333-333333333333";
+
+  const THREE = [
+    { ...BASE_ANNOUNCEMENT, sort_order: 0 },
+    { ...BASE_ANNOUNCEMENT, id: SECOND_ID, sort_order: 1 },
+    { ...BASE_ANNOUNCEMENT, id: THIRD_ID, sort_order: 2 },
+  ];
+
+  beforeEach(() => {
+    mocks.requireAdminUser.mockReset();
+    mocks.getAdminAnnouncementSettings.mockReset();
+    mocks.listAdminAnnouncements.mockReset();
+    mocks.requireAdminUser.mockResolvedValue({
+      id: "admin-1",
+      email: "admin@example.com",
+    });
+    mocks.getAdminAnnouncementSettings.mockResolvedValue(SETTINGS);
+    mocks.listAdminAnnouncements.mockResolvedValue(THREE);
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  function boundaryChecks(
+    scope: ReturnType<typeof within>,
+    rows: HTMLElement[],
+  ) {
+    const first = within(rows[0]);
+    const middle = within(rows[1]);
+    const last = within(rows[rows.length - 1]);
+
+    expect(
+      first.getByRole("button", { name: /^Move announcement up/ }),
+    ).toBeDisabled();
+    expect(
+      first.getByRole("button", { name: /^Move announcement down/ }),
+    ).toBeEnabled();
+
+    expect(
+      middle.getByRole("button", { name: /^Move announcement up/ }),
+    ).toBeEnabled();
+    expect(
+      middle.getByRole("button", { name: /^Move announcement down/ }),
+    ).toBeEnabled();
+
+    expect(
+      last.getByRole("button", { name: /^Move announcement up/ }),
+    ).toBeEnabled();
+    expect(
+      last.getByRole("button", { name: /^Move announcement down/ }),
+    ).toBeDisabled();
+
+    return scope;
+  }
+
+  it("disables Up on the first row and Down on the last in the desktop table", async () => {
+    render(await AdminAnnouncementsPage());
+
+    const table = desktopTable();
+    boundaryChecks(table, table.getAllByRole("row").slice(1));
+  });
+
+  it("disables Up on the first card and Down on the last on small screens", async () => {
+    render(await AdminAnnouncementsPage());
+
+    const cards = mobileCards();
+    boundaryChecks(cards, cards.getAllByRole("listitem"));
+  });
+
+  it("disables both directions for a lone announcement", async () => {
+    mocks.listAdminAnnouncements.mockResolvedValue([BASE_ANNOUNCEMENT]);
+
+    render(await AdminAnnouncementsPage());
+
+    const row = within(desktopTable().getAllByRole("row")[1]);
+
+    expect(
+      row.getByRole("button", { name: /^Move announcement up/ }),
+    ).toBeDisabled();
+    expect(
+      row.getByRole("button", { name: /^Move announcement down/ }),
+    ).toBeDisabled();
+  });
+
+  it("counts inactive announcements as ordinary positions", async () => {
+    mocks.listAdminAnnouncements.mockResolvedValue([
+      { ...THREE[0], is_active: false },
+      THREE[1],
+      { ...THREE[2], is_active: false },
+    ]);
+
+    render(await AdminAnnouncementsPage());
+
+    const rows = desktopTable().getAllByRole("row").slice(1);
+
+    // An inactive first row still bounds the list; it is not skipped.
+    expect(
+      within(rows[0]).getByRole("button", { name: /^Move announcement up/ }),
+    ).toBeDisabled();
+    expect(
+      within(rows[2]).getByRole("button", { name: /^Move announcement down/ }),
+    ).toBeDisabled();
+  });
+
+  it("bounds by list position rather than by sort_order value", async () => {
+    // Gaps in the stored sequence must not change which rows are the ends.
+    mocks.listAdminAnnouncements.mockResolvedValue([
+      { ...THREE[0], sort_order: 4 },
+      { ...THREE[1], sort_order: 17 },
+      { ...THREE[2], sort_order: 900 },
+    ]);
+
+    render(await AdminAnnouncementsPage());
+
+    const rows = desktopTable().getAllByRole("row").slice(1);
+    boundaryChecks(desktopTable(), rows);
   });
 });

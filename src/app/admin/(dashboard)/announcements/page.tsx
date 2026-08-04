@@ -21,9 +21,9 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
-// Banner settings, then every announcement with its edit, activate, and delete
-// controls. The displayed order stays read-only: nothing here can move an
-// announcement, and the controls that do arrive in a later phase.
+// Banner settings, then every announcement with its move, edit, activate, and
+// delete controls. Both presentations map with an index so each row knows
+// whether it is first or last, which is what disables Up and Down at the ends.
 
 const EM_DASH = "—";
 
@@ -188,7 +188,7 @@ export default async function AdminAnnouncementsPage() {
                   below takes over at `lg`, the first width where its columns
                   fit. */}
               <ul aria-label="Announcements" className="space-y-3 lg:hidden">
-                {announcements.map((announcement) => (
+                {announcements.map((announcement, index) => (
                   <li
                     key={announcement.id}
                     className="min-w-0 space-y-4 rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-4"
@@ -223,6 +223,8 @@ export default async function AdminAnnouncementsPage() {
                       announcementId={announcement.id}
                       isActive={announcement.is_active}
                       description={describeAnnouncement(announcement)}
+                      isFirst={index === 0}
+                      isLast={index === announcements.length - 1}
                     />
                   </li>
                 ))}
@@ -248,7 +250,7 @@ export default async function AdminAnnouncementsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {announcements.map((announcement) => (
+                    {announcements.map((announcement, index) => (
                       <tr
                         key={announcement.id}
                         className="border-b border-white/5 align-top transition-colors last:border-b-0 hover:bg-white/[0.03]"
@@ -281,6 +283,8 @@ export default async function AdminAnnouncementsPage() {
                             announcementId={announcement.id}
                             isActive={announcement.is_active}
                             description={describeAnnouncement(announcement)}
+                            isFirst={index === 0}
+                            isLast={index === announcements.length - 1}
                           />
                         </td>
                       </tr>

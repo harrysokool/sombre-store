@@ -5,6 +5,7 @@ import { useActionState, useState } from "react";
 
 import {
   deleteAnnouncementAction,
+  moveAnnouncementAction,
   setAnnouncementActiveAction,
   type AnnouncementListActionState,
 } from "@/app/admin/announcements/actions";
@@ -23,12 +24,16 @@ type AnnouncementRowControlsProps = {
   announcementId: string;
   isActive: boolean;
   description: string;
+  isFirst: boolean;
+  isLast: boolean;
 };
 
 export function AnnouncementRowControls({
   announcementId,
   isActive,
   description,
+  isFirst,
+  isLast,
 }: AnnouncementRowControlsProps) {
   const [activeState, activeFormAction, isActivePending] = useActionState(
     setAnnouncementActiveAction,
@@ -38,16 +43,70 @@ export function AnnouncementRowControls({
     deleteAnnouncementAction,
     initialActionState,
   );
+  // One hook per direction so the pending label lands on the button that was
+  // actually pressed rather than on both.
+  const [moveUpState, moveUpFormAction, isMovingUp] = useActionState(
+    moveAnnouncementAction,
+    initialActionState,
+  );
+  const [moveDownState, moveDownFormAction, isMovingDown] = useActionState(
+    moveAnnouncementAction,
+    initialActionState,
+  );
   // Deletion is irreversible and there is no undo, so the destructive button
   // never submits on its own: the first press only asks.
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
 
-  const error = activeState.error ?? deleteState.error;
-  const success = activeState.success ?? deleteState.success;
+  const error =
+    activeState.error ??
+    deleteState.error ??
+    moveUpState.error ??
+    moveDownState.error;
+  const success =
+    activeState.success ??
+    deleteState.success ??
+    moveUpState.success ??
+    moveDownState.success;
+  const isBusy =
+    isActivePending || isDeletePending || isMovingUp || isMovingDown;
 
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-2">
+        <form action={moveUpFormAction}>
+          <input
+            type="hidden"
+            name="announcementId"
+            value={announcementId}
+          />
+          <input type="hidden" name="direction" value="up" />
+          <button
+            type="submit"
+            disabled={isFirst || isBusy}
+            aria-label={`Move announcement up: ${description}`}
+            className={controlClassName}
+          >
+            {isMovingUp ? "Moving…" : "Up"}
+          </button>
+        </form>
+
+        <form action={moveDownFormAction}>
+          <input
+            type="hidden"
+            name="announcementId"
+            value={announcementId}
+          />
+          <input type="hidden" name="direction" value="down" />
+          <button
+            type="submit"
+            disabled={isLast || isBusy}
+            aria-label={`Move announcement down: ${description}`}
+            className={controlClassName}
+          >
+            {isMovingDown ? "Moving…" : "Down"}
+          </button>
+        </form>
+
         <Link
           href={`/admin/announcements/${announcementId}`}
           aria-label={`Edit announcement: ${description}`}
@@ -65,7 +124,7 @@ export function AnnouncementRowControls({
           <input type="hidden" name="isActive" value={String(!isActive)} />
           <button
             type="submit"
-            disabled={isActivePending || isDeletePending}
+            disabled={isBusy}
             aria-label={`${isActive ? "Deactivate" : "Activate"} announcement: ${description}`}
             className={controlClassName}
           >
@@ -81,7 +140,7 @@ export function AnnouncementRowControls({
           <button
             type="button"
             onClick={() => setIsConfirmingDelete(true)}
-            disabled={isActivePending || isDeletePending}
+            disabled={isBusy}
             aria-label={`Delete announcement: ${description}`}
             className={destructiveClassName}
           >

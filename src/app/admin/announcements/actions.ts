@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import {
   createAdminAnnouncement,
   deleteAdminAnnouncement,
+  moveAdminAnnouncement,
   setAdminAnnouncementActive,
   updateAdminAnnouncement,
   updateAdminAnnouncementSettings,
@@ -243,6 +244,53 @@ export async function deleteAnnouncementAction(
     console.error("Admin announcement deletion failed", error);
     return {
       error: "Announcement could not be deleted. Try again.",
+      success: null,
+    };
+  }
+}
+
+export async function moveAnnouncementAction(
+  _previousState: AnnouncementListActionState,
+  formData: FormData,
+): Promise<AnnouncementListActionState> {
+  if (!(await getAdminUser())) {
+    return { error: EXPIRED_SESSION_ERROR, success: null };
+  }
+
+  // Only the reference and the direction. A sort_order in the request body is
+  // never read: positions come from stored values, decided server-side.
+  const announcementId = String(formData.get("announcementId") ?? "").trim();
+  const direction = formData.get("direction");
+
+  try {
+    const result = await moveAdminAnnouncement(announcementId, direction);
+
+    if (!result.ok) {
+      return { error: result.error, success: null };
+    }
+
+    if (!result.moved) {
+      // Already at the end it was asked to move toward. Nothing changed, so
+      // the cached page is still correct and is left alone.
+      return {
+        error: null,
+        success:
+          direction === "up"
+            ? "This announcement is already first."
+            : "This announcement is already last.",
+      };
+    }
+
+    revalidatePath("/admin/announcements");
+
+    return {
+      error: null,
+      success: direction === "up" ? "Moved up." : "Moved down.",
+    };
+  } catch (error) {
+    console.error("Admin announcement move failed", error);
+    return {
+      error: "Announcement could not be moved. Try again.",
       success: null,
     };
   }
