@@ -18,6 +18,7 @@ vi.mock("@/lib/supabase/service-role", () => ({
 import {
   getAdminAnnouncementSettings,
   listAdminAnnouncements,
+  updateAdminAnnouncementSettings,
 } from "./announcements";
 
 type QueryResult = {
@@ -32,7 +33,9 @@ function query(result: QueryResult = {}) {
   };
   const builder: Record<string, ReturnType<typeof vi.fn>> = {};
 
-  for (const method of ["select", "eq", "order"]) {
+  // Deliberately no insert or upsert: the settings write must be an UPDATE
+  // only, and a test asserts these stay absent.
+  for (const method of ["select", "eq", "order", "update"]) {
     builder[method] = vi.fn(() => builder);
   }
 
@@ -96,6 +99,22 @@ describe("admin announcement reads", () => {
       );
       // The gate is checked before any client is built, so an unapproved
       // caller never reaches the service-role key at all.
+      expect(mocks.createSupabase).not.toHaveBeenCalled();
+    });
+
+    it("refuses a settings write without an approved session", async () => {
+      mocks.getAdminUser.mockResolvedValue(null);
+
+      await expect(
+        updateAdminAnnouncementSettings({
+          isEnabled: true,
+          rotationIntervalSeconds: 10,
+        }),
+      ).rejects.toThrow(
+        "Admin announcement data requested without an approved session.",
+      );
+      // The guard runs before validation and before the client is built, so a
+      // rejected caller cannot even probe which values would be accepted.
       expect(mocks.createSupabase).not.toHaveBeenCalled();
     });
 
@@ -229,6 +248,125 @@ describe("admin announcement reads", () => {
       await expect(listAdminAnnouncements()).rejects.toThrow(
         "Announcements could not be loaded.",
       );
+    });
+  });
+
+  describe("updateAdminAnnouncementSettings", () => {
+    it("switches the banner from enabled to disabled", async () => {
+      const updated = { ...SETTINGS_ROW, is_enabled: false };
+      const builder = query({ data: updated });
+      const client = supabaseWith(builder);
+
+      await expect(
+        updateAdminAnnouncementSettings({
+          isEnabled: false,
+          rotationIntervalSeconds: 10,
+        }),
+      ).resolves.toEqual({ ok: true, settings: updated });
+
+      expect(client.from).toHaveBeenCalledWith("announcement_settings");
+      expect(builder.update).toHaveBeenCalledWith({
+        is_enabled: false,
+        rotation_interval_seconds: 10,
+      });
+      expect(builder.eq).toHaveBeenCalledWith("id", 1);
+    });
+
+    it("switches the banner from disabled to enabled", async () => {
+      const updated = {
+        ...SETTINGS_ROW,
+        is_enabled: true,
+        rotation_interval_seconds: 25,
+      };
+      const builder = query({ data: updated });
+      supabaseWith(builder);
+
+      await expect(
+        updateAdminAnnouncementSettings({
+          isEnabled: true,
+          rotationIntervalSeconds: "25",
+        }),
+      ).resolves.toEqual({ ok: true, settings: updated });
+
+      expect(builder.update).toHaveBeenCalledWith({
+        is_enabled: true,
+        rotation_interval_seconds: 25,
+      });
+    });
+
+    it("writes only the two configurable columns", async () => {
+      const builder = query({ data: SETTINGS_ROW });
+      supabaseWith(builder);
+
+      await updateAdminAnnouncementSettings({
+        isEnabled: true,
+        rotationIntervalSeconds: 10,
+      });
+
+      // id, created_at, and updated_at belong to the primary key and the
+      // set_updated_at trigger, never to a submitted form.
+      expect(Object.keys(builder.update.mock.calls[0][0])).toEqual([
+        "is_enabled",
+        "rotation_interval_seconds",
+      ]);
+    });
+
+    it.each([
+      ["below the minimum", 2],
+      ["above the maximum", 61],
+      ["a decimal", 10.5],
+      ["missing", null],
+      ["not a number", "soon"],
+    ])("refuses %s without touching the database", async (_name, seconds) => {
+      const builder = query({ data: SETTINGS_ROW });
+      supabaseWith(builder);
+
+      const result = await updateAdminAnnouncementSettings({
+        isEnabled: true,
+        rotationIntervalSeconds: seconds,
+      });
+
+      expect(result.ok).toBe(false);
+      expect(builder.update).not.toHaveBeenCalled();
+    });
+
+    it("reports a failed write without leaking the database error", async () => {
+      supabaseWith(query({ error: { message: 'duplicate key value "x"' } }));
+      const consoleError = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+
+      const result = await updateAdminAnnouncementSettings({
+        isEnabled: true,
+        rotationIntervalSeconds: 10,
+      });
+
+      expect(result).toEqual({
+        ok: false,
+        error: "Banner settings could not be saved. Try again.",
+      });
+      // The detail is still recorded server-side for debugging.
+      expect(consoleError).toHaveBeenCalled();
+      consoleError.mockRestore();
+    });
+
+    it("reports a missing singleton row instead of creating one", async () => {
+      const builder = query({ data: null });
+      supabaseWith(builder);
+
+      const result = await updateAdminAnnouncementSettings({
+        isEnabled: true,
+        rotationIntervalSeconds: 10,
+      });
+
+      expect(result.ok).toBe(false);
+      expect(result.ok === false && result.error).toContain(
+        "banner settings row is missing",
+      );
+      // An UPDATE that matched nothing must not become an INSERT: no upsert,
+      // and no invented defaults written back.
+      expect(builder.upsert).toBeUndefined();
+      expect(builder.insert).toBeUndefined();
     });
   });
 });

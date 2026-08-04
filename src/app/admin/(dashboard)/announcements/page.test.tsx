@@ -96,21 +96,25 @@ describe("admin announcements page", () => {
   });
 
   describe("banner settings", () => {
-    it("shows the banner as enabled with its rotation interval", async () => {
+    it("renders the settings form seeded from the saved row", async () => {
       render(await AdminAnnouncementsPage());
 
-      const settings = within(
-        screen.getByRole("region", { name: "Banner settings" }),
+      const form = within(
+        screen.getByRole("form", { name: "Banner settings" }),
       );
 
-      expect(settings.getByText("Enabled")).toHaveAttribute(
-        "data-tone",
-        "success",
-      );
-      expect(settings.getByText("10 seconds")).toBeInTheDocument();
+      expect(
+        form.getByRole("checkbox", { name: /show the announcement banner/i }),
+      ).toBeChecked();
+      expect(
+        form.getByRole("spinbutton", { name: /rotation interval/i }),
+      ).toHaveValue(10);
+      expect(
+        form.getByRole("button", { name: "Save settings" }),
+      ).toBeInTheDocument();
     });
 
-    it("shows the banner as disabled without implying a failure", async () => {
+    it("seeds the form from a disabled row without inventing values", async () => {
       mocks.getAdminAnnouncementSettings.mockResolvedValue({
         ...SETTINGS,
         is_enabled: false,
@@ -119,28 +123,34 @@ describe("admin announcements page", () => {
 
       render(await AdminAnnouncementsPage());
 
-      const settings = within(
-        screen.getByRole("region", { name: "Banner settings" }),
+      const form = within(
+        screen.getByRole("form", { name: "Banner settings" }),
       );
 
-      // Neutral, not danger: switched off is a choice, not a problem.
-      expect(settings.getByText("Disabled")).toHaveAttribute(
-        "data-tone",
-        "neutral",
-      );
-      expect(settings.getByText("3 seconds")).toBeInTheDocument();
+      expect(
+        form.getByRole("checkbox", { name: /show the announcement banner/i }),
+      ).not.toBeChecked();
+      expect(
+        form.getByRole("spinbutton", { name: /rotation interval/i }),
+      ).toHaveValue(3);
     });
 
-    it("says so plainly when no settings row exists", async () => {
+    it("reports a missing settings row instead of rendering a form", async () => {
       mocks.getAdminAnnouncementSettings.mockResolvedValue(null);
 
       render(await AdminAnnouncementsPage());
 
       expect(
-        screen.getByText(/no banner settings row was found/i),
+        screen.getByText(/banner settings are missing/i),
       ).toBeInTheDocument();
-      expect(screen.queryByText("Enabled")).toBeNull();
-      expect(screen.queryByText("Disabled")).toBeNull();
+      // No form with invented defaults: saving against a row that does not
+      // exist would look like it worked and change nothing.
+      expect(screen.queryByRole("form", { name: "Banner settings" })).toBeNull();
+      expect(screen.queryByRole("checkbox")).toBeNull();
+      expect(screen.queryByRole("spinbutton")).toBeNull();
+      expect(
+        screen.queryByRole("button", { name: "Save settings" }),
+      ).toBeNull();
     });
   });
 
@@ -331,9 +341,11 @@ describe("admin announcements page", () => {
       render(await AdminAnnouncementsPage());
 
       expect(
-        screen.getByRole("region", { name: "Banner settings" }),
+        screen.getByRole("form", { name: "Banner settings" }),
       ).toBeInTheDocument();
-      expect(screen.getByText("Enabled")).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Save settings" }),
+      ).toBeInTheDocument();
     });
 
     it("reports a failed read without showing a misleading banner state", async () => {
@@ -348,19 +360,40 @@ describe("admin announcements page", () => {
         screen.getByText("Announcements could not be loaded. Please try again."),
       ).toBeInTheDocument();
       // Nothing was read successfully, so no settings claim is made at all.
-      expect(screen.queryByRole("region", { name: "Banner settings" })).toBeNull();
+      expect(screen.queryByRole("form", { name: "Banner settings" })).toBeNull();
       expect(screen.queryByRole("table")).toBeNull();
     });
   });
 
   describe("read-only scope", () => {
-    it("offers no controls that could change anything in this phase", async () => {
+    it("keeps the announcement list read-only", async () => {
+      mocks.listAdminAnnouncements.mockResolvedValue([
+        BASE_ANNOUNCEMENT,
+        { ...BASE_ANNOUNCEMENT, id: SECOND_ID, is_active: false },
+      ]);
+
       render(await AdminAnnouncementsPage());
 
-      expect(screen.queryAllByRole("button")).toHaveLength(0);
+      // Editing, deleting, per-item toggles, and reordering all arrive in
+      // later phases. The settings form above is the only thing that writes.
+      for (const list of [mobileCards(), desktopTable()]) {
+        expect(list.queryAllByRole("button")).toHaveLength(0);
+        expect(list.queryAllByRole("link")).toHaveLength(0);
+        expect(list.queryAllByRole("textbox")).toHaveLength(0);
+        expect(list.queryAllByRole("checkbox")).toHaveLength(0);
+        expect(list.queryAllByRole("spinbutton")).toHaveLength(0);
+      }
+    });
+
+    it("adds no controls beyond the settings form itself", async () => {
+      render(await AdminAnnouncementsPage());
+
+      // Exactly one toggle, one interval field, and one save button on the
+      // whole page.
+      expect(screen.getAllByRole("checkbox")).toHaveLength(1);
+      expect(screen.getAllByRole("spinbutton")).toHaveLength(1);
+      expect(screen.getAllByRole("button")).toHaveLength(1);
       expect(screen.queryAllByRole("link")).toHaveLength(0);
-      expect(screen.queryAllByRole("textbox")).toHaveLength(0);
-      expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
     });
   });
 });

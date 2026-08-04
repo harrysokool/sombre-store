@@ -1,5 +1,9 @@
 import "server-only";
 
+import {
+  validateAnnouncementSettingsSubmission,
+  type AdminAnnouncementSettingsSubmission,
+} from "@/lib/admin/announcement-settings-rules";
 import { getAdminUser } from "@/lib/supabase/admin-auth";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
@@ -18,6 +22,11 @@ const ANNOUNCEMENT_COLUMNS =
 // constraint in the migration that created it.
 const SETTINGS_ROW_ID = 1;
 
+const SAVE_FAILED_MESSAGE =
+  "Banner settings could not be saved. Try again.";
+const MISSING_SETTINGS_MESSAGE =
+  "The banner settings row is missing, so nothing was saved. Restore it before changing the banner.";
+
 export type AdminAnnouncementSettings = {
   id: number;
   is_enabled: boolean;
@@ -25,6 +34,10 @@ export type AdminAnnouncementSettings = {
   created_at: string;
   updated_at: string;
 };
+
+export type AdminAnnouncementSettingsMutationResult =
+  | { ok: true; settings: AdminAnnouncementSettings }
+  | { ok: false; error: string };
 
 export type AdminAnnouncement = {
   id: string;
@@ -47,6 +60,50 @@ async function assertAdmin() {
       "Admin announcement data requested without an approved session.",
     );
   }
+}
+
+/**
+ * Writes the two configurable settings fields to the singleton row.
+ *
+ * Deliberately an UPDATE rather than an upsert: the row is created by the
+ * migration that added the table, so a missing row means the database is not
+ * in the state this code expects. Recreating it here would paper over that
+ * with invented defaults, so it is reported instead.
+ */
+export async function updateAdminAnnouncementSettings(
+  input: AdminAnnouncementSettingsSubmission,
+): Promise<AdminAnnouncementSettingsMutationResult> {
+  await assertAdmin();
+
+  const validated = validateAnnouncementSettingsSubmission(input);
+
+  if (!validated.ok) {
+    return validated;
+  }
+
+  const supabase = createSupabaseServiceRoleClient();
+  // Only these two columns are ever written. id, created_at, and updated_at
+  // are left to the primary key and the set_updated_at trigger.
+  const { data, error } = await supabase
+    .from("announcement_settings")
+    .update({
+      is_enabled: validated.value.isEnabled,
+      rotation_interval_seconds: validated.value.rotationIntervalSeconds,
+    })
+    .eq("id", SETTINGS_ROW_ID)
+    .select(SETTINGS_COLUMNS)
+    .maybeSingle<AdminAnnouncementSettings>();
+
+  if (error) {
+    console.error("Failed to update announcement settings", error);
+    return { ok: false, error: SAVE_FAILED_MESSAGE };
+  }
+
+  if (!data) {
+    return { ok: false, error: MISSING_SETTINGS_MESSAGE };
+  }
+
+  return { ok: true, settings: data };
 }
 
 /**

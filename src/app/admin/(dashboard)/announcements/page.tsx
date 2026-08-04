@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
+import { AnnouncementSettingsForm } from "@/app/admin/announcements/announcement-settings-form";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { StatusBadge } from "@/components/admin/status-badge";
 import {
@@ -17,17 +18,14 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
-// Read-only view. Editing, ordering, and the settings form arrive in later
-// phases, so nothing here mutates and no control writes to the database.
+// The banner settings are editable; the announcement list below is still
+// read-only. Creating, editing, toggling, and reordering announcements arrive
+// in later phases, so nothing in the list writes to the database.
 
 const EM_DASH = "—";
 
 function orDash(value: string | null) {
   return value ?? EM_DASH;
-}
-
-function formatInterval(seconds: number) {
-  return `${seconds} ${seconds === 1 ? "second" : "seconds"}`;
 }
 
 // One labelled field inside a mobile announcement card. The label stacks above
@@ -82,7 +80,15 @@ function AnnouncementStatus({ isActive }: { isActive: boolean }) {
   );
 }
 
-function SettingsSummary({
+/**
+ * The settings form, or an honest refusal to show one.
+ *
+ * A missing singleton row means the database is not in the state this code
+ * expects. Rendering the form with invented defaults would let an administrator
+ * "save" values against a row that does not exist, so the configuration problem
+ * is reported instead and no row is created here.
+ */
+function BannerSettings({
   settings,
 }: {
   settings: AdminAnnouncementSettings | null;
@@ -91,45 +97,26 @@ function SettingsSummary({
     return (
       <section
         aria-label="Banner settings"
-        className="rounded-2xl border border-white/10 bg-white/[0.02] px-6 py-6"
+        className="rounded-2xl border border-red-400/20 bg-red-400/5 px-6 py-6"
       >
-        <p className="text-sm text-stone-400">
-          No banner settings row was found, so the storefront banner has no
-          configuration to read.
+        <h2 className="text-sm font-medium text-red-100">
+          Banner settings are missing
+        </h2>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-red-200/90">
+          No settings row was found, so the banner has no configuration to read
+          and nothing here can be changed. The row is created by the migration
+          that added the announcement tables; restore it before editing the
+          banner.
         </p>
       </section>
     );
   }
 
   return (
-    <section
-      aria-label="Banner settings"
-      className="rounded-2xl border border-white/10 bg-white/[0.02] px-6 py-6"
-    >
-      <dl className="grid gap-4 sm:grid-cols-2">
-        <div className="min-w-0 space-y-2">
-          <dt className="text-xs uppercase tracking-[0.18em] text-stone-400">
-            Banner
-          </dt>
-          <dd>
-            <StatusBadge
-              kind="announcement"
-              value={settings.is_enabled ? "active" : "inactive"}
-              label={settings.is_enabled ? "Enabled" : "Disabled"}
-            />
-          </dd>
-        </div>
-
-        <div className="min-w-0 space-y-2">
-          <dt className="text-xs uppercase tracking-[0.18em] text-stone-400">
-            Rotation interval
-          </dt>
-          <dd className="text-sm text-stone-200">
-            {formatInterval(settings.rotation_interval_seconds)}
-          </dd>
-        </div>
-      </dl>
-    </section>
+    <AnnouncementSettingsForm
+      isEnabled={settings.is_enabled}
+      rotationIntervalSeconds={settings.rotation_interval_seconds}
+    />
   );
 }
 
@@ -163,7 +150,7 @@ export default async function AdminAnnouncementsPage() {
     <div className="space-y-6">
       <AdminPageHeader
         title="Announcements"
-        description="The storefront announcement banner and its messages. This view is read-only; editing arrives in a later phase."
+        description="Switch the storefront announcement banner on or off and set how fast it rotates. Editing the messages themselves arrives in a later phase."
       />
 
       {hasError ? (
@@ -172,7 +159,7 @@ export default async function AdminAnnouncementsPage() {
         </p>
       ) : (
         <>
-          <SettingsSummary settings={settings} />
+          <BannerSettings settings={settings} />
 
           {announcements.length === 0 ? (
             <p className="rounded-2xl border border-white/10 bg-white/[0.02] px-6 py-10 text-center text-sm text-stone-400">
