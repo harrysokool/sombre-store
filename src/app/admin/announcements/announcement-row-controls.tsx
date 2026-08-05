@@ -1,5 +1,13 @@
 "use client";
 
+import {
+  ChevronDown,
+  ChevronUp,
+  Eye,
+  EyeOff,
+  LoaderCircle,
+  Trash2,
+} from "lucide-react";
 import Link from "next/link";
 import { useActionState, useState } from "react";
 
@@ -15,10 +23,26 @@ const initialActionState: AnnouncementListActionState = {
   success: null,
 };
 
-const controlClassName =
-  "inline-flex items-center justify-center rounded-full border border-white/10 px-4 py-2 text-xs uppercase tracking-[0.16em] text-stone-300 transition-colors hover:border-white/20 hover:bg-white/5 hover:text-stone-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30 disabled:cursor-not-allowed disabled:opacity-50";
-const destructiveClassName =
-  "inline-flex items-center justify-center rounded-full border border-red-400/25 bg-red-400/5 px-4 py-2 text-xs uppercase tracking-[0.16em] text-red-200 transition-colors hover:border-red-400/40 hover:bg-red-400/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300/40 disabled:cursor-not-allowed disabled:opacity-50";
+// One square icon button, sized for touch on small screens and tightened up
+// from `sm`. Shared by the status and delete actions so the trailing cluster
+// reads as one set of controls.
+const iconButtonClassName =
+  "inline-flex size-10 shrink-0 items-center justify-center rounded-xl border border-white/10 text-stone-300 transition-colors hover:border-white/20 hover:bg-white/5 hover:text-stone-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30 disabled:cursor-not-allowed disabled:opacity-40 sm:size-9";
+const destructiveIconButtonClassName =
+  "inline-flex size-10 shrink-0 items-center justify-center rounded-xl border border-red-400/25 bg-red-400/5 text-red-200 transition-colors hover:border-red-400/40 hover:bg-red-400/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300/40 disabled:cursor-not-allowed disabled:opacity-40 sm:size-9";
+// Edit keeps its word: it is the primary action on a row and should not need
+// an icon to be decoded.
+const editLinkClassName =
+  "inline-flex h-10 shrink-0 items-center rounded-xl border border-white/10 px-3.5 text-xs uppercase tracking-[0.14em] text-stone-200 transition-colors hover:border-white/20 hover:bg-white/5 hover:text-stone-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30 sm:h-9";
+// Taller on touch screens, tightened up from `sm` where a pointer is precise.
+const orderingButtonClassName =
+  "inline-flex h-7 w-10 items-center justify-center text-stone-400 transition-colors hover:bg-white/5 hover:text-stone-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white/30 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent sm:h-6 sm:w-9";
+const confirmButtonClassName =
+  "inline-flex items-center justify-center rounded-xl border border-red-400/25 bg-red-400/5 px-4 py-2 text-xs uppercase tracking-[0.14em] text-red-200 transition-colors hover:border-red-400/40 hover:bg-red-400/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300/40 disabled:cursor-not-allowed disabled:opacity-50";
+const cancelButtonClassName =
+  "inline-flex items-center justify-center rounded-xl border border-white/10 px-4 py-2 text-xs uppercase tracking-[0.14em] text-stone-300 transition-colors hover:border-white/20 hover:bg-white/5 hover:text-stone-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30 disabled:cursor-not-allowed disabled:opacity-50";
+
+const ICON_CLASS = "size-4";
 
 type AnnouncementRowControlsProps = {
   announcementId: string;
@@ -43,8 +67,8 @@ export function AnnouncementRowControls({
     deleteAnnouncementAction,
     initialActionState,
   );
-  // One hook per direction so the pending label lands on the button that was
-  // actually pressed rather than on both.
+  // One hook per direction so the pending indicator lands on the button that
+  // was actually pressed rather than on both.
   const [moveUpState, moveUpFormAction, isMovingUp] = useActionState(
     moveAnnouncementAction,
     initialActionState,
@@ -72,85 +96,111 @@ export function AnnouncementRowControls({
 
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap items-center gap-2">
-        <form action={moveUpFormAction}>
-          <input
-            type="hidden"
-            name="announcementId"
-            value={announcementId}
-          />
-          <input type="hidden" name="direction" value="up" />
-          <button
-            type="submit"
-            disabled={isFirst || isBusy}
-            aria-label={`Move announcement up: ${description}`}
-            className={controlClassName}
+      <div className="flex items-start justify-end gap-2 sm:gap-3">
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Link
+            href={`/admin/announcements/${announcementId}`}
+            aria-label={`Edit announcement: ${description}`}
+            className={editLinkClassName}
           >
-            {isMovingUp ? "Moving…" : "Up"}
-          </button>
-        </form>
+            Edit
+          </Link>
 
-        <form action={moveDownFormAction}>
-          <input
-            type="hidden"
-            name="announcementId"
-            value={announcementId}
-          />
-          <input type="hidden" name="direction" value="down" />
-          <button
-            type="submit"
-            disabled={isLast || isBusy}
-            aria-label={`Move announcement down: ${description}`}
-            className={controlClassName}
-          >
-            {isMovingDown ? "Moving…" : "Down"}
-          </button>
-        </form>
+          <form action={activeFormAction}>
+            <input
+              type="hidden"
+              name="announcementId"
+              value={announcementId}
+            />
+            <input type="hidden" name="isActive" value={String(!isActive)} />
+            <button
+              type="submit"
+              disabled={isBusy}
+              aria-busy={isActivePending}
+              aria-label={`${isActive ? "Deactivate" : "Activate"} announcement: ${description}`}
+              className={iconButtonClassName}
+            >
+              {isActivePending ? (
+                <LoaderCircle className={`${ICON_CLASS} animate-spin`} />
+              ) : isActive ? (
+                <EyeOff className={ICON_CLASS} />
+              ) : (
+                <Eye className={ICON_CLASS} />
+              )}
+            </button>
+          </form>
 
-        <Link
-          href={`/admin/announcements/${announcementId}`}
-          aria-label={`Edit announcement: ${description}`}
-          className={controlClassName}
+          {isConfirmingDelete ? null : (
+            <button
+              type="button"
+              onClick={() => setIsConfirmingDelete(true)}
+              disabled={isBusy}
+              aria-label={`Delete announcement: ${description}`}
+              className={destructiveIconButtonClassName}
+            >
+              <Trash2 className={ICON_CLASS} />
+            </button>
+          )}
+        </div>
+
+        {/* Ordering sits apart from the item actions, at the trailing edge:
+            moving a message is a different kind of change from editing it. */}
+        <div
+          data-testid="announcement-ordering-controls"
+          aria-label="Reorder announcement"
+          role="group"
+          className="flex shrink-0 flex-col overflow-hidden rounded-xl border border-white/10"
         >
-          Edit
-        </Link>
+          <form action={moveUpFormAction}>
+            <input
+              type="hidden"
+              name="announcementId"
+              value={announcementId}
+            />
+            <input type="hidden" name="direction" value="up" />
+            <button
+              type="submit"
+              disabled={isFirst || isBusy}
+              aria-busy={isMovingUp}
+              aria-label={`Move announcement up: ${description}`}
+              className={orderingButtonClassName}
+            >
+              {isMovingUp ? (
+                <LoaderCircle className="size-3.5 animate-spin" />
+              ) : (
+                <ChevronUp className="size-3.5" />
+              )}
+            </button>
+          </form>
 
-        <form action={activeFormAction}>
-          <input
-            type="hidden"
-            name="announcementId"
-            value={announcementId}
-          />
-          <input type="hidden" name="isActive" value={String(!isActive)} />
-          <button
-            type="submit"
-            disabled={isBusy}
-            aria-label={`${isActive ? "Deactivate" : "Activate"} announcement: ${description}`}
-            className={controlClassName}
-          >
-            {isActivePending
-              ? "Saving…"
-              : isActive
-                ? "Deactivate"
-                : "Activate"}
-          </button>
-        </form>
+          <div aria-hidden="true" className="h-px bg-white/10" />
 
-        {isConfirmingDelete ? null : (
-          <button
-            type="button"
-            onClick={() => setIsConfirmingDelete(true)}
-            disabled={isBusy}
-            aria-label={`Delete announcement: ${description}`}
-            className={destructiveClassName}
-          >
-            Delete
-          </button>
-        )}
+          <form action={moveDownFormAction}>
+            <input
+              type="hidden"
+              name="announcementId"
+              value={announcementId}
+            />
+            <input type="hidden" name="direction" value="down" />
+            <button
+              type="submit"
+              disabled={isLast || isBusy}
+              aria-busy={isMovingDown}
+              aria-label={`Move announcement down: ${description}`}
+              className={orderingButtonClassName}
+            >
+              {isMovingDown ? (
+                <LoaderCircle className="size-3.5 animate-spin" />
+              ) : (
+                <ChevronDown className="size-3.5" />
+              )}
+            </button>
+          </form>
+        </div>
       </div>
 
       {isConfirmingDelete ? (
-        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-red-400/20 bg-red-400/5 px-4 py-3">
+        <div className="flex flex-wrap items-center justify-end gap-2 rounded-xl border border-red-400/20 bg-red-400/5 px-4 py-3">
           <p className="text-xs leading-5 text-red-200">
             Delete this announcement? This cannot be undone.
           </p>
@@ -164,7 +214,7 @@ export function AnnouncementRowControls({
               type="submit"
               disabled={isDeletePending}
               aria-label={`Confirm delete announcement: ${description}`}
-              className={destructiveClassName}
+              className={confirmButtonClassName}
             >
               {isDeletePending ? "Deleting…" : "Confirm delete"}
             </button>
@@ -174,7 +224,7 @@ export function AnnouncementRowControls({
             onClick={() => setIsConfirmingDelete(false)}
             disabled={isDeletePending}
             aria-label={`Keep announcement: ${description}`}
-            className={controlClassName}
+            className={cancelButtonClassName}
           >
             Cancel
           </button>
@@ -182,13 +232,16 @@ export function AnnouncementRowControls({
       ) : null}
 
       {error ? (
-        <p role="alert" className="text-xs leading-5 text-red-300">
+        <p role="alert" className="text-right text-xs leading-5 text-red-300">
           {error}
         </p>
       ) : null}
 
       {success ? (
-        <p role="status" className="text-xs leading-5 text-emerald-300">
+        <p
+          role="status"
+          className="text-right text-xs leading-5 text-emerald-300"
+        >
           {success}
         </p>
       ) : null}

@@ -164,35 +164,98 @@ describe("admin announcements page", () => {
   });
 
   describe("announcement list", () => {
-    it("shows every stored field in the desktop table", async () => {
+    it("uses four simplified columns instead of one per stored field", async () => {
       render(await AdminAnnouncementsPage());
 
       const table = desktopTable();
 
-      for (const header of [
-        "Order",
+      for (const header of ["Position", "Message", "Status"]) {
+        expect(
+          table.getByRole("columnheader", { name: header }),
+        ).toBeInTheDocument();
+      }
+      // Position, Message, Status, and an unlabelled actions column.
+      expect(table.getAllByRole("columnheader")).toHaveLength(4);
+
+      // The stored field names are no longer column headings.
+      for (const removed of [
         "Prefix",
         "Highlight",
         "Suffix",
         "Link label",
         "Link href",
-        "Status",
+        "Order",
       ]) {
         expect(
-          table.getByRole("columnheader", { name: header }),
-        ).toBeInTheDocument();
+          table.queryByRole("columnheader", { name: removed }),
+        ).toBeNull();
       }
+    });
 
-      const row = within(table.getAllByRole("row")[1]);
+    it("leads each row with the sentence a customer would read", async () => {
+      render(await AdminAnnouncementsPage());
+
+      const row = within(desktopTable().getAllByRole("row")[1]);
+
+      // One rendered preview, not five separate field values.
       expect(row.getByText("Use code")).toBeInTheDocument();
       expect(row.getByText("HAPPY2026")).toBeInTheDocument();
       expect(
         row.getByText("for up to 60% off selected products"),
       ).toBeInTheDocument();
+      expect(row.getByText("Active")).toHaveAttribute("data-tone", "success");
+    });
+
+    it("keeps the highlight in its pill so the row previews the banner", async () => {
+      render(await AdminAnnouncementsPage());
+
+      const row = within(desktopTable().getAllByRole("row")[1]);
+
+      expect(row.getByText("HAPPY2026").className).toContain("rounded-full");
+    });
+
+    it("summarises the link on one muted line", async () => {
+      render(await AdminAnnouncementsPage());
+
+      const row = within(desktopTable().getAllByRole("row")[1]);
+
       expect(row.getByText("Shop Now")).toBeInTheDocument();
       expect(row.getByText("/shop")).toBeInTheDocument();
-      expect(row.getByText("0")).toBeInTheDocument();
-      expect(row.getByText("Active")).toHaveAttribute("data-tone", "success");
+      // One line, not two labelled columns.
+      expect(row.getByText("/shop").closest("p")).toContainElement(
+        row.getByText("Shop Now"),
+      );
+    });
+
+    it("omits the link line entirely when there is no link", async () => {
+      mocks.listAdminAnnouncements.mockResolvedValue([
+        { ...BASE_ANNOUNCEMENT, link_label: null, link_href: null },
+      ]);
+
+      render(await AdminAnnouncementsPage());
+
+      const row = within(desktopTable().getAllByRole("row")[1]);
+
+      // No em-dash placeholders: an absent link simply is not shown.
+      expect(row.queryByText("Shop Now")).toBeNull();
+      expect(row.queryByText("—")).toBeNull();
+    });
+
+    it("numbers rows by list position rather than the stored sort_order", async () => {
+      mocks.listAdminAnnouncements.mockResolvedValue([
+        { ...BASE_ANNOUNCEMENT, sort_order: 4 },
+        { ...BASE_ANNOUNCEMENT, id: SECOND_ID, sort_order: 17 },
+      ]);
+
+      render(await AdminAnnouncementsPage());
+
+      const rows = desktopTable().getAllByRole("row").slice(1);
+
+      // Gaps in sort_order are an implementation detail; the admin sees 1, 2.
+      expect(within(rows[0]).getByText("1")).toBeInTheDocument();
+      expect(within(rows[1]).getByText("2")).toBeInTheDocument();
+      expect(within(rows[0]).queryByText("4")).toBeNull();
+      expect(within(rows[1]).queryByText("17")).toBeNull();
     });
 
     it("preserves the order the data layer returned", async () => {
@@ -214,35 +277,65 @@ describe("admin announcements page", () => {
       expect(within(rows[1]).getByText("Second")).toBeInTheDocument();
     });
 
-    it("stacks each announcement into a card with a preview for small screens", async () => {
+    it("stacks each announcement into a preview-first card for small screens", async () => {
       render(await AdminAnnouncementsPage());
 
       const card = within(mobileCards().getAllByRole("listitem")[0]);
 
+      // Position, preview, link summary, status.
+      expect(card.getByText("1")).toBeInTheDocument();
+      expect(card.getByText("Use code")).toBeInTheDocument();
+      expect(card.getByText("HAPPY2026")).toBeInTheDocument();
+      expect(
+        card.getByText("for up to 60% off selected products"),
+      ).toBeInTheDocument();
+      expect(card.getByText("Shop Now")).toBeInTheDocument();
+      expect(card.getByText("/shop")).toBeInTheDocument();
+      expect(card.getByText("Active")).toHaveAttribute("data-tone", "success");
+    });
+
+    it("drops the labelled field list from the mobile card", async () => {
+      render(await AdminAnnouncementsPage());
+
+      const card = within(mobileCards().getAllByRole("listitem")[0]);
+
+      // The copy appears once, in the preview, rather than twice.
+      expect(card.getAllByText("Use code")).toHaveLength(1);
+      expect(card.getAllByText("HAPPY2026")).toHaveLength(1);
       for (const label of [
-        "Order",
         "Prefix",
         "Highlight",
         "Suffix",
         "Link label",
         "Link href",
       ]) {
-        expect(card.getByText(label)).toBeInTheDocument();
+        expect(card.queryByText(label)).toBeNull();
       }
-
-      // Each text fragment appears twice in a card: once in the sentence
-      // preview at the top, once in its own labelled field below.
-      expect(card.getAllByText("Use code")).toHaveLength(2);
-      expect(card.getAllByText("HAPPY2026")).toHaveLength(2);
-      expect(
-        card.getAllByText("for up to 60% off selected products"),
-      ).toHaveLength(2);
-      expect(card.getByText("Shop Now")).toBeInTheDocument();
-      expect(card.getByText("/shop")).toBeInTheDocument();
-      expect(card.getByText("Active")).toHaveAttribute("data-tone", "success");
     });
 
-    it("renders a missing optional field as an em dash in both presentations", async () => {
+    it("gives every mobile card its own actions and ordering arrows", async () => {
+      mocks.listAdminAnnouncements.mockResolvedValue([
+        BASE_ANNOUNCEMENT,
+        { ...BASE_ANNOUNCEMENT, id: SECOND_ID },
+      ]);
+
+      render(await AdminAnnouncementsPage());
+
+      for (const item of mobileCards().getAllByRole("listitem")) {
+        const card = within(item);
+        expect(
+          card.getByRole("link", { name: /^Edit announcement/ }),
+        ).toBeInTheDocument();
+        expect(
+          card.getByRole("button", { name: /^Delete announcement/ }),
+        ).toBeInTheDocument();
+        expect(
+          card.getByRole("group", { name: "Reorder announcement" }),
+        ).toBeInTheDocument();
+      }
+    });
+
+    it("shows only what is set, with no placeholder rows", async () => {
       mocks.listAdminAnnouncements.mockResolvedValue([
         {
           ...BASE_ANNOUNCEMENT,
@@ -255,11 +348,12 @@ describe("admin announcements page", () => {
 
       render(await AdminAnnouncementsPage());
 
-      // Prefix, suffix, link label, and link href are all unset.
-      expect(desktopTable().getAllByText("—")).toHaveLength(4);
-      expect(mobileCards().getAllByText("—")).toHaveLength(4);
+      // A preview-first row has nothing to pad: absent fields are absent.
+      expect(desktopTable().queryByText("—")).toBeNull();
+      expect(mobileCards().queryByText("—")).toBeNull();
       // The highlight survives on its own, so the preview is not empty.
-      expect(mobileCards().getAllByText("HAPPY2026")).toHaveLength(2);
+      expect(mobileCards().getAllByText("HAPPY2026")).toHaveLength(1);
+      expect(desktopTable().getAllByText("HAPPY2026")).toHaveLength(1);
     });
 
     it("tones active and inactive announcements while keeping the words readable", async () => {
@@ -296,8 +390,8 @@ describe("admin announcements page", () => {
     it("lets the wide table scroll inside its own container", async () => {
       render(await AdminAnnouncementsPage());
 
-      // Seven columns will not fit a narrow laptop; the container scrolls so
-      // the admin page body never scrolls horizontally.
+      // The container scrolls so the admin page body never scrolls
+      // horizontally, however long a message is.
       expect(
         screen.getByRole("table", { name: "Announcements" }).parentElement,
       ).toHaveClass("overflow-x-auto");
@@ -313,17 +407,18 @@ describe("admin announcements page", () => {
 
       render(await AdminAnnouncementsPage());
 
+      expect(desktopTable().getByText(longSuffix)).toHaveClass("break-words");
       expect(
-        desktopTable().getByText(longSuffix).closest("td"),
-      ).toHaveClass("break-words", "[overflow-wrap:anywhere]");
+        desktopTable().getByText(longSuffix).closest("p"),
+      ).toHaveClass("[overflow-wrap:anywhere]");
     });
 
     it("keeps the field labels off the failing low-contrast class", async () => {
       render(await AdminAnnouncementsPage());
 
-      const cardLabel = mobileCards().getByText("Prefix");
-      expect(cardLabel.className).not.toContain("text-stone-500");
-      expect(cardLabel.className).toContain("text-stone-400");
+      const linkSummary = mobileCards().getByText("/shop").closest("p");
+      expect(linkSummary?.className).not.toContain("text-stone-500");
+      expect(linkSummary?.className).toContain("text-stone-400");
 
       const headerRow = desktopTable()
         .getByRole("columnheader", { name: "Status" })
@@ -454,6 +549,18 @@ describe("admin announcements page", () => {
       ).toHaveAttribute("href", "/admin/announcements/new");
     });
 
+    it("keeps Edit a readable word on every row", async () => {
+      render(await AdminAnnouncementsPage());
+
+      const edit = within(desktopTable().getAllByRole("row")[1]).getByRole(
+        "link",
+        { name: /^Edit announcement/ },
+      );
+
+      // The primary row action stays legible rather than becoming a glyph.
+      expect(edit).toHaveTextContent("Edit");
+    });
+
     it("keeps the banner settings form the only settings control", async () => {
       render(await AdminAnnouncementsPage());
 
@@ -464,6 +571,79 @@ describe("admin announcements page", () => {
       expect(
         screen.getAllByRole("button", { name: "Save settings" }),
       ).toHaveLength(1);
+    });
+  });
+
+  describe("page structure", () => {
+    function pageHeader() {
+      return screen
+        .getByRole("heading", { name: "Announcements", level: 1 })
+        .closest("header") as HTMLElement;
+    }
+
+    it("separates the banner settings and the messages into two sections", async () => {
+      render(await AdminAnnouncementsPage());
+
+      expect(
+        screen.getByRole("region", { name: "Announcement banner settings" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("region", { name: "Messages" }),
+      ).toBeInTheDocument();
+    });
+
+    it("puts Add announcement in the Messages section", async () => {
+      render(await AdminAnnouncementsPage());
+
+      const messages = within(
+        screen.getByRole("region", { name: "Messages" }),
+      );
+
+      // The action sits beside the list it populates.
+      expect(
+        messages.getByRole("link", { name: "Add announcement" }),
+      ).toHaveAttribute("href", "/admin/announcements/new");
+    });
+
+    it("keeps Add announcement out of the page header", async () => {
+      render(await AdminAnnouncementsPage());
+
+      expect(
+        within(pageHeader()).queryByRole("link", { name: "Add announcement" }),
+      ).toBeNull();
+      // The header is orientation only now: nothing in it is clickable.
+      expect(within(pageHeader()).queryAllByRole("link")).toHaveLength(0);
+      expect(within(pageHeader()).queryAllByRole("button")).toHaveLength(0);
+    });
+
+    it("keeps the settings form out of the messages section", async () => {
+      render(await AdminAnnouncementsPage());
+
+      const messages = within(
+        screen.getByRole("region", { name: "Messages" }),
+      );
+
+      expect(
+        messages.queryByRole("button", { name: "Save settings" }),
+      ).toBeNull();
+    });
+
+    it("offers the create route from the empty state inside the section", async () => {
+      mocks.listAdminAnnouncements.mockResolvedValue([]);
+
+      render(await AdminAnnouncementsPage());
+
+      const messages = within(
+        screen.getByRole("region", { name: "Messages" }),
+      );
+
+      // Both entry points live in the same section, so neither is orphaned.
+      expect(
+        messages.getByRole("link", { name: "Add announcement" }),
+      ).toBeInTheDocument();
+      expect(
+        messages.getByRole("link", { name: "Create the first announcement" }),
+      ).toBeInTheDocument();
     });
   });
 });

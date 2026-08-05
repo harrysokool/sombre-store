@@ -21,29 +21,55 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
-// Banner settings, then every announcement with its move, edit, activate, and
-// delete controls. Both presentations map with an index so each row knows
-// whether it is first or last, which is what disables Up and Down at the ends.
+// Two jobs, two sections: the banner switch and speed, then the messages it
+// rotates through. Each announcement leads with the sentence a customer would
+// actually read rather than its stored fields, so the list scans like the
+// storefront it configures.
 
-const EM_DASH = "—";
+const addAnnouncementClassName =
+  "inline-flex shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-xs uppercase tracking-[0.18em] text-stone-100 transition-colors hover:border-white/20 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30";
 
-function orDash(value: string | null) {
-  return value ?? EM_DASH;
+/**
+ * A titled block within the page.
+ *
+ * Local to this page on purpose: the Operations page has its own copy of a
+ * similar heading, and merging them is a separate change from this one.
+ */
+function SectionHeading({
+  id,
+  title,
+  description,
+  action,
+}: {
+  id: string;
+  title: string;
+  description: string;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div className="min-w-0 space-y-1.5">
+        <h2
+          id={id}
+          className="text-lg font-medium tracking-[0.06em] text-stone-100 sm:text-xl"
+        >
+          {title}
+        </h2>
+        <p className="max-w-2xl text-sm leading-6 text-stone-400">
+          {description}
+        </p>
+      </div>
+      {action ? <div className="shrink-0">{action}</div> : null}
+    </div>
+  );
 }
 
-// One labelled field inside a mobile announcement card. The label stacks above
-// the value on the narrowest screens so a long path never squeezes into a
-// sliver.
-function CardField({ label, children }: { label: string; children: ReactNode }) {
+/** The list position a customer would count, not the stored sort_order. */
+function PositionBadge({ position }: { position: number }) {
   return (
-    <div className="grid gap-1 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-3">
-      <dt className="text-xs uppercase tracking-[0.18em] text-stone-400">
-        {label}
-      </dt>
-      <dd className="min-w-0 break-words text-sm text-stone-200 [overflow-wrap:anywhere]">
-        {children}
-      </dd>
-    </div>
+    <span className="inline-flex size-7 items-center justify-center rounded-lg border border-white/10 bg-white/[0.03] text-xs tabular-nums text-stone-400">
+      {position}
+    </span>
   );
 }
 
@@ -70,6 +96,26 @@ function AnnouncementPreview({
       {announcement.suffix_text ? (
         <span className="break-words">{announcement.suffix_text}</span>
       ) : null}
+    </p>
+  );
+}
+
+/**
+ * The call to action as one muted line rather than two columns. The database
+ * pairs the label and the path, so either both are present or neither is.
+ */
+function LinkSummary({ announcement }: { announcement: AdminAnnouncement }) {
+  if (!announcement.link_label || !announcement.link_href) {
+    return null;
+  }
+
+  return (
+    <p className="flex min-w-0 flex-wrap items-center gap-x-2 text-xs text-stone-400 [overflow-wrap:anywhere]">
+      <span className="break-words">{announcement.link_label}</span>
+      <span aria-hidden="true" className="text-stone-600">
+        &rarr;
+      </span>
+      <span className="break-words font-mono">{announcement.link_href}</span>
     </p>
   );
 }
@@ -102,9 +148,9 @@ function BannerSettings({
         aria-label="Banner settings"
         className="rounded-2xl border border-red-400/20 bg-red-400/5 px-6 py-6"
       >
-        <h2 className="text-sm font-medium text-red-100">
+        <h3 className="text-sm font-medium text-red-100">
           Banner settings are missing
-        </h2>
+        </h3>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-red-200/90">
           No settings row was found, so the banner has no configuration to read
           and nothing here can be changed. The row is created by the migration
@@ -142,6 +188,128 @@ async function loadAnnouncementData() {
   }
 }
 
+function MessagesSection({
+  announcements,
+}: {
+  announcements: AdminAnnouncement[];
+}) {
+  const count = announcements.length;
+
+  return (
+    <section aria-labelledby="announcement-messages-heading" className="space-y-4">
+      <SectionHeading
+        id="announcement-messages-heading"
+        title="Messages"
+        description={
+          count === 0
+            ? "What the banner shows. Add one to get started."
+            : "What the banner shows, in the order it rotates through them."
+        }
+        action={
+          <Link
+            href="/admin/announcements/new"
+            className={addAnnouncementClassName}
+          >
+            Add announcement
+          </Link>
+        }
+      />
+
+      {count === 0 ? (
+        <div className="space-y-4 rounded-2xl border border-white/10 bg-white/[0.02] px-6 py-12 text-center">
+          <p className="text-sm text-stone-200">No announcements yet.</p>
+          <p className="mx-auto max-w-md text-sm leading-6 text-stone-400">
+            The banner stays hidden until at least one active announcement
+            exists.
+          </p>
+          <Link
+            href="/admin/announcements/new"
+            className={`${addAnnouncementClassName} mt-2`}
+          >
+            Create the first announcement
+          </Link>
+        </div>
+      ) : (
+        <>
+          {/* Small screens: one stacked card per announcement. The table below
+              takes over at `lg`, the first width where its columns fit. */}
+          <ul aria-label="Announcements" className="space-y-3 lg:hidden">
+            {announcements.map((announcement, index) => (
+              <li
+                key={announcement.id}
+                className="min-w-0 space-y-4 rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-4"
+              >
+                <div className="flex items-start gap-3">
+                  <PositionBadge position={index + 1} />
+                  <div className="min-w-0 flex-1 space-y-1.5">
+                    <AnnouncementPreview announcement={announcement} />
+                    <LinkSummary announcement={announcement} />
+                  </div>
+                  <AnnouncementStatus isActive={announcement.is_active} />
+                </div>
+
+                <AnnouncementRowControls
+                  announcementId={announcement.id}
+                  isActive={announcement.is_active}
+                  description={describeAnnouncement(announcement)}
+                  isFirst={index === 0}
+                  isLast={index === announcements.length - 1}
+                />
+              </li>
+            ))}
+          </ul>
+
+          <div className="hidden overflow-x-auto rounded-2xl border border-white/10 lg:block">
+            <table className="w-full min-w-[48rem] border-collapse text-left text-sm">
+              <caption className="sr-only">Announcements</caption>
+              <thead>
+                <tr className="border-b border-white/10 text-xs uppercase tracking-[0.18em] text-stone-400">
+                  <th className="w-16 px-4 py-4 font-normal">Position</th>
+                  <th className="px-4 py-4 font-normal">Message</th>
+                  <th className="w-32 px-4 py-4 font-normal">Status</th>
+                  <th className="px-4 py-4 font-normal">
+                    <span className="sr-only">Actions</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {announcements.map((announcement, index) => (
+                  <tr
+                    key={announcement.id}
+                    className="border-b border-white/5 align-top transition-colors last:border-b-0 hover:bg-white/[0.03]"
+                  >
+                    <td className="px-4 py-5">
+                      <PositionBadge position={index + 1} />
+                    </td>
+                    <td className="min-w-0 px-4 py-5">
+                      <div className="min-w-0 space-y-1.5">
+                        <AnnouncementPreview announcement={announcement} />
+                        <LinkSummary announcement={announcement} />
+                      </div>
+                    </td>
+                    <td className="px-4 py-5">
+                      <AnnouncementStatus isActive={announcement.is_active} />
+                    </td>
+                    <td className="px-4 py-5">
+                      <AnnouncementRowControls
+                        announcementId={announcement.id}
+                        isActive={announcement.is_active}
+                        description={describeAnnouncement(announcement)}
+                        isFirst={index === 0}
+                        isLast={index === announcements.length - 1}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
 export default async function AdminAnnouncementsPage() {
   // Outside the try/catch below: redirect() signals by throwing, and catching
   // it would swallow the redirect and render the page to a signed-out visitor.
@@ -150,18 +318,10 @@ export default async function AdminAnnouncementsPage() {
   const { settings, announcements, hasError } = await loadAnnouncementData();
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-10">
       <AdminPageHeader
         title="Announcements"
-        description="Switch the storefront announcement banner on or off, set how fast it rotates, and manage the messages it shows."
-        actions={
-          <Link
-            href="/admin/announcements/new"
-            className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/5 px-5 py-3 text-xs uppercase tracking-[0.2em] text-stone-100 transition-colors hover:border-white/20 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
-          >
-            Add announcement
-          </Link>
-        }
+        description="Manage the storefront banner and the messages it rotates through."
       />
 
       {hasError ? (
@@ -170,130 +330,19 @@ export default async function AdminAnnouncementsPage() {
         </p>
       ) : (
         <>
-          <BannerSettings settings={settings} />
+          <section
+            aria-labelledby="announcement-banner-heading"
+            className="space-y-4"
+          >
+            <SectionHeading
+              id="announcement-banner-heading"
+              title="Announcement banner settings"
+              description="Whether the banner appears on the storefront, and how long each message is shown."
+            />
+            <BannerSettings settings={settings} />
+          </section>
 
-          {announcements.length === 0 ? (
-            <div className="space-y-4 rounded-2xl border border-white/10 bg-white/[0.02] px-6 py-10 text-center">
-              <p className="text-sm text-stone-400">No announcements yet.</p>
-              <Link
-                href="/admin/announcements/new"
-                className="inline-block text-sm text-stone-200 underline underline-offset-4 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
-              >
-                Create the first announcement
-              </Link>
-            </div>
-          ) : (
-            <>
-              {/* Small screens: one stacked card per announcement. The table
-                  below takes over at `lg`, the first width where its columns
-                  fit. */}
-              <ul aria-label="Announcements" className="space-y-3 lg:hidden">
-                {announcements.map((announcement, index) => (
-                  <li
-                    key={announcement.id}
-                    className="min-w-0 space-y-4 rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-4"
-                  >
-                    <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-                      <AnnouncementPreview announcement={announcement} />
-                      <AnnouncementStatus isActive={announcement.is_active} />
-                    </div>
-
-                    <dl className="space-y-3">
-                      <CardField label="Order">
-                        {announcement.sort_order}
-                      </CardField>
-                      <CardField label="Prefix">
-                        {orDash(announcement.prefix_text)}
-                      </CardField>
-                      <CardField label="Highlight">
-                        {orDash(announcement.highlight_text)}
-                      </CardField>
-                      <CardField label="Suffix">
-                        {orDash(announcement.suffix_text)}
-                      </CardField>
-                      <CardField label="Link label">
-                        {orDash(announcement.link_label)}
-                      </CardField>
-                      <CardField label="Link href">
-                        {orDash(announcement.link_href)}
-                      </CardField>
-                    </dl>
-
-                    <AnnouncementRowControls
-                      announcementId={announcement.id}
-                      isActive={announcement.is_active}
-                      description={describeAnnouncement(announcement)}
-                      isFirst={index === 0}
-                      isLast={index === announcements.length - 1}
-                    />
-                  </li>
-                ))}
-              </ul>
-
-              <div className="hidden overflow-x-auto rounded-2xl border border-white/10 lg:block">
-                <table className="w-full min-w-[60rem] border-collapse text-left text-sm">
-                  <caption className="sr-only">Announcements</caption>
-                  <thead>
-                    <tr className="border-b border-white/10 text-xs uppercase tracking-[0.18em] text-stone-400">
-                      <th className="px-4 py-4 text-right font-normal">
-                        Order
-                      </th>
-                      <th className="px-4 py-4 font-normal">Prefix</th>
-                      <th className="px-4 py-4 font-normal">Highlight</th>
-                      <th className="px-4 py-4 font-normal">Suffix</th>
-                      <th className="px-4 py-4 font-normal">Link label</th>
-                      <th className="px-4 py-4 font-normal">Link href</th>
-                      <th className="px-4 py-4 font-normal">Status</th>
-                      <th className="px-4 py-4 font-normal">
-                        <span className="sr-only">Actions</span>
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {announcements.map((announcement, index) => (
-                      <tr
-                        key={announcement.id}
-                        className="border-b border-white/5 align-top transition-colors last:border-b-0 hover:bg-white/[0.03]"
-                      >
-                        <td className="whitespace-nowrap px-4 py-4 text-right text-stone-400">
-                          {announcement.sort_order}
-                        </td>
-                        <td className="max-w-[14rem] break-words px-4 py-4 text-stone-200 [overflow-wrap:anywhere]">
-                          {orDash(announcement.prefix_text)}
-                        </td>
-                        <td className="max-w-[12rem] break-words px-4 py-4 text-stone-200 [overflow-wrap:anywhere]">
-                          {orDash(announcement.highlight_text)}
-                        </td>
-                        <td className="max-w-[18rem] break-words px-4 py-4 text-stone-200 [overflow-wrap:anywhere]">
-                          {orDash(announcement.suffix_text)}
-                        </td>
-                        <td className="max-w-[12rem] break-words px-4 py-4 text-stone-200 [overflow-wrap:anywhere]">
-                          {orDash(announcement.link_label)}
-                        </td>
-                        <td className="max-w-[14rem] break-words px-4 py-4 font-mono text-xs text-stone-400 [overflow-wrap:anywhere]">
-                          {orDash(announcement.link_href)}
-                        </td>
-                        <td className="px-4 py-4">
-                          <AnnouncementStatus
-                            isActive={announcement.is_active}
-                          />
-                        </td>
-                        <td className="px-4 py-4">
-                          <AnnouncementRowControls
-                            announcementId={announcement.id}
-                            isActive={announcement.is_active}
-                            description={describeAnnouncement(announcement)}
-                            isFirst={index === 0}
-                            isLast={index === announcements.length - 1}
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </>
-          )}
+          <MessagesSection announcements={announcements} />
         </>
       )}
     </div>

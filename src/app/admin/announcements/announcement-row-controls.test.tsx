@@ -107,7 +107,8 @@ describe("announcement row controls", () => {
       const button = screen.getByRole("button", {
         name: /^Deactivate announcement/,
       });
-      expect(button).toHaveTextContent("Deactivate");
+      // Icon-only: the accessible name carries the meaning, not visible text.
+      expect(button).toHaveTextContent("");
 
       await user.click(button);
 
@@ -159,9 +160,10 @@ describe("announcement row controls", () => {
           screen.getByRole("button", { name: /^Deactivate announcement/ }),
         ).toBeDisabled();
       });
+      // An icon button cannot say "Saving…", so it reports busy instead.
       expect(
         screen.getByRole("button", { name: /^Deactivate announcement/ }),
-      ).toHaveTextContent("Saving…");
+      ).toHaveAttribute("aria-busy", "true");
 
       resolveAction({ error: null, success: "Announcement deactivated." });
       await screen.findByRole("status");
@@ -411,17 +413,17 @@ describe("announcement move controls", () => {
       await user.click(upButton());
 
       await waitFor(() => {
-        expect(upButton()).toHaveTextContent("Moving…");
+        expect(upButton()).toHaveAttribute("aria-busy", "true");
       });
-      // The other direction stays labelled, so it is clear which move is
-      // in flight.
-      expect(downButton()).toHaveTextContent("Down");
+      // Only the pressed direction reports busy, so it is clear which move is
+      // in flight even though both are disabled.
+      expect(downButton()).toHaveAttribute("aria-busy", "false");
       expect(downButton()).toBeDisabled();
 
       resolveAction({ error: null, success: "Moved up." });
 
       await waitFor(() => {
-        expect(upButton()).toHaveTextContent("Up");
+        expect(upButton()).toHaveAttribute("aria-busy", "false");
       });
     });
 
@@ -496,6 +498,112 @@ describe("announcement move controls", () => {
           name: `Move announcement down: ${DESCRIPTION}`,
         }),
       ).toBeInTheDocument();
+    });
+  });
+});
+
+describe("announcement row control presentation", () => {
+  beforeEach(() => {
+    mocks.setAnnouncementActiveAction.mockReset();
+    mocks.deleteAnnouncementAction.mockReset();
+    mocks.moveAnnouncementAction.mockReset();
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  describe("edit stays a visible word", () => {
+    it("labels Edit in readable text rather than an icon alone", () => {
+      renderControls();
+
+      const edit = screen.getByRole("link", { name: /^Edit announcement/ });
+
+      // Edit is the primary action on a row and must not need decoding.
+      expect(edit).toHaveTextContent("Edit");
+    });
+  });
+
+  describe("icon-only actions", () => {
+    it.each([
+      ["the status toggle", /^Deactivate announcement/],
+      ["delete", /^Delete announcement/],
+      ["move up", /^Move announcement up/],
+      ["move down", /^Move announcement down/],
+    ])("renders %s as an icon with an accessible name", (_name, pattern) => {
+      renderControls();
+
+      const button = screen.getByRole("button", { name: pattern });
+
+      // No visible text, so the accessible name is the only label.
+      expect(button).toHaveTextContent("");
+      expect(button.querySelector("svg")).not.toBeNull();
+      expect(button.getAttribute("aria-label")).toContain(DESCRIPTION);
+    });
+
+    it("shows the eye-off icon while active and the eye icon while inactive", () => {
+      const active = renderControls(true);
+      expect(
+        screen.getByRole("button", { name: /^Deactivate announcement/ }),
+      ).toBeInTheDocument();
+      active.unmount();
+
+      renderControls(false);
+      expect(
+        screen.getByRole("button", { name: /^Activate announcement/ }),
+      ).toBeInTheDocument();
+    });
+  });
+
+  describe("vertical ordering control", () => {
+    it("stacks the two arrows in one container", () => {
+      renderControls();
+
+      const ordering = screen.getByTestId("announcement-ordering-controls");
+
+      expect(ordering.className).toContain("flex-col");
+      expect(ordering).toContainElement(upButton());
+      expect(ordering).toContainElement(downButton());
+    });
+
+    it("keeps the arrows out of the item action cluster", () => {
+      renderControls();
+
+      const ordering = screen.getByTestId("announcement-ordering-controls");
+
+      // Editing, hiding, and deleting an item are a different kind of change
+      // from moving it, so they do not share a container.
+      expect(ordering).not.toContainElement(
+        screen.getByRole("link", { name: /^Edit announcement/ }),
+      );
+      expect(ordering).not.toContainElement(
+        screen.getByRole("button", { name: /^Delete announcement/ }),
+      );
+    });
+
+    it("groups the arrows for assistive technology", () => {
+      renderControls();
+
+      expect(
+        screen.getByRole("group", { name: "Reorder announcement" }),
+      ).toBe(screen.getByTestId("announcement-ordering-controls"));
+    });
+
+    it("renders up above down in document order", () => {
+      renderControls();
+
+      const position = upButton().compareDocumentPosition(downButton());
+
+      expect(position & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it("dims rather than hides a disabled boundary arrow", () => {
+      renderControls(true, { isFirst: true });
+
+      // Still present and still labelled, so the control never disappears
+      // under the pointer as the list is reordered.
+      expect(upButton()).toBeDisabled();
+      expect(upButton()).toBeVisible();
     });
   });
 });
