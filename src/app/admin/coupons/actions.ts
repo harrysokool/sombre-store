@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 
 import {
   createAdminCoupon,
@@ -9,6 +9,7 @@ import {
   type AdminCouponMutationResult,
   type AdminCouponSubmission,
 } from "@/lib/admin/coupons";
+import { PROMOTION_CACHE_TAG } from "@/lib/storefront/promotion";
 import { getAdminUser } from "@/lib/supabase/admin-auth";
 
 export type CouponActionState = {
@@ -56,6 +57,25 @@ async function hasAdminSession() {
   return Boolean(await getAdminUser());
 }
 
+// Called only after a confirmed write. updateTag expires the storefront's
+// cached promotion immediately; revalidatePath keeps the admin views fresh.
+// A validation, authorization, or database failure must not reach here — the
+// storefront is still correct, so discarding its cache would be wasted work.
+//
+// Every successful coupon mutation expires the tag, not only one that names the
+// featured code. A coupon's code is itself editable, so an edit can move the
+// featured code onto or off any coupon, and matching on the code here would
+// miss exactly those changes.
+function refreshCouponViews(couponId?: string) {
+  revalidatePath("/admin/coupons");
+
+  if (couponId) {
+    revalidatePath(`/admin/coupons/${couponId}`);
+  }
+
+  updateTag(PROMOTION_CACHE_TAG);
+}
+
 export async function createCouponAction(
   _previousState: CouponActionState,
   formData: FormData,
@@ -72,7 +92,7 @@ export async function createCouponAction(
     const result = await createAdminCoupon(readCouponSubmission(formData));
 
     if (result.ok) {
-      revalidatePath("/admin/coupons");
+      refreshCouponViews();
     }
 
     return mutationState(result, "Coupon created.");
@@ -115,8 +135,7 @@ export async function updateCouponAction(
     );
 
     if (result.ok) {
-      revalidatePath("/admin/coupons");
-      revalidatePath(`/admin/coupons/${result.couponId}`);
+      refreshCouponViews(result.couponId);
     }
 
     return mutationState(result, "Coupon updated.");

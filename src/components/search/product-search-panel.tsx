@@ -79,6 +79,7 @@ async function getActiveProducts() {
         slug,
         short_description,
         price,
+        retail_price,
         size_label,
         stock_quantity,
         is_featured,

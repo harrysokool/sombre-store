@@ -30,6 +30,7 @@ type ProductDetail = {
     description: string | null;
     short_description: string | null;
     price: number | string;
+    retail_price: number | string | null;
     size_label: string | null;
     stock_quantity: number;
     is_featured: boolean;
@@ -44,6 +45,8 @@ type ProductDetailRow = {
     description: string | null;
     short_description: string | null;
     price: number | string;
+    // Null whenever no official retail price is published for the product.
+    retail_price: number | string | null;
     size_label: string | null;
     stock_quantity: number;
     is_featured: boolean;
@@ -59,6 +62,7 @@ function normalizeProductDetail(row: ProductDetailRow): ProductDetail {
         description: row.description,
         short_description: row.short_description,
         price: row.price,
+        retail_price: row.retail_price,
         size_label: row.size_label,
         stock_quantity: row.stock_quantity,
         is_featured: row.is_featured,
@@ -84,6 +88,7 @@ const getProductBySlug = cache(async function getProductBySlug(slug: string) {
         description,
         short_description,
         price,
+        retail_price,
         size_label,
         stock_quantity,
         is_featured,
