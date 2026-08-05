@@ -65,14 +65,18 @@ describe("admin new announcement page", () => {
     ).toBeInTheDocument();
   });
 
-  it("says where a new announcement lands without offering a position control", async () => {
+  it("offers no position control, since position is assigned by the data layer", async () => {
+    render(await NewAdminAnnouncementPage());
+
+    expect(screen.queryByRole("spinbutton")).toBeNull();
+  });
+
+  it("no longer renders the old page-level description beneath the title", async () => {
     render(await NewAdminAnnouncementPage());
 
     expect(
-      screen.getByText(/added to the end of the current order/i),
-    ).toBeInTheDocument();
-    // Position is assigned by the data layer, never chosen here.
-    expect(screen.queryByRole("spinbutton")).toBeNull();
+      screen.queryByText(/added to the end of the current order/i),
+    ).toBeNull();
   });
 
   it("offers a way back to the list", async () => {

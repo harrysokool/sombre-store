@@ -25,9 +25,6 @@ export default async function NewAdminAnnouncementPage() {
         <h1 className="text-2xl font-medium tracking-[0.08em] text-stone-100 sm:text-3xl">
           New announcement
         </h1>
-        <p className="max-w-2xl text-sm leading-6 text-stone-400">
-          New announcements are added to the end of the current order.
-        </p>
       </div>
 
       <AnnouncementForm mode="create" />

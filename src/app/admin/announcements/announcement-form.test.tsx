@@ -178,7 +178,7 @@ describe("announcement form", () => {
       render(<AnnouncementForm mode="create" />);
 
       expect(
-        preview().getByText(/enter prefix, highlight, or suffix text/i),
+        preview().getByText("Your announcement preview will appear here."),
       ).toBeInTheDocument();
     });
 
@@ -207,6 +207,156 @@ describe("announcement form", () => {
       expect(field.suffix()).toHaveAttribute("maxLength", "120");
       expect(field.linkLabel()).toHaveAttribute("maxLength", "32");
       expect(field.linkHref()).toHaveAttribute("maxLength", "200");
+    });
+  });
+
+  describe("field help tooltips", () => {
+    const TOOLTIP_COPY = {
+      prefix:
+        "Text shown before the highlighted pill. Leave empty to begin with the highlight.",
+      highlight: "Shown as a pill. Usually used for a coupon code.",
+      suffix:
+        "Text shown after the highlighted pill. At least one of Prefix, Highlight, or Suffix is required.",
+      linkHref:
+        "An internal path beginning with a single slash, such as /shop. Complete both link fields or leave both empty.",
+    };
+
+    const OLD_HELPER_TEXT = [
+      /text before the highlighted pill\. leave empty to start/i,
+      /shown as a pill\. usually a coupon code\./i,
+      /text after the pill\. at least one of the three is required/i,
+      /an internal path only, starting with a single/i,
+      /inactive announcements stay saved but never appear/i,
+      // Copy that briefly lived in tooltips on Link label and Active before
+      // those two tooltips were removed again.
+      /the text customers click, such as shop now/i,
+      /inactive announcements remain saved but do not appear on the storefront/i,
+    ];
+
+    it("gives Prefix, Highlight, Suffix, and Link path an information icon with a field-specific accessible label", () => {
+      render(<AnnouncementForm mode="create" />);
+
+      for (const name of [
+        "More information about Prefix",
+        "More information about Highlight",
+        "More information about Suffix",
+        "More information about Link path",
+      ]) {
+        expect(screen.getByRole("button", { name })).toBeInTheDocument();
+      }
+    });
+
+    it("gives Link label and Active only their normal label, with no information icon", () => {
+      render(<AnnouncementForm mode="create" />);
+
+      expect(
+        screen.queryByRole("button", { name: "More information about Link label" }),
+      ).toBeNull();
+      expect(
+        screen.queryByRole("button", { name: "More information about Active" }),
+      ).toBeNull();
+
+      // The fields themselves are still present and labelled normally.
+      expect(field.linkLabel()).toBeInTheDocument();
+      expect(field.active()).toBeInTheDocument();
+    });
+
+    it("keeps the explanations out of view until an icon is used", () => {
+      render(<AnnouncementForm mode="create" />);
+
+      for (const text of Object.values(TOOLTIP_COPY)) {
+        expect(screen.getByText(text)).toHaveAttribute("data-state", "closed");
+      }
+    });
+
+    it("opens a tooltip on hover, keyboard focus (via Tab), and click, and closes it on Escape", async () => {
+      const user = userEvent.setup();
+      render(<AnnouncementForm mode="create" />);
+
+      const icon = screen.getByRole("button", {
+        name: "More information about Prefix",
+      });
+      const panel = screen.getByText(TOOLTIP_COPY.prefix);
+
+      expect(panel).toHaveAttribute("data-state", "closed");
+
+      await user.hover(icon);
+      expect(panel).toHaveAttribute("data-state", "open");
+      await user.unhover(icon);
+      expect(panel).toHaveAttribute("data-state", "closed");
+
+      await user.tab();
+      expect(icon).toHaveFocus();
+      expect(panel).toHaveAttribute("data-state", "open");
+      await user.tab({ shift: true });
+      expect(panel).toHaveAttribute("data-state", "closed");
+
+      await user.click(icon);
+      expect(panel).toHaveAttribute("data-state", "open");
+      await user.keyboard("{Escape}");
+      expect(panel).toHaveAttribute("data-state", "closed");
+    });
+
+    it("removes the old permanently visible helper copy from beneath the fields", () => {
+      render(<AnnouncementForm mode="create" />);
+
+      for (const removed of OLD_HELPER_TEXT) {
+        expect(screen.queryByText(removed)).toBeNull();
+      }
+    });
+
+    it("wires the same tooltips in edit mode as in create mode", () => {
+      const { unmount } = render(<AnnouncementForm mode="create" />);
+      expect(
+        screen.getByRole("button", { name: "More information about Highlight" }),
+      ).toBeInTheDocument();
+      expect(screen.getByText(TOOLTIP_COPY.highlight)).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "More information about Link label" }),
+      ).toBeNull();
+      expect(
+        screen.queryByRole("button", { name: "More information about Active" }),
+      ).toBeNull();
+      unmount();
+
+      render(<AnnouncementForm {...SAVED} />);
+      expect(
+        screen.getByRole("button", { name: "More information about Highlight" }),
+      ).toBeInTheDocument();
+      expect(screen.getByText(TOOLTIP_COPY.highlight)).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "More information about Link label" }),
+      ).toBeNull();
+      expect(
+        screen.queryByRole("button", { name: "More information about Active" }),
+      ).toBeNull();
+      for (const removed of OLD_HELPER_TEXT) {
+        expect(screen.queryByText(removed)).toBeNull();
+      }
+    });
+
+    it("still shows field labels and still shows validation errors, never inside a tooltip", async () => {
+      const user = userEvent.setup();
+      mocks.updateAnnouncementAction.mockResolvedValue({
+        error: "Enter at least one of prefix, highlight, or suffix text.",
+        success: null,
+        announcementId: null,
+      });
+
+      render(<AnnouncementForm {...SAVED} />);
+
+      // Labels are unaffected by the tooltip wiring.
+      expect(field.prefix()).toBeInTheDocument();
+      expect(field.linkLabel()).toBeInTheDocument();
+
+      await user.click(submitButton());
+
+      const alert = await screen.findByRole("alert");
+      expect(alert).toHaveTextContent(
+        "Enter at least one of prefix, highlight, or suffix text.",
+      );
+      // The error is its own alert, not tooltip content.
+      expect(alert).not.toHaveAttribute("role", "tooltip");
     });
   });
 

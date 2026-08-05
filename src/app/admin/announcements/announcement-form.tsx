@@ -8,8 +8,12 @@ import {
   updateAnnouncementAction,
   type AnnouncementActionState,
 } from "@/app/admin/announcements/actions";
+import { AdminInfoTooltip } from "@/components/admin/admin-info-tooltip";
 import { useCheckboxResetGuard } from "@/hooks/use-checkbox-reset-guard";
 import { ANNOUNCEMENT_TEXT_LIMITS } from "@/lib/admin/announcement-content-rules";
+
+const fieldLabelClassName =
+  "inline-flex items-center gap-1.5 text-xs uppercase tracking-[0.24em] text-stone-400";
 
 const initialActionState: AnnouncementActionState = {
   error: null,
@@ -94,17 +98,22 @@ export function AnnouncementForm({
           </p>
         ) : (
           <p className="text-sm text-stone-400">
-            Enter prefix, highlight, or suffix text to see the announcement.
+            Your announcement preview will appear here.
           </p>
         )}
       </section>
 
       <section className="grid gap-6 rounded-2xl border border-white/10 bg-white/[0.02] px-5 py-6 sm:grid-cols-2 sm:px-6">
-        <label className="block space-y-2 sm:col-span-2">
-          <span className="text-xs uppercase tracking-[0.24em] text-stone-400">
-            Prefix
+        <div className="space-y-2 sm:col-span-2">
+          <span className={fieldLabelClassName}>
+            <label htmlFor="prefixText">Prefix</label>
+            <AdminInfoTooltip label="More information about Prefix">
+              Text shown before the highlighted pill. Leave empty to begin
+              with the highlight.
+            </AdminInfoTooltip>
           </span>
           <input
+            id="prefixText"
             type="text"
             name="prefixText"
             value={prefix}
@@ -114,17 +123,17 @@ export function AnnouncementForm({
             placeholder="Use code"
             className={inputClassName}
           />
-          <span className="block text-xs leading-5 text-stone-400">
-            Text before the highlighted pill. Leave empty to start with the
-            pill.
-          </span>
-        </label>
+        </div>
 
-        <label className="block space-y-2">
-          <span className="text-xs uppercase tracking-[0.24em] text-stone-400">
-            Highlight
+        <div className="space-y-2">
+          <span className={fieldLabelClassName}>
+            <label htmlFor="highlightText">Highlight</label>
+            <AdminInfoTooltip label="More information about Highlight">
+              Shown as a pill. Usually used for a coupon code.
+            </AdminInfoTooltip>
           </span>
           <input
+            id="highlightText"
             type="text"
             name="highlightText"
             value={highlight}
@@ -134,16 +143,18 @@ export function AnnouncementForm({
             placeholder="HAPPY2026"
             className={inputClassName}
           />
-          <span className="block text-xs leading-5 text-stone-400">
-            Shown as a pill. Usually a coupon code.
-          </span>
-        </label>
+        </div>
 
-        <label className="block space-y-2">
-          <span className="text-xs uppercase tracking-[0.24em] text-stone-400">
-            Suffix
+        <div className="space-y-2">
+          <span className={fieldLabelClassName}>
+            <label htmlFor="suffixText">Suffix</label>
+            <AdminInfoTooltip label="More information about Suffix">
+              Text shown after the highlighted pill. At least one of Prefix,
+              Highlight, or Suffix is required.
+            </AdminInfoTooltip>
           </span>
           <input
+            id="suffixText"
             type="text"
             name="suffixText"
             value={suffix}
@@ -153,16 +164,14 @@ export function AnnouncementForm({
             placeholder="for up to 60% off selected products"
             className={inputClassName}
           />
-          <span className="block text-xs leading-5 text-stone-400">
-            Text after the pill. At least one of the three is required.
-          </span>
-        </label>
+        </div>
 
-        <label className="block space-y-2">
-          <span className="text-xs uppercase tracking-[0.24em] text-stone-400">
-            Link label
+        <div className="space-y-2">
+          <span className={fieldLabelClassName}>
+            <label htmlFor="linkLabel">Link label</label>
           </span>
           <input
+            id="linkLabel"
             type="text"
             name="linkLabel"
             value={label}
@@ -172,13 +181,18 @@ export function AnnouncementForm({
             placeholder="Shop Now"
             className={inputClassName}
           />
-        </label>
+        </div>
 
-        <label className="block space-y-2">
-          <span className="text-xs uppercase tracking-[0.24em] text-stone-400">
-            Link path
+        <div className="space-y-2">
+          <span className={fieldLabelClassName}>
+            <label htmlFor="linkHref">Link path</label>
+            <AdminInfoTooltip label="More information about Link path">
+              An internal path beginning with a single slash, such as /shop.
+              Complete both link fields or leave both empty.
+            </AdminInfoTooltip>
           </span>
           <input
+            id="linkHref"
             type="text"
             name="linkHref"
             value={href}
@@ -189,15 +203,12 @@ export function AnnouncementForm({
             spellCheck={false}
             className={inputClassName}
           />
-          <span className="block text-xs leading-5 text-stone-400">
-            An internal path only, starting with a single / . Fill in both link
-            fields or neither.
-          </span>
-        </label>
+        </div>
 
-        <label className="flex items-start gap-3 sm:col-span-2">
+        <div className="flex items-start gap-3 sm:col-span-2">
           <input
             ref={activeRef}
+            id="isActive"
             type="checkbox"
             name="isActive"
             checked={active}
@@ -205,14 +216,10 @@ export function AnnouncementForm({
             disabled={isPending}
             className="mt-0.5 size-4 rounded border-white/20 bg-transparent accent-stone-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
           />
-          <span>
-            <span className="block text-sm text-stone-200">Active</span>
-            <span className="block text-xs leading-5 text-stone-400">
-              Inactive announcements stay saved but never appear on the
-              storefront.
-            </span>
+          <span className="inline-flex items-center gap-1.5 text-sm text-stone-200">
+            <label htmlFor="isActive">Active</label>
           </span>
-        </label>
+        </div>
       </section>
 
       {state.error ? (
