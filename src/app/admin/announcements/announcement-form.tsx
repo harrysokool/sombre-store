@@ -224,21 +224,6 @@ export function AnnouncementForm({
         </p>
       ) : null}
 
-      {state.success ? (
-        <div
-          role="status"
-          className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-400/20 bg-emerald-400/5 px-4 py-3 text-sm text-emerald-200"
-        >
-          <span>{state.success}</span>
-          <Link
-            href="/admin/announcements"
-            className="underline underline-offset-4 hover:text-emerald-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200/50"
-          >
-            Back to announcements
-          </Link>
-        </div>
-      ) : null}
-
       <div className="flex flex-wrap items-center gap-3">
         <button
           type="submit"

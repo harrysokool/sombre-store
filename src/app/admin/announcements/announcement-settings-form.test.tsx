@@ -80,6 +80,20 @@ describe("announcement settings form", () => {
       expect(intervalInput()).toBeRequired();
     });
 
+    it("states the interval range compactly and drops the explanations", () => {
+      render(<AnnouncementSettingsForm isEnabled rotationIntervalSeconds={10} />);
+
+      expect(screen.getByText("3–60 seconds")).toBeInTheDocument();
+
+      for (const removed of [
+        /seconds each announcement is shown/i,
+        /only applies when more than one/i,
+        /whatever the announcements below say/i,
+      ]) {
+        expect(screen.queryByText(removed)).toBeNull();
+      }
+    });
+
     it("shows no feedback before anything is submitted", () => {
       render(<AnnouncementSettingsForm isEnabled rotationIntervalSeconds={10} />);
 

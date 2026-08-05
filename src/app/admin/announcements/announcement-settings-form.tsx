@@ -59,14 +59,8 @@ export function AnnouncementSettingsForm({
             disabled={isPending}
             className="mt-0.5 size-4 rounded border-white/20 bg-transparent accent-stone-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
           />
-          <span>
-            <span className="block text-sm text-stone-200">
-              Show the announcement banner
-            </span>
-            <span className="block text-xs leading-5 text-stone-400">
-              When off, the storefront shows no banner at all, whatever the
-              announcements below say.
-            </span>
+          <span className="text-sm text-stone-200">
+            Show the announcement banner
           </span>
         </label>
 
@@ -88,9 +82,8 @@ export function AnnouncementSettingsForm({
             className={inputClassName}
           />
           <span className="block text-xs leading-5 text-stone-400">
-            Seconds each announcement is shown, from{" "}
-            {MIN_ROTATION_INTERVAL_SECONDS} to {MAX_ROTATION_INTERVAL_SECONDS}.
-            Only applies when more than one announcement is active.
+            {MIN_ROTATION_INTERVAL_SECONDS}&ndash;
+            {MAX_ROTATION_INTERVAL_SECONDS} seconds
           </span>
         </label>
       </div>

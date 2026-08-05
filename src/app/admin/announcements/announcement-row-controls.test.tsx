@@ -71,7 +71,7 @@ describe("announcement row controls", () => {
     mocks.moveAnnouncementAction.mockReset();
     mocks.moveAnnouncementAction.mockResolvedValue({
       error: null,
-      success: "Moved up.",
+      success: null,
     });
   });
 
@@ -314,7 +314,7 @@ describe("announcement move controls", () => {
     mocks.moveAnnouncementAction.mockReset();
     mocks.moveAnnouncementAction.mockResolvedValue({
       error: null,
-      success: "Moved up.",
+      success: null,
     });
   });
 
@@ -420,7 +420,7 @@ describe("announcement move controls", () => {
       expect(downButton()).toHaveAttribute("aria-busy", "false");
       expect(downButton()).toBeDisabled();
 
-      resolveAction({ error: null, success: "Moved up." });
+      resolveAction({ error: null, success: null });
 
       await waitFor(() => {
         expect(upButton()).toHaveAttribute("aria-busy", "false");
@@ -453,19 +453,32 @@ describe("announcement move controls", () => {
         screen.getByRole("button", { name: /^Delete announcement/ }),
       ).toBeDisabled();
 
-      resolveAction({ error: null, success: "Moved up." });
-      await screen.findByRole("status");
+      resolveAction({ error: null, success: null });
+      await waitFor(() => {
+        expect(
+          screen.getByRole("button", { name: /^Deactivate announcement/ }),
+        ).toBeEnabled();
+      });
     });
   });
 
   describe("feedback", () => {
-    it("reports a completed move", async () => {
+    it("says nothing when a move succeeds", async () => {
       const user = userEvent.setup();
+      // The action returns no message: the new position is the confirmation.
+      mocks.moveAnnouncementAction.mockResolvedValue({
+        error: null,
+        success: null,
+      });
       renderControls();
 
       await user.click(upButton());
 
-      expect(await screen.findByRole("status")).toHaveTextContent("Moved up.");
+      await waitFor(() => {
+        expect(mocks.moveAnnouncementAction).toHaveBeenCalled();
+      });
+      expect(screen.queryByRole("status")).toBeNull();
+      expect(screen.queryByRole("alert")).toBeNull();
     });
 
     it("reports a refused move as an alert", async () => {

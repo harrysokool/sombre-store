@@ -248,17 +248,20 @@ describe("announcement form", () => {
       });
     });
 
-    it("shows the success message with a way back to the list", async () => {
+    it("shows no success state, because a saved form redirects away", async () => {
       const user = userEvent.setup();
       render(<AnnouncementForm {...SAVED} />);
 
       await user.click(submitButton());
 
-      const status = await screen.findByRole("status");
-      expect(status).toHaveTextContent("Announcement saved.");
+      await waitFor(() => {
+        expect(mocks.updateAnnouncementAction).toHaveBeenCalled();
+      });
+      // The list is the confirmation; the form never reports success itself.
+      expect(screen.queryByRole("status")).toBeNull();
       expect(
-        within(status).getByRole("link", { name: "Back to announcements" }),
-      ).toHaveAttribute("href", "/admin/announcements");
+        screen.queryByRole("link", { name: "Back to announcements" }),
+      ).toBeNull();
     });
 
     it("shows a validation refusal as an alert", async () => {

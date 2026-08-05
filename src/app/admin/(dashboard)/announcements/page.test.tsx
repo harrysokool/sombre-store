@@ -628,6 +628,25 @@ describe("admin announcements page", () => {
       ).toBeNull();
     });
 
+    it("keeps the copy to a title, one subtitle, and section headings", async () => {
+      render(await AdminAnnouncementsPage());
+
+      // One subtitle under the page title, and nothing restating it.
+      expect(
+        screen.getByText(
+          "Manage the storefront banner and the messages it rotates through.",
+        ),
+      ).toBeInTheDocument();
+
+      for (const removed of [
+        /whether the banner appears on the storefront/i,
+        /what the banner shows, in the order/i,
+        /the banner stays hidden until at least one/i,
+      ]) {
+        expect(screen.queryByText(removed)).toBeNull();
+      }
+    });
+
     it("offers the create route from the empty state inside the section", async () => {
       mocks.listAdminAnnouncements.mockResolvedValue([]);
 

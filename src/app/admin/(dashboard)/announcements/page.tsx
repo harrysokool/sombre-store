@@ -38,27 +38,20 @@ const addAnnouncementClassName =
 function SectionHeading({
   id,
   title,
-  description,
   action,
 }: {
   id: string;
   title: string;
-  description: string;
   action?: ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-      <div className="min-w-0 space-y-1.5">
-        <h2
-          id={id}
-          className="text-lg font-medium tracking-[0.06em] text-stone-100 sm:text-xl"
-        >
-          {title}
-        </h2>
-        <p className="max-w-2xl text-sm leading-6 text-stone-400">
-          {description}
-        </p>
-      </div>
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <h2
+        id={id}
+        className="min-w-0 text-lg font-medium tracking-[0.06em] text-stone-100 sm:text-xl"
+      >
+        {title}
+      </h2>
       {action ? <div className="shrink-0">{action}</div> : null}
     </div>
   );
@@ -200,11 +193,6 @@ function MessagesSection({
       <SectionHeading
         id="announcement-messages-heading"
         title="Messages"
-        description={
-          count === 0
-            ? "What the banner shows. Add one to get started."
-            : "What the banner shows, in the order it rotates through them."
-        }
         action={
           <Link
             href="/admin/announcements/new"
@@ -217,14 +205,10 @@ function MessagesSection({
 
       {count === 0 ? (
         <div className="space-y-4 rounded-2xl border border-white/10 bg-white/[0.02] px-6 py-12 text-center">
-          <p className="text-sm text-stone-200">No announcements yet.</p>
-          <p className="mx-auto max-w-md text-sm leading-6 text-stone-400">
-            The banner stays hidden until at least one active announcement
-            exists.
-          </p>
+          <p className="text-sm text-stone-400">No announcements yet.</p>
           <Link
             href="/admin/announcements/new"
-            className={`${addAnnouncementClassName} mt-2`}
+            className={addAnnouncementClassName}
           >
             Create the first announcement
           </Link>
@@ -337,7 +321,6 @@ export default async function AdminAnnouncementsPage() {
             <SectionHeading
               id="announcement-banner-heading"
               title="Announcement banner settings"
-              description="Whether the banner appears on the storefront, and how long each message is shown."
             />
             <BannerSettings settings={settings} />
           </section>

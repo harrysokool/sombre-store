@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath, updateTag } from "next/cache";
+import { redirect } from "next/navigation";
 
 import {
   createAdminAnnouncement,
@@ -123,22 +124,10 @@ export async function createAnnouncementAction(
     return { error: EXPIRED_SESSION_ERROR, success: null, announcementId: null };
   }
 
+  let result: Awaited<ReturnType<typeof createAdminAnnouncement>>;
+
   try {
-    const result = await createAdminAnnouncement(
-      readAnnouncementSubmission(formData),
-    );
-
-    if (!result.ok) {
-      return { error: result.error, success: null, announcementId: null };
-    }
-
-    refreshAnnouncementViews(result.announcement.id);
-
-    return {
-      error: null,
-      success: "Announcement created.",
-      announcementId: result.announcement.id,
-    };
+    result = await createAdminAnnouncement(readAnnouncementSubmission(formData));
   } catch (error) {
     console.error("Admin announcement creation failed", error);
     return {
@@ -147,6 +136,17 @@ export async function createAnnouncementAction(
       announcementId: null,
     };
   }
+
+  // A refusal keeps the administrator on the form with their input intact.
+  if (!result.ok) {
+    return { error: result.error, success: null, announcementId: null };
+  }
+
+  refreshAnnouncementViews(result.announcement.id);
+
+  // Only after a confirmed write. redirect() throws to signal, so it must run
+  // outside the try/catch above, which would otherwise swallow it.
+  redirect("/admin/announcements");
 }
 
 export async function updateAnnouncementAction(
@@ -167,23 +167,13 @@ export async function updateAnnouncementAction(
     };
   }
 
+  let result: Awaited<ReturnType<typeof updateAdminAnnouncement>>;
+
   try {
-    const result = await updateAdminAnnouncement(
+    result = await updateAdminAnnouncement(
       announcementId.trim(),
       readAnnouncementSubmission(formData),
     );
-
-    if (!result.ok) {
-      return { error: result.error, success: null, announcementId: null };
-    }
-
-    refreshAnnouncementViews(result.announcement.id);
-
-    return {
-      error: null,
-      success: "Announcement saved.",
-      announcementId: result.announcement.id,
-    };
   } catch (error) {
     console.error("Admin announcement update failed", error);
     return {
@@ -192,6 +182,17 @@ export async function updateAnnouncementAction(
       announcementId: null,
     };
   }
+
+  // A refusal keeps the administrator on the form with their input intact.
+  if (!result.ok) {
+    return { error: result.error, success: null, announcementId: null };
+  }
+
+  refreshAnnouncementViews(result.announcement.id);
+
+  // Only after a confirmed write. redirect() throws to signal, so it must run
+  // outside the try/catch above, which would otherwise swallow it.
+  redirect("/admin/announcements");
 }
 
 export async function setAnnouncementActiveAction(
@@ -279,24 +280,18 @@ export async function moveAnnouncementAction(
     }
 
     if (!result.moved) {
-      // Already at the end it was asked to move toward. Nothing changed, so
-      // the cached page is still correct and is left alone.
-      return {
-        error: null,
-        success:
-          direction === "up"
-            ? "This announcement is already first."
-            : "This announcement is already last.",
-      };
+      // Already at the end it was asked to move toward, which the disabled
+      // arrow normally prevents. Nothing changed, so the cached page is still
+      // correct and is left alone, and there is nothing to report.
+      return { error: null, success: null };
     }
 
     revalidatePath("/admin/announcements");
     updateTag(ANNOUNCEMENTS_CACHE_TAG);
 
-    return {
-      error: null,
-      success: direction === "up" ? "Moved up." : "Moved down.",
-    };
+    // No success message: the announcement visibly changed places, which is
+    // the confirmation. Failures still speak up.
+    return { error: null, success: null };
   } catch (error) {
     console.error("Admin announcement move failed", error);
     return {

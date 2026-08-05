@@ -10,6 +10,14 @@ const mocks = vi.hoisted(() => ({
   moveAdminAnnouncement: vi.fn(),
   revalidatePath: vi.fn(),
   updateTag: vi.fn(),
+  redirect: vi.fn(),
+}));
+
+// The real redirect() signals by throwing, which is what makes it unsafe to
+// call inside a try/catch. Mirroring that here is what proves the actions call
+// it from outside one.
+vi.mock("next/navigation", () => ({
+  redirect: mocks.redirect,
 }));
 
 vi.mock("next/cache", () => ({
@@ -65,6 +73,10 @@ describe("updateAnnouncementSettingsAction", () => {
     mocks.updateAdminAnnouncementSettings.mockReset();
     mocks.revalidatePath.mockReset();
     mocks.updateTag.mockReset();
+    mocks.redirect.mockReset();
+    mocks.redirect.mockImplementation(() => {
+      throw new Error("NEXT_REDIRECT");
+    });
     mocks.getAdminUser.mockResolvedValue({
       id: "admin-1",
       email: "admin@example.com",
@@ -254,6 +266,12 @@ const ANNOUNCEMENT = {
 const formState = { error: null, success: null, announcementId: null };
 const listState = { error: null, success: null };
 
+/** A successful create or edit ends in redirect(), which throws to signal. */
+async function expectRedirectToList(run: () => Promise<unknown>) {
+  await expect(run()).rejects.toThrow("NEXT_REDIRECT");
+  expect(mocks.redirect).toHaveBeenCalledWith("/admin/announcements");
+}
+
 function contentFormData(overrides: Record<string, string> = {}) {
   return formData({
     prefixText: "Use code",
@@ -275,6 +293,10 @@ describe("announcement item actions", () => {
     mocks.deleteAdminAnnouncement.mockReset();
     mocks.revalidatePath.mockReset();
     mocks.updateTag.mockReset();
+    mocks.redirect.mockReset();
+    mocks.redirect.mockImplementation(() => {
+      throw new Error("NEXT_REDIRECT");
+    });
     mocks.getAdminUser.mockResolvedValue({
       id: "admin-1",
       email: "admin@example.com",
@@ -349,7 +371,9 @@ describe("announcement item actions", () => {
 
   describe("createAnnouncementAction", () => {
     it("passes the five content fields and the active flag through", async () => {
-      await createAnnouncementAction(formState, contentFormData());
+      await expectRedirectToList(() =>
+        createAnnouncementAction(formState, contentFormData()),
+      );
 
       expect(mocks.createAdminAnnouncement).toHaveBeenCalledWith({
         prefixText: "Use code",
@@ -362,9 +386,11 @@ describe("announcement item actions", () => {
     });
 
     it("never forwards a submitted position", async () => {
-      await createAnnouncementAction(
-        formState,
-        contentFormData({ sortOrder: "99", sort_order: "99" }),
+      await expectRedirectToList(() =>
+        createAnnouncementAction(
+          formState,
+          contentFormData({ sortOrder: "99", sort_order: "99" }),
+        ),
       );
 
       // Position is the data layer's to assign; a crafted field is ignored.
@@ -374,9 +400,8 @@ describe("announcement item actions", () => {
     });
 
     it("reads an absent checkbox as inactive", async () => {
-      await createAnnouncementAction(
-        formState,
-        contentFormData({ isActive: "" }),
+      await expectRedirectToList(() =>
+        createAnnouncementAction(formState, contentFormData({ isActive: "" })),
       );
 
       expect(mocks.createAdminAnnouncement).toHaveBeenCalledWith(
@@ -384,18 +409,30 @@ describe("announcement item actions", () => {
       );
     });
 
-    it("revalidates the list and the new editor after success", async () => {
+    it("revalidates then redirects to the list after success", async () => {
+      await expectRedirectToList(() =>
+        createAnnouncementAction(formState, contentFormData()),
+      );
+
+      expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/announcements");
+      expect(mocks.revalidatePath).toHaveBeenCalledWith(
+        `/admin/announcements/${ANNOUNCEMENT_ID}`,
+      );
+    });
+
+    it("stays on the form when the write is refused", async () => {
+      mocks.createAdminAnnouncement.mockResolvedValue({
+        ok: false,
+        error: "Enter at least one of prefix, highlight, or suffix text.",
+      });
+
       const state = await createAnnouncementAction(
         formState,
         contentFormData(),
       );
 
-      expect(state.success).toBe("Announcement created.");
-      expect(state.announcementId).toBe(ANNOUNCEMENT_ID);
-      expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/announcements");
-      expect(mocks.revalidatePath).toHaveBeenCalledWith(
-        `/admin/announcements/${ANNOUNCEMENT_ID}`,
-      );
+      expect(state.error).toContain("at least one of prefix");
+      expect(mocks.redirect).not.toHaveBeenCalled();
     });
 
     it("returns a validation refusal without revalidating", async () => {
@@ -435,17 +472,18 @@ describe("announcement item actions", () => {
   });
 
   describe("updateAnnouncementAction", () => {
-    it("saves the identified announcement and revalidates both views", async () => {
-      const state = await updateAnnouncementAction(
-        formState,
-        contentFormData({ announcementId: ANNOUNCEMENT_ID }),
+    it("saves, revalidates both views, then redirects to the list", async () => {
+      await expectRedirectToList(() =>
+        updateAnnouncementAction(
+          formState,
+          contentFormData({ announcementId: ANNOUNCEMENT_ID }),
+        ),
       );
 
       expect(mocks.updateAdminAnnouncement).toHaveBeenCalledWith(
         ANNOUNCEMENT_ID,
         expect.objectContaining({ prefixText: "Use code" }),
       );
-      expect(state.success).toBe("Announcement saved.");
       expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/announcements");
       expect(mocks.revalidatePath).toHaveBeenCalledWith(
         `/admin/announcements/${ANNOUNCEMENT_ID}`,
@@ -460,6 +498,7 @@ describe("announcement item actions", () => {
 
       expect(state.error).toContain("reference is not valid");
       expect(mocks.updateAdminAnnouncement).not.toHaveBeenCalled();
+      expect(mocks.redirect).not.toHaveBeenCalled();
     });
 
     it("surfaces a vanished announcement without revalidating", async () => {
@@ -475,6 +514,24 @@ describe("announcement item actions", () => {
 
       expect(state.error).toContain("no longer exists");
       expect(mocks.revalidatePath).not.toHaveBeenCalled();
+      // A refused write keeps the administrator on the form with their input.
+      expect(mocks.redirect).not.toHaveBeenCalled();
+    });
+
+    it("stays on the form when the write throws", async () => {
+      mocks.updateAdminAnnouncement.mockRejectedValue(new Error("boom"));
+      const consoleError = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+
+      const state = await updateAnnouncementAction(
+        formState,
+        contentFormData({ announcementId: ANNOUNCEMENT_ID }),
+      );
+
+      expect(state.error).toBe("Announcement could not be saved. Try again.");
+      expect(mocks.redirect).not.toHaveBeenCalled();
+      consoleError.mockRestore();
     });
   });
 
@@ -599,6 +656,10 @@ describe("moveAnnouncementAction", () => {
     mocks.moveAdminAnnouncement.mockReset();
     mocks.revalidatePath.mockReset();
     mocks.updateTag.mockReset();
+    mocks.redirect.mockReset();
+    mocks.redirect.mockImplementation(() => {
+      throw new Error("NEXT_REDIRECT");
+    });
     mocks.getAdminUser.mockResolvedValue({
       id: "admin-1",
       email: "admin@example.com",
@@ -623,22 +684,24 @@ describe("moveAnnouncementAction", () => {
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
 
-  it.each([
-    ["up", "Moved up."],
-    ["down", "Moved down."],
-  ])("moves %s and revalidates the list", async (direction, message) => {
-    const state = await moveAnnouncementAction(
-      listState,
-      formData({ announcementId: ANNOUNCEMENT_ID, direction }),
-    );
+  it.each(["up", "down"])(
+    "moves %s and revalidates the list without announcing it",
+    async (direction) => {
+      const state = await moveAnnouncementAction(
+        listState,
+        formData({ announcementId: ANNOUNCEMENT_ID, direction }),
+      );
 
-    expect(mocks.moveAdminAnnouncement).toHaveBeenCalledWith(
-      ANNOUNCEMENT_ID,
-      direction,
-    );
-    expect(state.success).toBe(message);
-    expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/announcements");
-  });
+      expect(mocks.moveAdminAnnouncement).toHaveBeenCalledWith(
+        ANNOUNCEMENT_ID,
+        direction,
+      );
+      // The announcement visibly changed places; that is the confirmation.
+      expect(state.success).toBeNull();
+      expect(state.error).toBeNull();
+      expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/announcements");
+    },
+  );
 
   it("passes only the reference and direction, ignoring any submitted position", async () => {
     await moveAnnouncementAction(
@@ -677,12 +740,9 @@ describe("moveAnnouncementAction", () => {
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
 
-  it.each([
-    ["up", "This announcement is already first."],
-    ["down", "This announcement is already last."],
-  ])(
-    "reports a boundary %s move without revalidating",
-    async (direction, message) => {
+  it.each(["up", "down"])(
+    "says nothing on a boundary %s move and does not revalidate",
+    async (direction) => {
       mocks.moveAdminAnnouncement.mockResolvedValue({
         ok: true,
         moved: false,
@@ -694,12 +754,30 @@ describe("moveAnnouncementAction", () => {
         formData({ announcementId: ANNOUNCEMENT_ID, direction }),
       );
 
+      // The disabled arrow normally prevents this, so there is nothing worth
+      // telling the administrator.
       expect(state.error).toBeNull();
-      expect(state.success).toBe(message);
+      expect(state.success).toBeNull();
       // Nothing changed, so the cached page is still correct.
       expect(mocks.revalidatePath).not.toHaveBeenCalled();
     },
   );
+
+  it("still reports a failed move", async () => {
+    mocks.moveAdminAnnouncement.mockResolvedValue({
+      ok: false,
+      error: "Announcement could not be moved. Try again.",
+    });
+
+    const state = await moveAnnouncementAction(
+      listState,
+      formData({ announcementId: ANNOUNCEMENT_ID, direction: "up" }),
+    );
+
+    // Silence is only for success: a failure must still speak up.
+    expect(state.error).toBe("Announcement could not be moved. Try again.");
+    expect(state.success).toBeNull();
+  });
 
   it("returns a refusal without revalidating", async () => {
     mocks.moveAdminAnnouncement.mockResolvedValue({
@@ -748,6 +826,10 @@ describe("storefront cache invalidation", () => {
     mocks.moveAdminAnnouncement.mockReset();
     mocks.revalidatePath.mockReset();
     mocks.updateTag.mockReset();
+    mocks.redirect.mockReset();
+    mocks.redirect.mockImplementation(() => {
+      throw new Error("NEXT_REDIRECT");
+    });
     mocks.getAdminUser.mockResolvedValue({
       id: "admin-1",
       email: "admin@example.com",
@@ -790,7 +872,10 @@ describe("storefront cache invalidation", () => {
     ],
     [
       "create",
-      () => createAnnouncementAction(formState, contentFormData()),
+      () =>
+        createAnnouncementAction(formState, contentFormData()).catch(
+          () => undefined,
+        ),
     ],
     [
       "edit",
@@ -798,7 +883,7 @@ describe("storefront cache invalidation", () => {
         updateAnnouncementAction(
           formState,
           contentFormData({ announcementId: ANNOUNCEMENT_ID }),
-        ),
+        ).catch(() => undefined),
     ],
     [
       "activate or deactivate",
@@ -909,8 +994,10 @@ describe("storefront cache invalidation", () => {
         formData({ announcementId: ANNOUNCEMENT_ID, direction: "up" }),
       );
 
-      // Nothing moved, so the storefront's cached banner is still correct.
-      expect(state.success).toContain("already first");
+      // Nothing moved, so the storefront's cached banner is still correct,
+      // and there is nothing to tell the administrator.
+      expect(state.success).toBeNull();
+      expect(state.error).toBeNull();
       expect(mocks.updateTag).not.toHaveBeenCalled();
       expect(mocks.revalidatePath).not.toHaveBeenCalled();
     });
