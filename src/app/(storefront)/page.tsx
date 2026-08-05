@@ -5,6 +5,7 @@ import { CampaignHero } from "@/components/home/campaign-hero";
 import { SignatureShowcase } from "@/components/home/signature-showcase";
 import { StoryBand } from "@/components/home/story-band";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { loadPromotionDiscounts } from "@/lib/storefront/promotion-discounts";
 import {
     normalizeProductListItem,
     type ProductListItem,
@@ -86,6 +87,10 @@ function getShowcaseProducts(products: ProductListItem[]) {
 export default async function Home() {
     const maisonMargielaProducts = await getMaisonMargielaProducts();
     const showcaseProducts = getShowcaseProducts(maisonMargielaProducts);
+    // One call for the whole row, covering exactly the products on screen.
+    const promotionDiscounts = await loadPromotionDiscounts(
+        showcaseProducts.map((product) => product.id),
+    );
 
     return (
         // `clip` on one axis only: horizontal overflow is still contained, but
@@ -115,6 +120,7 @@ export default async function Home() {
                 heading="Signatures"
                 products={showcaseProducts}
                 viewAllHref={maisonMargielaShopHref}
+                promotionDiscounts={promotionDiscounts}
             />
 
             <div className="py-28 sm:py-36">

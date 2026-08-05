@@ -5,7 +5,8 @@ import { ProductCard } from "@/components/shop/product-card";
 import { ShopCategoryNav } from "@/components/shop/shop-category-nav";
 import { getShopCanonicalPath } from "@/lib/seo/metadata";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { formatPrice } from "@/lib/storefront/format-price";
+import { loadPromotionDiscounts } from "@/lib/storefront/promotion-discounts";
+import { getProductPriceDisplay } from "@/lib/storefront/promotion-display";
 import {
   getBrandFilteredProducts,
   getBrandsForProducts,
@@ -134,6 +135,12 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
   const pageCopy = getShopPageCopy(shopView, params, scopedBrands);
   const categoryLinks = getShopCategoryLinks(products, shopView);
   const brandLinks = getShopBrandLinks(scopedBrands, shopView, selectedBrandSlug);
+  // One call for the whole grid, after filtering, so exactly the products being
+  // rendered are asked about and the page makes a single promotion request
+  // however many tiles it shows.
+  const promotionDiscounts = await loadPromotionDiscounts(
+    visibleProducts.map((product) => product.id),
+  );
 
   return (
     <section className="px-6 py-20 sm:px-10 sm:py-28 lg:px-12">
@@ -171,7 +178,11 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
                   name={product.name}
                   slug={product.slug}
                   brandName={product.brand?.name ?? null}
-                  formattedPrice={formatPrice(product.price)}
+                  priceDisplay={getProductPriceDisplay({
+                    price: product.price,
+                    retailPrice: product.retail_price,
+                    discountBasisPoints: promotionDiscounts.get(product.id),
+                  })}
                   sizeLabel={product.size_label}
                   notes={product.short_description}
                   stockQuantity={product.stock_quantity}

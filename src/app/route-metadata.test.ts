@@ -12,6 +12,11 @@ vi.mock("@/lib/supabase/server", () => ({
   createSupabaseServerClient: mocks.createSupabase,
 }));
 
+// The storefront pages reach the server-only promotion loader through their
+// pricing imports. Nothing about that is relevant to their metadata exports,
+// and the real module throws outside a react-server condition.
+vi.mock("server-only", () => ({}));
+
 // The admin dashboard layout pulls in the auth gate and server actions at
 // import time; neither is relevant to its metadata export.
 vi.mock("@/lib/supabase/admin-auth", () => ({

@@ -1,11 +1,14 @@
 import Image from "next/image";
 import Link from "next/link";
 
+import { ProductPrice } from "@/components/product/product-price";
+import type { ProductPriceDisplay } from "@/lib/storefront/promotion-display";
+
 type ProductCardProps = {
   name: string;
   slug: string;
   brandName: string | null;
-  formattedPrice: string;
+  priceDisplay: ProductPriceDisplay;
   sizeLabel: string | null;
   /** Fragrance notes, shown between the name and the size when present. */
   notes: string | null;
@@ -18,7 +21,7 @@ export function ProductCard({
   name,
   slug,
   brandName,
-  formattedPrice,
+  priceDisplay,
   sizeLabel,
   notes,
   stockQuantity,
@@ -87,7 +90,11 @@ export function ProductCard({
           ) : null}
 
           <p className="mt-3 text-sm text-stone-300">
-            {isSoldOut ? "Sold out" : formattedPrice}
+            {isSoldOut ? (
+              "Sold out"
+            ) : (
+              <ProductPrice display={priceDisplay} variant="compact" />
+            )}
           </p>
         </div>
       </article>

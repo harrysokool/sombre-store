@@ -1,7 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
 
-import { formatPrice } from "@/lib/storefront/format-price";
+import { ProductPrice } from "@/components/product/product-price";
+import { getProductPriceDisplay } from "@/lib/storefront/promotion-display";
 import type { ProductListItem } from "@/lib/storefront/shop";
 
 type SignatureShowcaseProps = {
@@ -9,6 +10,12 @@ type SignatureShowcaseProps = {
   heading: string;
   products: ProductListItem[];
   viewAllHref: string;
+  /**
+   * Configured basis points per product id, from one batched call on the page.
+   * A product absent from the map simply has no promotion and keeps the single
+   * price.
+   */
+  promotionDiscounts: Map<string, number>;
 };
 
 export function SignatureShowcase({
@@ -16,6 +23,7 @@ export function SignatureShowcase({
   heading,
   products,
   viewAllHref,
+  promotionDiscounts,
 }: SignatureShowcaseProps) {
   if (products.length === 0) {
     return null;
@@ -74,9 +82,18 @@ export function SignatureShowcase({
                   {product.size_label ?? "Eau de Toilette"}
                 </p>
                 <p className="mt-3 text-sm text-stone-300">
-                  {product.stock_quantity > 0
-                    ? formatPrice(product.price)
-                    : "Sold out"}
+                  {product.stock_quantity > 0 ? (
+                    <ProductPrice
+                      display={getProductPriceDisplay({
+                        price: product.price,
+                        retailPrice: product.retail_price,
+                        discountBasisPoints: promotionDiscounts.get(product.id),
+                      })}
+                      variant="compact"
+                    />
+                  ) : (
+                    "Sold out"
+                  )}
                 </p>
               </div>
             </article>

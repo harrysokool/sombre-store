@@ -1,11 +1,13 @@
 import { AddToCartButton } from "@/components/cart/add-to-cart-button";
-import { formatPrice } from "@/lib/storefront/format-price";
+import { ProductPrice } from "@/components/product/product-price";
+import type { ProductPriceDisplay } from "@/lib/storefront/promotion-display";
 
 type ProductInfoProps = {
   id: string;
   slug: string;
   name: string;
   price: number | string;
+  priceDisplay: ProductPriceDisplay;
   sizeLabel: string | null;
   stockQuantity: number;
   shortDescription: string | null;
@@ -19,6 +21,7 @@ export function ProductInfo({
   slug,
   name,
   price,
+  priceDisplay,
   sizeLabel,
   stockQuantity,
   shortDescription,
@@ -60,8 +63,16 @@ export function ProductInfo({
             <dt className="text-[0.65rem] uppercase tracking-[0.24em] text-stone-400">
               Price
             </dt>
-            <dd className="text-2xl font-light text-stone-100">
-              {formatPrice(price)}
+            {/* The promotional pair brings its own type scale, so the single
+                price keeps the size it has always had here. */}
+            <dd
+              className={
+                priceDisplay.kind === "single"
+                  ? "text-2xl font-light text-stone-100"
+                  : ""
+              }
+            >
+              <ProductPrice display={priceDisplay} variant="detail" />
             </dd>
           </div>
 

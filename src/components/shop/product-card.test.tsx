@@ -28,7 +28,10 @@ const BASE_PROPS = {
   name: "Replica Jazz Club",
   slug: "replica-jazz-club",
   brandName: "Maison Margiela",
-  formattedPrice: "HK$1,200.00",
+  priceDisplay: {
+    kind: "single",
+    formattedPrice: "HK$1,200.00",
+  } as const,
   sizeLabel: "100 mL",
   notes: "Tobacco, rum, vanilla",
   stockQuantity: 5,

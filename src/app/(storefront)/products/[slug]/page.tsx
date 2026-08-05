@@ -8,6 +8,8 @@ import { ProductDetails } from "@/components/product/product-details";
 import { ProductGallery } from "@/components/product/product-gallery";
 import { ProductInfo } from "@/components/product/product-info";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { loadPromotionDiscounts } from "@/lib/storefront/promotion-discounts";
+import { getProductPriceDisplay } from "@/lib/storefront/promotion-display";
 import {
     getPrimaryProductImage,
     getSortedProductImages,
@@ -170,6 +172,8 @@ export default async function ProductDetailPage({
     }
 
     const primaryImage = getPrimaryProductImage(product.product_images);
+    // A single product page asks about a single product id.
+    const promotionDiscounts = await loadPromotionDiscounts([product.id]);
 
     return (
         <section className="px-6 py-16 sm:px-10 sm:py-24 lg:px-12">
@@ -186,6 +190,13 @@ export default async function ProductDetailPage({
                         slug={slug}
                         name={product.name}
                         price={product.price}
+                        priceDisplay={getProductPriceDisplay({
+                            price: product.price,
+                            retailPrice: product.retail_price,
+                            discountBasisPoints: promotionDiscounts.get(
+                                product.id,
+                            ),
+                        })}
                         sizeLabel={product.size_label}
                         stockQuantity={product.stock_quantity}
                         shortDescription={product.short_description}
