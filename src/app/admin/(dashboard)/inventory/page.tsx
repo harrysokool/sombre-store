@@ -442,10 +442,6 @@ export default async function AdminInventoryPage({
         <h1 className="text-2xl font-medium tracking-[0.08em] text-stone-100 sm:text-3xl">
           Inventory
         </h1>
-        <p className="text-sm leading-6 text-stone-400">
-          Current product availability across the Sombre catalog. This page is
-          read-only.
-        </p>
       </div>
 
       {hasError ? (

@@ -426,10 +426,6 @@ export default async function AdminOperationsPage() {
         <h1 className="text-2xl font-medium tracking-[0.08em] text-stone-100 sm:text-3xl">
           Operations
         </h1>
-        <p className="text-sm leading-6 text-stone-400">
-          Review failed webhooks and retry transactional emails that did not
-          reach their recipient.
-        </p>
       </div>
 
       {isEverythingClear ? (

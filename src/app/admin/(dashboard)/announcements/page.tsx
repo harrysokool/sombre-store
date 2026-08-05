@@ -303,10 +303,7 @@ export default async function AdminAnnouncementsPage() {
 
   return (
     <div className="space-y-10">
-      <AdminPageHeader
-        title="Announcements"
-        description="Manage the storefront banner and the messages it rotates through."
-      />
+      <AdminPageHeader title="Announcements" />
 
       {hasError ? (
         <p className="rounded-2xl border border-white/10 bg-white/[0.02] px-6 py-10 text-center text-sm text-stone-400">

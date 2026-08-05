@@ -118,6 +118,16 @@ describe("Admin Home page", () => {
     expect(screen.queryByRole("table", { name: "Orders" })).toBeNull();
   });
 
+  it("no longer renders the old page subtitle beneath the title", async () => {
+    render(await AdminHomePage());
+
+    expect(
+      screen.queryByText(
+        "Today’s orders, stock, and open tasks — all times in Hong Kong.",
+      ),
+    ).toBeNull();
+  });
+
   it("checks the admin session before loading protected dashboard data", async () => {
     mocks.requireAdminUser.mockRejectedValue(
       new Error("redirect to admin login"),

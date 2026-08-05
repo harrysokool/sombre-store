@@ -80,6 +80,16 @@ describe("admin coupon list page", () => {
     expect(mocks.listAdminCoupons).not.toHaveBeenCalled();
   });
 
+  it("no longer renders the old page subtitle beneath the title", async () => {
+    mocks.listAdminCoupons.mockResolvedValue([BASE_COUPON]);
+
+    render(await AdminCouponsPage());
+
+    expect(
+      screen.queryByText("Product-specific discounts for future checkouts."),
+    ).toBeNull();
+  });
+
   it("lists saved coupons, status, assignment count, and edit link", async () => {
     mocks.listAdminCoupons.mockResolvedValue([BASE_COUPON]);
 

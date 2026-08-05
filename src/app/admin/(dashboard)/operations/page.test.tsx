@@ -123,6 +123,24 @@ describe("admin operations page", () => {
     expect(mocks.listUnsentOrderEmails).not.toHaveBeenCalled();
   });
 
+  it("still renders the page title", async () => {
+    render(await AdminOperationsPage());
+
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Operations" }),
+    ).toBeInTheDocument();
+  });
+
+  it("no longer renders the old page subtitle beneath the title", async () => {
+    render(await AdminOperationsPage());
+
+    expect(
+      screen.queryByText(
+        "Review failed webhooks and retry transactional emails that did not reach their recipient.",
+      ),
+    ).toBeNull();
+  });
+
   it("shows a single clear empty state when both queues are empty", async () => {
     render(await AdminOperationsPage());
 

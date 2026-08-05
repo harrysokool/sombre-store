@@ -151,6 +151,25 @@ describe("admin inventory page", () => {
     expect(metadata).toEqual({ title: "Inventory" });
   });
 
+  it("still renders the page title", async () => {
+    await renderPage();
+
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Inventory" }),
+    ).toBeInTheDocument();
+  });
+
+  it("no longer renders the old page subtitle beneath the title", async () => {
+    await renderPage();
+
+    expect(
+      screen.queryByText(
+        "Current product availability across the Sombre catalog. This page is read-only.",
+      ),
+    ).toBeNull();
+    expect(screen.queryByText(/this page is read-only/i)).toBeNull();
+  });
+
   it("checks admin authentication before loading any inventory", async () => {
     mocks.requireAdminUser.mockRejectedValue(
       new Error("redirect to admin login"),

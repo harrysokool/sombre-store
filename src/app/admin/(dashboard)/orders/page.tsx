@@ -204,10 +204,7 @@ export default async function AdminOrdersPage() {
 
   return (
     <div className="min-w-0 space-y-8">
-      <AdminPageHeader
-        title="Orders"
-        description="Review customer orders, payment state, and fulfilment progress."
-      />
+      <AdminPageHeader title="Orders" />
       <OrdersContent orders={orders} hasError={hasError} />
     </div>
   );

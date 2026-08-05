@@ -57,9 +57,6 @@ export default async function AdminCouponsPage() {
           <h1 className="text-2xl font-medium tracking-[0.08em] text-stone-100 sm:text-3xl">
             Coupons
           </h1>
-          <p className="text-sm leading-6 text-stone-400">
-            Product-specific discounts for future checkouts.
-          </p>
         </div>
         <Link
           href="/admin/coupons/new"

@@ -550,10 +550,7 @@ export default async function AdminHomePage() {
 
   return (
     <div className="min-w-0 space-y-10">
-      <AdminPageHeader
-        title="Home"
-        description="Today’s orders, stock, and open tasks — all times in Hong Kong."
-      />
+      <AdminPageHeader title="Home" />
 
       <BusinessSummary summary={data.summary} />
 

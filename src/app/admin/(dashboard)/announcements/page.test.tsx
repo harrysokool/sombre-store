@@ -628,15 +628,15 @@ describe("admin announcements page", () => {
       ).toBeNull();
     });
 
-    it("keeps the copy to a title, one subtitle, and section headings", async () => {
+    it("keeps the copy to a title and section headings, with no page subtitle", async () => {
       render(await AdminAnnouncementsPage());
 
-      // One subtitle under the page title, and nothing restating it.
+      // The old subtitle under the page title is gone, and nothing restates it.
       expect(
-        screen.getByText(
+        screen.queryByText(
           "Manage the storefront banner and the messages it rotates through.",
         ),
-      ).toBeInTheDocument();
+      ).toBeNull();
 
       for (const removed of [
         /whether the banner appears on the storefront/i,

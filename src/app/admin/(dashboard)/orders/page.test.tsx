@@ -93,11 +93,18 @@ describe("admin orders list page", () => {
     expect(
       screen.getByRole("heading", { level: 1, name: "Orders" }),
     ).toBeInTheDocument();
+  });
+
+  it("no longer renders the old page subtitle beneath the title", async () => {
+    mocks.listAdminOrders.mockResolvedValue([]);
+
+    render(await AdminOrdersPage());
+
     expect(
-      screen.getByText(
+      screen.queryByText(
         "Review customer orders, payment state, and fulfilment progress.",
       ),
-    ).toBeInTheDocument();
+    ).toBeNull();
   });
 
   it("formats the order date in Hong Kong time regardless of the host timezone", async () => {
