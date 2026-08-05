@@ -137,9 +137,11 @@ describe("announcement settings form", () => {
           screen.getByRole("button", { name: "Save settings" }),
         ).toBeEnabled();
       });
+      // The saved field values are the confirmation, not a status message.
+      expect(screen.queryByRole("status")).toBeNull();
     });
 
-    it("shows the success message the action returned", async () => {
+    it("shows no success message after a successful save", async () => {
       const user = userEvent.setup();
       mocks.updateAnnouncementSettingsAction.mockResolvedValue({
         error: null,
@@ -150,10 +152,12 @@ describe("announcement settings form", () => {
       render(<AnnouncementSettingsForm isEnabled rotationIntervalSeconds={25} />);
       await user.click(saveButton());
 
-      const status = await screen.findByRole("status");
-      expect(status).toHaveTextContent(
-        "Banner settings saved. The banner is on, rotating every 25 seconds.",
-      );
+      await waitFor(() => {
+        expect(saveButton()).toBeEnabled();
+      });
+
+      expect(screen.queryByRole("status")).toBeNull();
+      expect(screen.queryByText(/banner settings saved/i)).toBeNull();
       expect(screen.queryByRole("alert")).toBeNull();
     });
 
@@ -248,7 +252,9 @@ describe("announcement settings form", () => {
       expect(toggle()).not.toBeChecked();
 
       await user.click(saveButton());
-      await screen.findByRole("status");
+      await waitFor(() => {
+        expect(toggle()).toBeEnabled();
+      });
 
       // React resets the form element after an action completes, which moves
       // the checkbox DOM without moving React state. Left alone the toggle

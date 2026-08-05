@@ -136,7 +136,7 @@ describe("announcement row controls", () => {
       ).toBe("true");
     });
 
-    it("names its pending state while saving", async () => {
+    it("names its pending state while saving, then clears it without a success message", async () => {
       const user = userEvent.setup();
       let resolveAction: (state: {
         error: string | null;
@@ -151,35 +151,46 @@ describe("announcement row controls", () => {
       );
 
       renderControls(true);
-      await user.click(
-        screen.getByRole("button", { name: /^Deactivate announcement/ }),
-      );
+      const button = screen.getByRole("button", {
+        name: /^Deactivate announcement/,
+      });
+      await user.click(button);
 
       await waitFor(() => {
-        expect(
-          screen.getByRole("button", { name: /^Deactivate announcement/ }),
-        ).toBeDisabled();
+        expect(button).toBeDisabled();
       });
       // An icon button cannot say "Saving…", so it reports busy instead.
-      expect(
-        screen.getByRole("button", { name: /^Deactivate announcement/ }),
-      ).toHaveAttribute("aria-busy", "true");
+      expect(button).toHaveAttribute("aria-busy", "true");
 
       resolveAction({ error: null, success: "Announcement deactivated." });
-      await screen.findByRole("status");
+
+      await waitFor(() => {
+        expect(button).toBeEnabled();
+      });
+      expect(button).toHaveAttribute("aria-busy", "false");
+      // The updated status badge and icon are the confirmation, not text.
+      expect(screen.queryByRole("status")).toBeNull();
     });
 
-    it("reports the result", async () => {
+    it("shows no success message after a successful toggle", async () => {
       const user = userEvent.setup();
       renderControls(true);
 
-      await user.click(
-        screen.getByRole("button", { name: /^Deactivate announcement/ }),
-      );
+      const button = screen.getByRole("button", {
+        name: /^Deactivate announcement/,
+      });
+      await user.click(button);
 
-      expect(await screen.findByRole("status")).toHaveTextContent(
-        "Announcement deactivated.",
-      );
+      await waitFor(() => {
+        expect(mocks.setAnnouncementActiveAction).toHaveBeenCalled();
+      });
+      await waitFor(() => {
+        expect(button).toHaveAttribute("aria-busy", "false");
+      });
+
+      expect(screen.queryByRole("status")).toBeNull();
+      expect(screen.queryByText(/announcement deactivated/i)).toBeNull();
+      expect(screen.queryByText(/announcement activated/i)).toBeNull();
     });
 
     it("reports a refusal as an alert", async () => {

@@ -86,11 +86,11 @@ export function AnnouncementRowControls({
     deleteState.error ??
     moveUpState.error ??
     moveDownState.error;
+  // Activating or deactivating is confirmed by the status badge and icon
+  // that update immediately, so its own success message is deliberately
+  // excluded here — only deletion and reordering still have one to show.
   const success =
-    activeState.success ??
-    deleteState.success ??
-    moveUpState.success ??
-    moveDownState.success;
+    deleteState.success ?? moveUpState.success ?? moveDownState.success;
   const isBusy =
     isActivePending || isDeletePending || isMovingUp || isMovingDown;
 

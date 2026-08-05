@@ -97,14 +97,8 @@ export function AnnouncementSettingsForm({
         </p>
       ) : null}
 
-      {state.success ? (
-        <p
-          role="status"
-          className="rounded-2xl border border-emerald-400/20 bg-emerald-400/5 px-4 py-3 text-sm leading-6 text-emerald-200"
-        >
-          {state.success}
-        </p>
-      ) : null}
+      {/* No success message on a successful save: the saved toggle and
+          interval values are the confirmation. */}
 
       <button
         type="submit"
