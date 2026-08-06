@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+// vitest runs this file in a genuine server-side Node context, but its module
+// resolution doesn't set Next.js's "react-server" bundler condition, so the
+// real "server-only" package would otherwise throw on every import here.
+vi.mock("server-only", () => ({}));
+
 const mocks = vi.hoisted(() => ({
   createSupabaseServiceRoleClient: vi.fn(),
   getAdminUser: vi.fn(),

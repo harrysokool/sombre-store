@@ -1,3 +1,5 @@
+import "server-only";
+
 import type { FulfilmentStatus } from "@/lib/admin/fulfilment-rules";
 import { getAdminUser } from "@/lib/supabase/admin-auth";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
