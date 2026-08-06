@@ -6,6 +6,7 @@ import { getCartSubtotal } from "@/lib/cart/math";
 import {
   getCartItemReferenceError,
   hasDuplicateCartProductIds,
+  MAX_CART_LINE_ITEMS,
   MAX_CHECKOUT_BODY_BYTES,
 } from "@/lib/checkout/cart-validation";
 import { getCouponPublicError } from "@/lib/checkout/coupon-preview";
@@ -250,6 +251,15 @@ function parseCheckoutPayload(body: unknown): CheckoutPayloadResult {
 
   if (!Array.isArray(payload.cartItems) || payload.cartItems.length === 0) {
     return { error: "Your cart is empty." };
+  }
+
+  // Matches the ceiling the coupon preview path already enforces, and is checked
+  // before the per-item validation below so an oversized cart is refused without
+  // walking every entry first.
+  if (payload.cartItems.length > MAX_CART_LINE_ITEMS) {
+    return {
+      error: `Your cart can contain at most ${MAX_CART_LINE_ITEMS} different products.`,
+    };
   }
 
   const cartItemError = payload.cartItems

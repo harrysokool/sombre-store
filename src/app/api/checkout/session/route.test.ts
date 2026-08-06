@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { MAX_CART_LINE_ITEMS } from "@/lib/checkout/cart-validation";
 import { CouponPreviewError } from "@/lib/checkout/coupon-quote";
 import { calculateDiscountQuote } from "@/lib/checkout/discounts";
 import { SHIPPING_FEE_HKD_CENTS } from "@/lib/checkout/shipping";
@@ -128,6 +129,33 @@ function checkoutRequest(body: unknown) {
     },
     body: JSON.stringify(body),
   });
+}
+
+// A cart of `count` distinct products, with the matching catalog rows.
+//
+// The items carry only the fields cart validation actually reads, so a
+// maximum-size cart stays well inside the request body limit — these tests are
+// about the line-item ceiling, not the byte ceiling.
+function bulkCart(count: number) {
+  const products: ProductRow[] = Array.from({ length: count }, (_, index) => ({
+    id: `${String(index).padStart(8, "0")}-0000-4000-8000-000000000000`,
+    slug: `b${index}`,
+    name: `Bulk product ${index}`,
+    price: 10,
+    size_label: null,
+    is_active: true,
+    stock_quantity: 10,
+  }));
+
+  return {
+    products,
+    cartItems: products.map((product) => ({
+      id: product.id,
+      slug: product.slug,
+      quantity: 1,
+    })),
+    subtotal: count * 10,
+  };
 }
 
 function couponPreview({
@@ -684,4 +712,86 @@ describe("POST /api/checkout/session coupon pricing", () => {
       expect(mocks.createSession).not.toHaveBeenCalled();
     },
   );
+
+  it("accepts a no-coupon cart at the maximum line-item count", async () => {
+    const { products, cartItems, subtotal } = bulkCart(MAX_CART_LINE_ITEMS);
+    productRows = products;
+
+    const response = await POST(
+      checkoutRequest({ cartItems, subtotal, customer }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.createSession).toHaveBeenCalledTimes(1);
+    expect((stripeInput().line_items as unknown[]).length).toBe(
+      MAX_CART_LINE_ITEMS,
+    );
+  });
+
+  it("rejects a no-coupon cart above the maximum line-item count", async () => {
+    const { products, cartItems, subtotal } = bulkCart(
+      MAX_CART_LINE_ITEMS + 1,
+    );
+    productRows = products;
+
+    const response = await POST(
+      checkoutRequest({ cartItems, subtotal, customer }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: `Your cart can contain at most ${MAX_CART_LINE_ITEMS} different products.`,
+    });
+    // Refused while parsing the payload, so no catalog read and no Stripe call.
+    expect(mocks.createSupabaseServerClient).not.toHaveBeenCalled();
+    expect(mocks.createSession).not.toHaveBeenCalled();
+  });
+
+  it("rejects an oversized coupon cart before coupon pricing runs", async () => {
+    const { products, cartItems, subtotal } = bulkCart(
+      MAX_CART_LINE_ITEMS + 1,
+    );
+    productRows = products;
+
+    const response = await POST(
+      checkoutRequest({
+        cartItems,
+        subtotal,
+        customer,
+        couponCode: "SOMBRE",
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(mocks.loadCouponPreview).not.toHaveBeenCalled();
+    expect(mocks.createSession).not.toHaveBeenCalled();
+  });
+
+  it("leaves the coupon path working at the maximum line-item count", async () => {
+    const { products, cartItems, subtotal } = bulkCart(MAX_CART_LINE_ITEMS);
+    productRows = products;
+    mocks.loadCouponPreview.mockResolvedValue(
+      couponPreview({
+        lines: cartItems.map((item, index) => ({
+          productId: item.id,
+          quantity: item.quantity,
+          originalUnitAmountCents: 1_000,
+          ...(index === 0 ? { discountBasisPoints: 2_000 } : {}),
+        })),
+      }),
+    );
+
+    const response = await POST(
+      checkoutRequest({
+        cartItems,
+        subtotal,
+        customer,
+        couponCode: "SOMBRE",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.loadCouponPreview).toHaveBeenCalledTimes(1);
+    expect(mocks.createSession).toHaveBeenCalledTimes(1);
+  });
 });
