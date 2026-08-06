@@ -4,8 +4,9 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 
+import { ProductPrice } from "@/components/product/product-price";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { formatPrice } from "@/lib/storefront/format-price";
+import { getProductPriceDisplay } from "@/lib/storefront/promotion-display";
 import {
   normalizeProductListItem,
   type ProductListItem,
@@ -17,6 +18,15 @@ type ProductSearchPanelProps = {
   onClose: () => void;
   /** Focus returns here when the panel closes, so the keyboard never resets. */
   returnFocusRef: RefObject<HTMLButtonElement | null>;
+  /**
+   * Live promotion basis points by product id, read on the server by NavbarSlot
+   * and handed down as a plain object.
+   *
+   * The discount tables are readable only by the service role, so this panel
+   * never queries them: its own browser client below reads nothing but the
+   * public products table, exactly as it did before.
+   */
+  promotionDiscounts: Record<string, number>;
 };
 
 const FOCUSABLE_SELECTOR =
@@ -119,6 +129,7 @@ export function ProductSearchPanel({
   isOpen,
   onClose,
   returnFocusRef,
+  promotionDiscounts,
 }: ProductSearchPanelProps) {
   const [query, setQuery] = useState("");
   const [products, setProducts] = useState<ProductListItem[]>([]);
@@ -257,6 +268,14 @@ export function ProductSearchPanel({
       inputRef.current?.focus();
     }
   }, [isOpen, returnFocusRef]);
+
+  // Looked up through a Map so an id can only ever match a real assignment,
+  // never something inherited from Object.prototype, and so the lookup reads the
+  // same as the other storefront surfaces.
+  const discountsByProductId = useMemo(
+    () => new Map(Object.entries(promotionDiscounts)),
+    [promotionDiscounts],
+  );
 
   const trimmedQuery = query.trim().toLowerCase();
   const matchingProducts = useMemo(() => {
@@ -423,7 +442,16 @@ export function ProductSearchPanel({
                           <span>{product.size_label}</span>
                         ) : null}
                         <span className="font-medium text-stone-200">
-                          {formatPrice(product.price)}
+                          <ProductPrice
+                            display={getProductPriceDisplay({
+                              price: product.price,
+                              retailPrice: product.retail_price,
+                              discountBasisPoints: discountsByProductId.get(
+                                product.id,
+                              ),
+                            })}
+                            variant="compact"
+                          />
                         </span>
                         {product.stock_quantity <= 0 ? (
                           <span className="uppercase tracking-[0.16em] text-stone-400">

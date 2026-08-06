@@ -42,7 +42,16 @@ function SearchIcon() {
     );
 }
 
-export function Navbar() {
+type NavbarProps = {
+    /**
+     * Live promotion basis points by product id, read on the server by
+     * NavbarSlot. Forwarded untouched to the search panel, which is the only
+     * thing here that shows a price.
+     */
+    promotionDiscounts: Record<string, number>;
+};
+
+export function Navbar({ promotionDiscounts }: NavbarProps) {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isSearchOpen, setIsSearchOpen] = useState(false);
     const [isNavbarVisible, setIsNavbarVisible] = useState(true);
@@ -219,6 +228,7 @@ export function Navbar() {
                 isOpen={isSearchOpen}
                 onClose={closeSearch}
                 returnFocusRef={searchButtonRef}
+                promotionDiscounts={promotionDiscounts}
             />
         </>
     );

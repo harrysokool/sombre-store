@@ -17,6 +17,17 @@ vi.mock("@/components/layout/announcement-banner-slot", () => ({
   AnnouncementBannerSlot: () => null,
 }));
 
+// The navbar slot is likewise an async Server Component, reading the promotion
+// for the search panel. Unlike the banner it cannot be stubbed away, since the
+// chrome asserted below lives inside it, so it is replaced by the navbar it
+// renders with no promotion. Its own behaviour is covered in
+// promotion-discounts.test.ts and product-search-panel.test.tsx.
+vi.mock("@/components/layout/navbar-slot", async () => {
+  const { Navbar } = await import("@/components/layout/navbar");
+
+  return { NavbarSlot: () => <Navbar promotionDiscounts={{}} /> };
+});
+
 vi.mock("next/link", () => ({
   default: ({ children, href, ...props }: ComponentProps<"a">) => (
     <a href={href} {...props}>

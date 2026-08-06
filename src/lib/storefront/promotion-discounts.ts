@@ -137,6 +137,47 @@ const getPromotionSnapshot = unstable_cache(
 );
 
 /**
+ * Every product assignment that is live at `now`, or nothing at all.
+ *
+ * The availability gate gets applied here, once, so a coupon that does not
+ * exist, is switched off, has not started, or has expired yields an empty
+ * result — its configuration never reaches a caller, and so never reaches a
+ * page. Everything below is a view over this.
+ *
+ * Fails closed: if the promotion cannot be read, the result is empty and no
+ * discount is shown. Showing nothing understates an offer, which is recoverable
+ * on the next load; showing a discount that checkout would refuse is not.
+ */
+async function getEligibleAssignments(
+  now: Date,
+): Promise<Record<string, number>> {
+  let snapshot: PromotionSnapshot;
+
+  try {
+    snapshot = await getPromotionSnapshot();
+  } catch (error) {
+    console.error("Failed to load the storefront promotion:", error);
+    return {};
+  }
+
+  try {
+    // The same availability rules checkout enforces — existence, the active
+    // flag, an inclusive start and an exclusive expiry — evaluated against the
+    // current instant rather than a cached verdict. Reusing the checkout
+    // function is what keeps the two from drifting apart.
+    assertCouponIsAvailable(snapshot.coupon, PROMOTION_COUPON_CODE, now);
+  } catch (error) {
+    if (isCouponPreviewError(error)) {
+      return {};
+    }
+
+    throw error;
+  }
+
+  return snapshot.discountBasisPointsByProductId;
+}
+
+/**
  * The configured discount, in basis points, for each of `productIds` that is
  * eligible right now.
  *
@@ -144,10 +185,6 @@ const getPromotionSnapshot = unstable_cache(
  * is inside its start and expiry window, and has an assignment for that
  * product. Everything else is absent rather than zero, so a caller cannot
  * mistake "no promotion" for "a promotion of nothing".
- *
- * Fails closed: if the promotion cannot be read, the result is empty and no
- * discount is shown. Showing nothing understates an offer, which is recoverable
- * on the next load; showing a discount that checkout would refuse is not.
  */
 export async function loadPromotionDiscounts(
   productIds: readonly string[],
@@ -159,32 +196,10 @@ export async function loadPromotionDiscounts(
     return discounts;
   }
 
-  let snapshot: PromotionSnapshot;
-
-  try {
-    snapshot = await getPromotionSnapshot();
-  } catch (error) {
-    console.error("Failed to load the storefront promotion:", error);
-    return discounts;
-  }
-
-  try {
-    // The same availability rules checkout enforces — existence, the active
-    // flag, an inclusive start and an exclusive expiry — evaluated against the
-    // current instant rather than a cached verdict. Reusing the checkout
-    // function is what keeps the two from drifting apart.
-    assertCouponIsAvailable(snapshot.coupon, PROMOTION_COUPON_CODE, now);
-  } catch (error) {
-    if (isCouponPreviewError(error)) {
-      return discounts;
-    }
-
-    throw error;
-  }
+  const eligibleAssignments = await getEligibleAssignments(now);
 
   for (const productId of productIds) {
-    const discountBasisPoints =
-      snapshot.discountBasisPointsByProductId[productId];
+    const discountBasisPoints = eligibleAssignments[productId];
 
     if (discountBasisPoints !== undefined) {
       discounts.set(productId, discountBasisPoints);
@@ -192,4 +207,26 @@ export async function loadPromotionDiscounts(
   }
 
   return discounts;
+}
+
+/**
+ * The same live assignments, for a caller that cannot name its product ids up
+ * front — the search panel, which fetches the whole active catalog in the
+ * browser and so has no id list to batch at render time.
+ *
+ * Returns a plain object rather than a Map because its purpose is to cross the
+ * server/client boundary as a prop, where a plain object is unambiguously
+ * serializable.
+ *
+ * Safe to hand to the browser: it is populated only while the coupon is live,
+ * and it then describes a publicly advertised offer whose resulting prices the
+ * shop grid already renders to every visitor. A draft, scheduled, or expired
+ * coupon's configuration is filtered out above and never leaves the server.
+ */
+export async function loadAllPromotionDiscounts(
+  now: Date = new Date(),
+): Promise<Record<string, number>> {
+  // Copied, so a caller holding this prop can never mutate the cached snapshot
+  // that every other storefront surface reads from.
+  return { ...(await getEligibleAssignments(now)) };
 }

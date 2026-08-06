@@ -29,7 +29,10 @@ vi.mock("@/lib/supabase/service-role", () => ({
   createSupabaseServiceRoleClient: mocks.createSupabaseServiceRoleClient,
 }));
 
-import { loadPromotionDiscounts } from "./promotion-discounts";
+import {
+  loadAllPromotionDiscounts,
+  loadPromotionDiscounts,
+} from "./promotion-discounts";
 import {
   PROMOTION_CACHE_TAG,
   PROMOTION_CACHE_TTL_SECONDS,
@@ -354,6 +357,78 @@ describe("loadPromotionDiscounts", () => {
 
       expect(discounts.size).toBe(0);
       expect(client.from).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("loadAllPromotionDiscounts", () => {
+    it("returns every live assignment without needing product ids", async () => {
+      supabaseWith({
+        data: couponRow({
+          discount_code_products: [
+            { product_id: PRODUCT_A, discount_percent: "36.00" },
+            { product_id: PRODUCT_B, discount_percent: "60.00" },
+          ],
+        }),
+      });
+
+      await expect(loadAllPromotionDiscounts(NOW)).resolves.toEqual({
+        [PRODUCT_A]: 3_600,
+        [PRODUCT_B]: 6_000,
+      });
+    });
+
+    it("returns a plain object, so it can cross the server boundary", async () => {
+      supabaseWith();
+
+      const discounts = await loadAllPromotionDiscounts(NOW);
+
+      expect(JSON.parse(JSON.stringify(discounts))).toEqual(discounts);
+    });
+
+    // The whole point of the availability gate: a coupon that is not live must
+    // never have its configuration handed to a browser.
+    it("exposes nothing when the coupon is inactive", async () => {
+      supabaseWith({ data: couponRow({ is_active: false }) });
+
+      await expect(loadAllPromotionDiscounts(NOW)).resolves.toEqual({});
+    });
+
+    it("exposes nothing before the coupon starts", async () => {
+      supabaseWith({
+        data: couponRow({ starts_at: "2026-08-06T00:00:00.000Z" }),
+      });
+
+      await expect(loadAllPromotionDiscounts(NOW)).resolves.toEqual({});
+    });
+
+    it("exposes nothing after the coupon expires", async () => {
+      supabaseWith({
+        data: couponRow({ expires_at: "2026-08-05T11:00:00.000Z" }),
+      });
+
+      await expect(loadAllPromotionDiscounts(NOW)).resolves.toEqual({});
+    });
+
+    it("exposes nothing when the coupon does not exist", async () => {
+      supabaseWith({ data: null });
+
+      await expect(loadAllPromotionDiscounts(NOW)).resolves.toEqual({});
+    });
+
+    it("exposes nothing when the read fails", async () => {
+      supabaseWith({ error: { message: "connection refused" } });
+
+      await expect(loadAllPromotionDiscounts(NOW)).resolves.toEqual({});
+    });
+
+    it("hands back a copy, so a caller cannot corrupt the cached snapshot", async () => {
+      supabaseWith();
+
+      const first = await loadAllPromotionDiscounts(NOW);
+      first[PRODUCT_B] = 9_999;
+      const second = await loadAllPromotionDiscounts(NOW);
+
+      expect(second).toEqual({ [PRODUCT_A]: 3_600 });
     });
   });
 
