@@ -1,3 +1,5 @@
+import "server-only";
+
 import { Resend } from "resend";
 
 // Server-only email configuration. These values must never be exposed to the

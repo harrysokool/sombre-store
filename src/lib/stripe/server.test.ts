@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+// vitest runs this file in a genuine server-side Node context, but its module
+// resolution doesn't set Next.js's "react-server" bundler condition, so the
+// real "server-only" package would otherwise throw on every import here. Stub
+// it to a no-op so this file's own env-var validation logic is what's tested.
+vi.mock("server-only", () => ({}));
+
 async function importStripeServer(secretKey?: string) {
   vi.resetModules();
 

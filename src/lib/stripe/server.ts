@@ -1,3 +1,5 @@
+import "server-only";
+
 import Stripe from "stripe";
 
 const STRIPE_TEST_SECRET_KEY_PATTERN = /^sk_test_[A-Za-z0-9]+$/;
