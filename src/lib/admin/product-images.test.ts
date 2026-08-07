@@ -15,6 +15,18 @@ vi.mock("@/lib/supabase/service-role", () => ({
   createSupabaseServiceRoleClient: mocks.createSupabase,
 }));
 
+vi.mock("@/lib/supabase/env", () => ({
+  getSupabaseEnv: () => ({
+    supabaseUrl: "https://abcdefghijklmnop.supabase.co",
+    supabaseAnonKey: "anon-key",
+  }),
+}));
+
+import {
+  isSombreStorageImageUrl,
+  isValidStorageObjectPath,
+  MAX_PRODUCT_IMAGE_BYTES,
+} from "./product-image-storage";
 import {
   addAdminProductImage,
   listAdminProductImages,
@@ -22,6 +34,7 @@ import {
   removeAdminProductImage,
   setAdminPrimaryProductImage,
   updateAdminProductImageAltText,
+  uploadAdminProductImage,
 } from "./product-images";
 
 const PRODUCT_ID = "33333333-3333-4333-8333-333333333333";
@@ -76,9 +89,34 @@ function query(result: QueryResult = {}) {
  * Hands out one builder per query in call order, which is how an operation's
  * sequence of statements is asserted.
  */
-function supabaseWith(results: QueryResult[]) {
+/** How the Storage side of the mocked client should behave. */
+type StorageBehavior = {
+  upload?: { error?: unknown };
+  remove?: { error?: unknown; throws?: boolean };
+};
+
+function supabaseWith(results: QueryResult[], storage: StorageBehavior = {}) {
   const builders = results.map(query);
   let index = 0;
+
+  const upload = vi.fn(async (
+    _objectPath: string,
+    _body: Uint8Array,
+    _options: { contentType: string; upsert: boolean },
+  ) => ({
+    data: storage.upload?.error ? null : { path: "uploaded" },
+    error: storage.upload?.error ?? null,
+  }));
+
+  const remove = vi.fn(async (_objectPaths: string[]) => {
+    if (storage.remove?.throws) {
+      throw new Error("Storage is unreachable.");
+    }
+
+    return { data: null, error: storage.remove?.error ?? null };
+  });
+
+  const storageFrom = vi.fn(() => ({ upload, remove }));
 
   const client = {
     from: vi.fn((table: string) => {
@@ -92,11 +130,12 @@ function supabaseWith(results: QueryResult[]) {
 
       return next;
     }),
+    storage: { from: storageFrom },
   };
 
   mocks.createSupabase.mockReturnValue(client);
 
-  return { client, builders };
+  return { client, builders, upload, remove, storageFrom };
 }
 
 /** n queries that all succeed and return nothing. */
@@ -178,6 +217,14 @@ describe("authorization", () => {
     [
       "removeAdminProductImage",
       () => removeAdminProductImage(PRODUCT_ID, IMAGE_A),
+    ],
+    [
+      "uploadAdminProductImage",
+      () =>
+        uploadAdminProductImage(PRODUCT_ID, {
+          file: new File([JPEG_BYTES], "photo.jpg", { type: "image/jpeg" }),
+          altText: "",
+        }),
     ],
   ];
 
@@ -728,5 +775,603 @@ describe("removeAdminProductImage", () => {
       throw new Error("Expected the removal to fail.");
     }
     expect(result.error).not.toContain("permission denied");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Uploads
+// ---------------------------------------------------------------------------
+
+const SUPABASE_URL = "https://abcdefghijklmnop.supabase.co";
+const PUBLIC_PREFIX = `${SUPABASE_URL}/storage/v1/object/public/product-images/`;
+
+/** A byte array beginning with `signature`, padded to a realistic length. */
+function fileBytes(
+  signature: readonly number[],
+  length = 64,
+): Uint8Array<ArrayBuffer> {
+  const bytes = new Uint8Array(new ArrayBuffer(length));
+
+  bytes.set(signature.slice(0, length));
+
+  return bytes;
+}
+
+function asciiBytes(text: string, length = Math.max(text.length, 64)) {
+  const bytes = new Uint8Array(new ArrayBuffer(length));
+
+  for (let index = 0; index < text.length && index < length; index += 1) {
+    bytes[index] = text.charCodeAt(index);
+  }
+
+  return bytes;
+}
+
+/** An ISO base media header, used for AVIF and its HEIC look-alike. */
+function isoBytes(majorBrand: string) {
+  const bytes = new Uint8Array(new ArrayBuffer(64));
+
+  bytes[3] = 16;
+
+  const write = (text: string, offset: number) => {
+    for (let index = 0; index < 4; index += 1) {
+      bytes[offset + index] = text.charCodeAt(index);
+    }
+  };
+
+  write("ftyp", 4);
+  write(majorBrand, 8);
+
+  return bytes;
+}
+
+const JPEG_BYTES = fileBytes([0xff, 0xd8, 0xff, 0xe0]);
+const PNG_BYTES = fileBytes([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+const WEBP_BYTES = (() => {
+  const bytes = fileBytes([0x52, 0x49, 0x46, 0x46, 0x24, 0x00, 0x00, 0x00]);
+
+  bytes.set([0x57, 0x45, 0x42, 0x50], 8);
+
+  return bytes;
+})();
+const AVIF_BYTES = isoBytes("avif");
+const HEIC_BYTES = isoBytes("heic");
+
+/**
+ * A submitted file whose name and declared type are deliberately wrong, so any
+ * test that passes is passing because of the bytes.
+ */
+function submittedFile(
+  bytes: Uint8Array<ArrayBuffer>,
+  name = "PHOTO.JPG",
+  type = "image/jpeg",
+) {
+  return new File([bytes], name, { type });
+}
+
+/** Wires the happy path: product found, existing images, insert succeeds. */
+function uploadSucceeds(existingImages: unknown[] = []) {
+  return supabaseWith([
+    { data: { id: PRODUCT_ID } },
+    { data: existingImages },
+    {},
+  ]);
+}
+
+/** The single row handed to the product_images insert. */
+function insertedRow(builders: ReturnType<typeof query>[]) {
+  const builder = builders.find(
+    (candidate) => candidate.insert.mock.calls.length > 0,
+  );
+
+  if (!builder) {
+    throw new Error("No product_images insert was issued.");
+  }
+
+  return builder.insert.mock.calls[0][0] as Record<string, unknown>;
+}
+
+describe("uploadAdminProductImage", () => {
+  it.each([
+    ["JPEG", JPEG_BYTES, "image/jpeg", "jpg"],
+    ["PNG", PNG_BYTES, "image/png", "png"],
+    ["WebP", WEBP_BYTES, "image/webp", "webp"],
+    ["AVIF", AVIF_BYTES, "image/avif", "avif"],
+  ])("stores a %s and records it", async (_label, bytes, mimeType, extension) => {
+    const { builders, upload, storageFrom } = uploadSucceeds();
+
+    await expect(
+      uploadAdminProductImage(PRODUCT_ID, {
+        file: submittedFile(bytes),
+        altText: "A bottle",
+      }),
+    ).resolves.toEqual({ ok: true });
+
+    expect(storageFrom).toHaveBeenCalledWith("product-images");
+
+    const [objectPath, body, options] = upload.mock.calls[0];
+
+    expect(objectPath).toBe(`${PRODUCT_ID}/${objectPath.split("/")[1]}`);
+    expect(objectPath.endsWith(`.${extension}`)).toBe(true);
+    // The verified type, never the one the browser declared.
+    expect(options.contentType).toBe(mimeType);
+    expect(options.upsert).toBe(false);
+    expect(body.byteLength).toBe(bytes.byteLength);
+
+    expect(insertedRow(builders)).toEqual({
+      product_id: PRODUCT_ID,
+      image_url: `${PUBLIC_PREFIX}${objectPath}`,
+      alt_text: "A bottle",
+      sort_order: 0,
+      is_primary: true,
+      storage_object_path: objectPath,
+    });
+  });
+
+  it("writes only the six explicit columns", async () => {
+    const { builders } = uploadSucceeds();
+
+    await uploadAdminProductImage(PRODUCT_ID, {
+      file: submittedFile(JPEG_BYTES),
+      altText: "",
+    });
+
+    expect(Object.keys(insertedRow(builders)).sort()).toEqual([
+      "alt_text",
+      "image_url",
+      "is_primary",
+      "product_id",
+      "sort_order",
+      "storage_object_path",
+    ]);
+  });
+
+  it("stores a public URL the recogniser accepts", async () => {
+    const { builders } = uploadSucceeds();
+
+    await uploadAdminProductImage(PRODUCT_ID, {
+      file: submittedFile(JPEG_BYTES),
+      altText: "",
+    });
+
+    const row = insertedRow(builders);
+
+    expect(row.image_url).toBe(`${PUBLIC_PREFIX}${row.storage_object_path}`);
+    expect(
+      isSombreStorageImageUrl(row.image_url, SUPABASE_URL),
+    ).toBe(true);
+  });
+
+  describe("derived values, never the browser's", () => {
+    it("ignores the supplied filename and extension", async () => {
+      const { builders, upload } = uploadSucceeds();
+
+      await uploadAdminProductImage(PRODUCT_ID, {
+        file: submittedFile(PNG_BYTES, "../../evil name.jpg", "image/jpeg"),
+        altText: "",
+      });
+
+      const objectPath = upload.mock.calls[0][0];
+
+      expect(objectPath).not.toContain("evil");
+      expect(objectPath).not.toContain(" ");
+      expect(objectPath).not.toContain("..");
+      // PNG bytes behind a .jpg name are stored as a PNG.
+      expect(objectPath.endsWith(".png")).toBe(true);
+      expect(insertedRow(builders).storage_object_path).toBe(objectPath);
+    });
+
+    it("ignores the declared MIME type", async () => {
+      const { upload } = uploadSucceeds();
+
+      await uploadAdminProductImage(PRODUCT_ID, {
+        file: submittedFile(WEBP_BYTES, "photo.jpg", "image/jpeg"),
+        altText: "",
+      });
+
+      expect(
+        upload.mock.calls[0][2].contentType,
+      ).toBe("image/webp");
+    });
+
+    it("puts the object in the validated product's own folder", async () => {
+      const { upload } = uploadSucceeds();
+
+      await uploadAdminProductImage(PRODUCT_ID, {
+        file: submittedFile(JPEG_BYTES),
+        altText: "",
+      });
+
+      const objectPath = upload.mock.calls[0][0];
+
+      expect(objectPath.startsWith(`${PRODUCT_ID}/`)).toBe(true);
+      expect(objectPath).not.toContain(OTHER_PRODUCT_ID);
+      expect(isValidStorageObjectPath(objectPath)).toBe(true);
+    });
+
+    it("generates a different object path every time", async () => {
+      const paths = new Set<string>();
+
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        const { upload } = uploadSucceeds();
+
+        await uploadAdminProductImage(PRODUCT_ID, {
+          file: submittedFile(JPEG_BYTES),
+          altText: "",
+        });
+
+        paths.add(upload.mock.calls[0][0]);
+      }
+
+      expect(paths.size).toBe(5);
+    });
+  });
+
+  describe("ordering and primary", () => {
+    it("makes a product's first image its primary", async () => {
+      const { builders } = uploadSucceeds([]);
+
+      await uploadAdminProductImage(PRODUCT_ID, {
+        file: submittedFile(JPEG_BYTES),
+        altText: "",
+      });
+
+      expect(insertedRow(builders)).toMatchObject({
+        sort_order: 0,
+        is_primary: true,
+      });
+    });
+
+    it("does not displace a primary the administrator already chose", async () => {
+      const { builders } = uploadSucceeds(THREE_IMAGES);
+
+      await uploadAdminProductImage(PRODUCT_ID, {
+        file: submittedFile(JPEG_BYTES),
+        altText: "",
+      });
+
+      expect(insertedRow(builders)).toMatchObject({
+        sort_order: 3,
+        is_primary: false,
+      });
+    });
+
+    it("takes the next position after the highest, not the count", async () => {
+      // A legacy gap in the sequence still has to yield a free position.
+      const { builders } = uploadSucceeds([
+        row(IMAGE_A, 0, true),
+        row(IMAGE_B, 5),
+      ]);
+
+      await uploadAdminProductImage(PRODUCT_ID, {
+        file: submittedFile(JPEG_BYTES),
+        altText: "",
+      });
+
+      expect(insertedRow(builders)).toMatchObject({ sort_order: 6 });
+    });
+
+    it("ignores a sort order or primary flag posted alongside the file", async () => {
+      // Neither is read from the submission at all; both are derived.
+      const { builders } = uploadSucceeds(THREE_IMAGES);
+
+      await uploadAdminProductImage(PRODUCT_ID, {
+        file: submittedFile(JPEG_BYTES),
+        altText: "",
+        ...({ sortOrder: 0, isPrimary: true } as Record<string, unknown>),
+      });
+
+      expect(insertedRow(builders)).toMatchObject({
+        sort_order: 3,
+        is_primary: false,
+      });
+    });
+  });
+
+  describe("refusals", () => {
+    it("refuses a malformed product reference before touching anything", async () => {
+      supabaseWith([]);
+
+      await expect(
+        uploadAdminProductImage("not-a-uuid", {
+          file: submittedFile(JPEG_BYTES),
+          altText: "",
+        }),
+      ).resolves.toEqual({
+        ok: false,
+        error: "That product reference is not valid.",
+      });
+      expect(mocks.createSupabase).not.toHaveBeenCalled();
+    });
+
+    it("refuses a product that no longer exists", async () => {
+      const { upload } = supabaseWith([{ data: null }]);
+
+      await expect(
+        uploadAdminProductImage(PRODUCT_ID, {
+          file: submittedFile(JPEG_BYTES),
+          altText: "",
+        }),
+      ).resolves.toEqual({
+        ok: false,
+        error: "That product no longer exists. Reload the page and try again.",
+      });
+      expect(upload).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ["no file at all", undefined],
+      ["an empty form field", ""],
+      ["a string instead of a file", "/images/products/a.jpg"],
+      ["null", null],
+    ])("refuses %s", async (_label, file) => {
+      supabaseWith([]);
+
+      await expect(
+        uploadAdminProductImage(PRODUCT_ID, { file, altText: "" }),
+      ).resolves.toEqual({
+        ok: false,
+        error: "Choose an image file to upload.",
+      });
+      expect(mocks.createSupabase).not.toHaveBeenCalled();
+    });
+
+    it("refuses an empty file", async () => {
+      supabaseWith([]);
+
+      await expect(
+        uploadAdminProductImage(PRODUCT_ID, {
+          file: submittedFile(new Uint8Array(new ArrayBuffer(0))),
+          altText: "",
+        }),
+      ).resolves.toEqual({ ok: false, error: "That file is empty." });
+      expect(mocks.createSupabase).not.toHaveBeenCalled();
+    });
+
+    it("refuses an oversized file without reading it", async () => {
+      // The declared size is enough to turn it away, so nothing is buffered.
+      const oversized = {
+        size: MAX_PRODUCT_IMAGE_BYTES + 1,
+        arrayBuffer: vi.fn(async () => new ArrayBuffer(0)),
+      };
+
+      supabaseWith([]);
+
+      await expect(
+        uploadAdminProductImage(PRODUCT_ID, {
+          file: oversized,
+          altText: "",
+        }),
+      ).resolves.toEqual({
+        ok: false,
+        error: "Images must be 4 MB or smaller.",
+      });
+      expect(oversized.arrayBuffer).not.toHaveBeenCalled();
+      expect(mocks.createSupabase).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ["an SVG", asciiBytes('<svg xmlns="http://www.w3.org/2000/svg"></svg>')],
+      ["a GIF", asciiBytes("GIF89a")],
+      ["HEIC", HEIC_BYTES],
+      ["an HTML page", asciiBytes("<!doctype html><html></html>")],
+      ["a shell script", asciiBytes("#!/bin/sh\nrm -rf /\n")],
+      ["an executable", fileBytes([0x4d, 0x5a, 0x90, 0x00])],
+      ["random bytes", fileBytes([0x01, 0x02, 0x03, 0x04])],
+    ])("refuses %s even when named .jpg", async (_label, bytes) => {
+      supabaseWith([]);
+
+      await expect(
+        uploadAdminProductImage(PRODUCT_ID, {
+          file: submittedFile(bytes, "photo.jpg", "image/jpeg"),
+          altText: "",
+        }),
+      ).resolves.toEqual({
+        ok: false,
+        error: "That file is not a JPEG, PNG, WebP, or AVIF image.",
+      });
+      expect(mocks.createSupabase).not.toHaveBeenCalled();
+    });
+
+    it("refuses alt text past its ceiling", async () => {
+      supabaseWith([]);
+
+      await expect(
+        uploadAdminProductImage(PRODUCT_ID, {
+          file: submittedFile(JPEG_BYTES),
+          altText: "a".repeat(400),
+        }),
+      ).resolves.toMatchObject({ ok: false });
+      expect(mocks.createSupabase).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("failure handling", () => {
+    it("creates no database row when the upload fails", async () => {
+      const { builders } = supabaseWith(
+        [{ data: { id: PRODUCT_ID } }, { data: [] }],
+        { upload: { error: { message: "storage down" } } },
+      );
+
+      await expect(
+        uploadAdminProductImage(PRODUCT_ID, {
+          file: submittedFile(JPEG_BYTES),
+          altText: "",
+        }),
+      ).resolves.toEqual({
+        ok: false,
+        error: "The image could not be uploaded. Try again.",
+      });
+      expect(
+        builders.every((builder) => builder.insert.mock.calls.length === 0),
+      ).toBe(true);
+    });
+
+    it("removes the uploaded object when the row cannot be written", async () => {
+      const { upload, remove } = supabaseWith([
+        { data: { id: PRODUCT_ID } },
+        { data: [] },
+        { error: { code: "42501", message: "permission denied" } },
+      ]);
+
+      const result = await uploadAdminProductImage(PRODUCT_ID, {
+        file: submittedFile(JPEG_BYTES),
+        altText: "",
+      });
+
+      expect(result).toEqual({
+        ok: false,
+        error: "The image could not be uploaded. Try again.",
+      });
+      // The compensation targets exactly the object that was just stored.
+      expect(remove).toHaveBeenCalledWith([upload.mock.calls[0][0]]);
+    });
+
+    it("logs an orphan when the compensating delete also fails", async () => {
+      const { upload } = supabaseWith(
+        [
+          { data: { id: PRODUCT_ID } },
+          { data: [] },
+          { error: { message: "insert failed" } },
+        ],
+        { remove: { error: { message: "remove failed" } } },
+      );
+
+      await expect(
+        uploadAdminProductImage(PRODUCT_ID, {
+          file: submittedFile(JPEG_BYTES),
+          altText: "",
+        }),
+      ).resolves.toMatchObject({ ok: false });
+
+      expect(console.error).toHaveBeenCalledWith(
+        "Orphaned product image object: uploaded but neither recorded nor removed",
+        expect.objectContaining({ objectPath: upload.mock.calls[0][0] }),
+      );
+    });
+
+    it("survives a compensating delete that throws", async () => {
+      // A throw during cleanup must not replace the original failure.
+      supabaseWith(
+        [
+          { data: { id: PRODUCT_ID } },
+          { data: [] },
+          { error: { message: "insert failed" } },
+        ],
+        { remove: { throws: true } },
+      );
+
+      await expect(
+        uploadAdminProductImage(PRODUCT_ID, {
+          file: submittedFile(JPEG_BYTES),
+          altText: "",
+        }),
+      ).resolves.toEqual({
+        ok: false,
+        error: "The image could not be uploaded. Try again.",
+      });
+    });
+
+    it("reports a conflict when the position was taken meanwhile", async () => {
+      supabaseWith([
+        { data: { id: PRODUCT_ID } },
+        { data: [] },
+        { error: { code: "23505" } },
+      ]);
+
+      await expect(
+        uploadAdminProductImage(PRODUCT_ID, {
+          file: submittedFile(JPEG_BYTES),
+          altText: "",
+        }),
+      ).resolves.toMatchObject({
+        ok: false,
+        error:
+          "The images changed while you were editing. Reload the page and try again.",
+      });
+    });
+
+    it("keeps database detail out of the browser", async () => {
+      supabaseWith([
+        { data: { id: PRODUCT_ID } },
+        { data: [] },
+        {
+          error: {
+            code: "42501",
+            message: 'permission denied for table "product_images"',
+          },
+        },
+      ]);
+
+      const result = await uploadAdminProductImage(PRODUCT_ID, {
+        file: submittedFile(JPEG_BYTES),
+        altText: "",
+      });
+
+      if (result.ok) {
+        throw new Error("Expected the upload to fail.");
+      }
+
+      expect(result.error).not.toContain("permission denied");
+      expect(result.error).not.toContain("product_images");
+      expect(console.error).toHaveBeenCalledWith(
+        "Failed to record an uploaded product image",
+        expect.objectContaining({ code: "42501" }),
+      );
+    });
+
+    it("reports a generic failure when the product cannot be read", async () => {
+      const { upload } = supabaseWith([{ error: { message: "boom" } }]);
+
+      await expect(
+        uploadAdminProductImage(PRODUCT_ID, {
+          file: submittedFile(JPEG_BYTES),
+          altText: "",
+        }),
+      ).resolves.toEqual({
+        ok: false,
+        error: "The image could not be uploaded. Try again.",
+      });
+      // Nothing is stored when the database cannot be reached.
+      expect(upload).not.toHaveBeenCalled();
+    });
+
+    it("does not upload when the existing images cannot be read", async () => {
+      const { upload } = supabaseWith([
+        { data: { id: PRODUCT_ID } },
+        { error: { message: "boom" } },
+      ]);
+
+      await expect(
+        uploadAdminProductImage(PRODUCT_ID, {
+          file: submittedFile(JPEG_BYTES),
+          altText: "",
+        }),
+      ).resolves.toMatchObject({ ok: false });
+      expect(upload).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("existing local image management is unchanged", () => {
+    it("still adds a local path with no storage object path", async () => {
+      const { builders } = supabaseWith([
+        { data: THREE_IMAGES },
+        {},
+      ]);
+
+      await expect(
+        addAdminProductImage(PRODUCT_ID, {
+          imageUrl: "/images/products/a.jpg",
+          altText: "",
+        }),
+      ).resolves.toEqual({ ok: true });
+
+      const row = insertedRow(builders);
+
+      expect(row.image_url).toBe("/images/products/a.jpg");
+      // A local row carries no stored object, so removing it never asks
+      // Storage to delete anything.
+      expect(row).not.toHaveProperty("storage_object_path");
+    });
   });
 });

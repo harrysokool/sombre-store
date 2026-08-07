@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   setAdminPrimaryProductImage: vi.fn(),
   moveAdminProductImage: vi.fn(),
   removeAdminProductImage: vi.fn(),
+  uploadAdminProductImage: vi.fn(),
   revalidatePath: vi.fn(),
 }));
 
@@ -24,10 +25,12 @@ vi.mock("@/lib/admin/product-images", () => ({
   setAdminPrimaryProductImage: mocks.setAdminPrimaryProductImage,
   moveAdminProductImage: mocks.moveAdminProductImage,
   removeAdminProductImage: mocks.removeAdminProductImage,
+  uploadAdminProductImage: mocks.uploadAdminProductImage,
 }));
 
 import {
   addProductImageAction,
+  uploadProductImageAction,
   moveProductImageAction,
   removeProductImageAction,
   setPrimaryProductImageAction,
@@ -91,6 +94,14 @@ const ACTIONS = [
     "removeAdminProductImage",
     { productId: PRODUCT_ID, imageId: IMAGE_ID },
   ],
+  [
+    "uploadProductImageAction",
+    uploadProductImageAction,
+    "uploadAdminProductImage",
+    // The data layer is mocked in these sweeps, so the file value is only a
+    // placeholder; the dedicated tests below submit a real File.
+    { productId: PRODUCT_ID, file: "placeholder", altText: "" },
+  ],
 ] as const;
 
 beforeEach(() => {
@@ -109,6 +120,7 @@ beforeEach(() => {
     "setAdminPrimaryProductImage",
     "moveAdminProductImage",
     "removeAdminProductImage",
+    "uploadAdminProductImage",
   ] as const) {
     mocks[name].mockResolvedValue({ ok: true });
   }
@@ -144,7 +156,11 @@ describe("references", () => {
     },
   );
 
-  it.each(ACTIONS.filter(([name]) => name !== "addProductImageAction"))(
+  it.each(ACTIONS.filter(
+      ([name]) =>
+        name !== "addProductImageAction" &&
+        name !== "uploadProductImageAction",
+    ))(
     "%s refuses a submission with no image reference",
     async (_name, action, dataLayerName, body) => {
       const state = await action(initialState, formData(without(body, "imageId")));
@@ -224,6 +240,82 @@ describe("passing the submission through", () => {
       PRODUCT_ID,
       IMAGE_ID,
     );
+  });
+
+  describe("uploads", () => {
+    const jpegBytes = new Uint8Array(64);
+
+    jpegBytes.set([0xff, 0xd8, 0xff, 0xe0]);
+
+    /** FormData carrying a real File, as the future UI will submit. */
+    function uploadFormData(extra: Record<string, string> = {}) {
+      const data = formData({ productId: PRODUCT_ID, altText: "A bottle", ...extra });
+
+      data.set(
+        "file",
+        new File([jpegBytes], "photo.jpg", { type: "image/jpeg" }),
+      );
+
+      return data;
+    }
+
+    it("hands the file and alt text to the data layer", async () => {
+      await uploadProductImageAction(initialState, uploadFormData());
+
+      expect(mocks.uploadAdminProductImage).toHaveBeenCalledWith(
+        PRODUCT_ID,
+        expect.objectContaining({ altText: "A bottle" }),
+      );
+
+      const [, submission] = mocks.uploadAdminProductImage.mock.calls[0] as [
+        string,
+        { file: File },
+      ];
+
+      expect(submission.file).toBeInstanceOf(File);
+      expect(submission.file.size).toBe(jpegBytes.byteLength);
+    });
+
+    it("passes nothing else through, whatever else was posted", async () => {
+      // A storage path, an order, or a primary flag posted alongside the file
+      // is never read: the data layer derives all three.
+      await uploadProductImageAction(
+        initialState,
+        uploadFormData({
+          storageObjectPath: "someone-elses/object.jpg",
+          sortOrder: "0",
+          isPrimary: "true",
+          imageUrl: "https://evil.example/x.jpg",
+        }),
+      );
+
+      const [, submission] = mocks.uploadAdminProductImage.mock.calls[0] as [
+        string,
+        Record<string, unknown>,
+      ];
+
+      expect(Object.keys(submission).sort()).toEqual(["altText", "file"]);
+    });
+
+    it("refuses a submission with no file field at all", async () => {
+      // An absent file reaches the data layer as null and is refused there.
+      mocks.uploadAdminProductImage.mockResolvedValue({
+        ok: false,
+        error: "Choose an image file to upload.",
+      });
+
+      const state = await uploadProductImageAction(
+        initialState,
+        formData({ productId: PRODUCT_ID, altText: "" }),
+      );
+
+      expect(state.error).toBe("Choose an image file to upload.");
+      expect(mocks.uploadAdminProductImage).toHaveBeenCalledWith(
+        PRODUCT_ID,
+        expect.objectContaining({ file: null }),
+      );
+      expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    });
   });
 });
 

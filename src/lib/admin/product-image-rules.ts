@@ -15,10 +15,12 @@ export const PRODUCT_IMAGE_TEXT_LIMITS = {
 /**
  * A root-relative path under `public/`, and nothing else.
  *
- * `next/image` renders every product image, and `next.config.ts` declares no
- * `images.remotePatterns`, so a remote `https://` source would throw when the
- * product page tried to render it. Restricting the column to local paths is
- * what keeps a saved image from breaking the storefront.
+ * `next/image` renders every product image, and the only remote source it will
+ * load is the product image bucket named in `next.config.ts`. A URL typed into
+ * this field would therefore either throw when the product page rendered it or,
+ * at best, duplicate a path the upload flow generates for itself. Images stored
+ * in Supabase reach `image_url` by being uploaded, never by being typed here,
+ * so this field stays local-only.
  *
  * The leading-slash rule also refuses `//evil.example/x.jpg`, which a browser
  * resolves as a protocol-relative URL to another origin, and any scheme such as

@@ -8,6 +8,7 @@ import {
   removeAdminProductImage,
   setAdminPrimaryProductImage,
   updateAdminProductImageAltText,
+  uploadAdminProductImage,
   type AdminProductImageResult,
 } from "@/lib/admin/product-images";
 import { getAdminUser } from "@/lib/supabase/admin-auth";
@@ -87,6 +88,32 @@ export async function addProductImageAction(
     (productId) =>
       addAdminProductImage(productId, {
         imageUrl: formData.get("imageUrl"),
+        altText: formData.get("altText"),
+      }),
+    { requiresImage: false },
+  );
+}
+
+/**
+ * Stores an uploaded file and records it against a product.
+ *
+ * Takes FormData because the file arrives as one. Only the file and the alt
+ * text are read from it: a storage path, a sort order, or a primary flag posted
+ * alongside them is ignored, because the data layer derives all three itself.
+ *
+ * Shares the gated runner with every other image action, so the session check,
+ * the generic error message, and the revalidation that follows a confirmed
+ * write are the same here as everywhere else.
+ */
+export async function uploadProductImageAction(
+  _previousState: ProductImageActionState,
+  formData: FormData,
+): Promise<ProductImageActionState> {
+  return runImageAction(
+    formData,
+    (productId) =>
+      uploadAdminProductImage(productId, {
+        file: formData.get("file"),
         altText: formData.get("altText"),
       }),
     { requiresImage: false },
