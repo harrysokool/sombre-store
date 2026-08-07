@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  getGalleryProductImages,
   getPrimaryProductImage,
   getSecondaryProductImage,
   type ProductImage,
@@ -18,6 +19,117 @@ function image(
     is_primary: isPrimary,
   };
 }
+
+describe("getGalleryProductImages", () => {
+  const urls = (images: ProductImage[]) => images.map((i) => i.image_url);
+
+  it("returns an empty list when the product has no images", () => {
+    expect(getGalleryProductImages(null)).toEqual([]);
+    expect(getGalleryProductImages([])).toEqual([]);
+  });
+
+  it("returns the one image a single-image product has", () => {
+    expect(urls(getGalleryProductImages([image("/a.jpg", 0, true)]))).toEqual([
+      "/a.jpg",
+    ]);
+  });
+
+  it("keeps sort order when the primary already leads", () => {
+    const images = [
+      image("/a.jpg", 0, true),
+      image("/b.jpg", 1),
+      image("/c.jpg", 2),
+    ];
+
+    expect(urls(getGalleryProductImages(images))).toEqual([
+      "/a.jpg",
+      "/b.jpg",
+      "/c.jpg",
+    ]);
+  });
+
+  // Rows arrive in whatever order Postgres returns them.
+  it("sorts before ordering, not relying on array order", () => {
+    const images = [
+      image("/c.jpg", 2),
+      image("/a.jpg", 0, true),
+      image("/b.jpg", 1),
+    ];
+
+    expect(urls(getGalleryProductImages(images))).toEqual([
+      "/a.jpg",
+      "/b.jpg",
+      "/c.jpg",
+    ]);
+  });
+
+  // The point of the helper: sort order alone would open on the wrong image.
+  it("lifts a primary flagged mid-list to the front", () => {
+    const images = [
+      image("/a.jpg", 0),
+      image("/b.jpg", 1, true),
+      image("/c.jpg", 2),
+    ];
+
+    expect(urls(getGalleryProductImages(images))).toEqual([
+      "/b.jpg",
+      "/a.jpg",
+      "/c.jpg",
+    ]);
+  });
+
+  it("lifts a primary flagged last to the front", () => {
+    const images = [
+      image("/a.jpg", 0),
+      image("/b.jpg", 1),
+      image("/c.jpg", 2, true),
+    ];
+
+    expect(urls(getGalleryProductImages(images))).toEqual([
+      "/c.jpg",
+      "/a.jpg",
+      "/b.jpg",
+    ]);
+  });
+
+  // Matches getPrimaryProductImage's own fallback, so an unflagged product
+  // simply shows its images in the order they were arranged.
+  it("falls back to plain sort order when no image is flagged primary", () => {
+    const images = [image("/c.jpg", 2), image("/a.jpg", 0), image("/b.jpg", 1)];
+
+    expect(urls(getGalleryProductImages(images))).toEqual([
+      "/a.jpg",
+      "/b.jpg",
+      "/c.jpg",
+    ]);
+  });
+
+  it("never drops or duplicates an image", () => {
+    const images = [
+      image("/a.jpg", 0),
+      image("/b.jpg", 1, true),
+      image("/c.jpg", 2),
+    ];
+
+    const gallery = getGalleryProductImages(images);
+
+    expect(gallery).toHaveLength(images.length);
+    expect(new Set(urls(gallery)).size).toBe(images.length);
+  });
+
+  // The two helpers must agree about which image leads.
+  it("leads with whatever getPrimaryProductImage returns", () => {
+    const images = [
+      image("/a.jpg", 0),
+      image("/b.jpg", 1, true),
+      image("/c.jpg", 2),
+    ];
+
+    expect(getGalleryProductImages(images)[0]).toBe(
+      getPrimaryProductImage(images),
+    );
+  });
+});
 
 describe("getSecondaryProductImage", () => {
   it("returns null when the product has no images at all", () => {

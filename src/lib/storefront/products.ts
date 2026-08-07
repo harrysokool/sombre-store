@@ -42,6 +42,36 @@ export function getPrimaryProductImage(
 }
 
 /**
+ * Every image a product page should show, primary first, the rest following in
+ * their existing sort order.
+ *
+ * Sort order alone is not enough: `is_primary` may sit on any row, and the
+ * image a product leads with has to be the one merchandising chose. So the
+ * primary is lifted to the front and everything else keeps the order it
+ * already had.
+ *
+ * Both rules are borrowed rather than restated — `getSortedProductImages` for
+ * the order and `getPrimaryProductImage` for which row leads, including its
+ * fallback to the first sorted image when nothing is flagged. In that fallback
+ * case the list comes back in plain sort order, exactly as before.
+ */
+export function getGalleryProductImages(
+  images: ProductImage[] | null,
+): ProductImage[] {
+  const sortedImages = getSortedProductImages(images) ?? [];
+  const primaryImage = getPrimaryProductImage(images);
+
+  if (!primaryImage) {
+    return sortedImages;
+  }
+
+  return [
+    primaryImage,
+    ...sortedImages.filter((image) => image !== primaryImage),
+  ];
+}
+
+/**
  * The image immediately after the primary one in sort order, or null when the
  * product has nothing to follow it with.
  *
