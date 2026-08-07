@@ -5,6 +5,7 @@ import { useActionState, useState } from "react";
 
 import {
   createProductAction,
+  updateProductAction,
   type ProductActionState,
 } from "@/app/admin/products/actions";
 import { AdminInfoTooltip } from "@/components/admin/admin-info-tooltip";
@@ -29,42 +30,78 @@ const secondaryButtonClassName =
   "inline-flex items-center justify-center rounded-full border border-white/10 px-5 py-2.5 text-xs uppercase tracking-[0.18em] text-stone-400 transition-colors hover:border-white/20 hover:bg-white/5 hover:text-stone-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30";
 
 type ProductFormProps = {
+  mode: "create" | "edit";
   brands: AdminProductOption[];
   categories: AdminProductOption[];
+  productId?: string;
+  name?: string;
+  slug?: string;
+  brandId?: string;
+  categoryId?: string;
+  sizeLabel?: string;
+  shortDescription?: string;
+  description?: string;
+  price?: string;
+  retailPrice?: string;
+  /** Read-only in edit mode, and never submitted from there. */
+  stockQuantity?: number;
+  isActive?: boolean;
 };
 
-export function ProductForm({ brands, categories }: ProductFormProps) {
+export function ProductForm({
+  mode,
+  brands,
+  categories,
+  productId,
+  name: initialName = "",
+  slug: initialSlug = "",
+  brandId: initialBrandId = "",
+  categoryId: initialCategoryId = "",
+  sizeLabel: initialSizeLabel = "",
+  shortDescription: initialShortDescription = "",
+  description: initialDescription = "",
+  price: initialPrice = "",
+  retailPrice: initialRetailPrice = "",
+  stockQuantity: initialStockQuantity = 0,
+  isActive: initialIsActive = false,
+}: ProductFormProps) {
+  const isEdit = mode === "edit";
   const [state, formAction, isPending] = useActionState(
-    createProductAction,
+    isEdit ? updateProductAction : createProductAction,
     initialActionState,
   );
   // Controlled throughout: React resets the form element once its action
   // completes, which would discard the administrator's entries on a refused
   // save and make them retype the lot.
-  const [name, setName] = useState("");
-  const [slug, setSlug] = useState("");
-  const [brandId, setBrandId] = useState("");
-  const [categoryId, setCategoryId] = useState("");
-  const [sizeLabel, setSizeLabel] = useState("");
-  const [shortDescription, setShortDescription] = useState("");
-  const [description, setDescription] = useState("");
-  const [price, setPrice] = useState("");
-  const [retailPrice, setRetailPrice] = useState("");
-  const [stockQuantity, setStockQuantity] = useState("0");
-  const [isActive, setIsActive] = useState(false);
+  const [name, setName] = useState(initialName);
+  const [slug, setSlug] = useState(initialSlug);
+  const [brandId, setBrandId] = useState(initialBrandId);
+  const [categoryId, setCategoryId] = useState(initialCategoryId);
+  const [sizeLabel, setSizeLabel] = useState(initialSizeLabel);
+  const [shortDescription, setShortDescription] = useState(
+    initialShortDescription,
+  );
+  const [description, setDescription] = useState(initialDescription);
+  const [price, setPrice] = useState(initialPrice);
+  const [retailPrice, setRetailPrice] = useState(initialRetailPrice);
+  const [stockQuantity, setStockQuantity] = useState(
+    String(initialStockQuantity),
+  );
+  const [isActive, setIsActive] = useState(initialIsActive);
   const activeRef = useCheckboxResetGuard(isActive);
   const brandRef = useSelectResetGuard(brandId);
   const categoryRef = useSelectResetGuard(categoryId);
 
-  // The slug follows the name until the administrator writes their own, which
-  // is the usual path here: the catalog's slugs are brand-prefixed while a
-  // product's name is not.
+  // A new product's slug follows its name until the administrator writes their
+  // own, which is the usual path: the catalog's slugs are brand-prefixed while
+  // a product's name is not. An existing product's slug never follows the name
+  // — it is a live URL, and renaming a product must not silently move it.
   const [hasCustomSlug, setHasCustomSlug] = useState(false);
 
   function handleNameChange(value: string) {
     setName(value);
 
-    if (!hasCustomSlug) {
+    if (!isEdit && !hasCustomSlug) {
       setSlug(slugifyProductName(value));
     }
   }
@@ -78,6 +115,10 @@ export function ProductForm({ brands, categories }: ProductFormProps) {
 
   return (
     <form action={formAction} className="space-y-8">
+      {isEdit && productId ? (
+        <input type="hidden" name="productId" value={productId} />
+      ) : null}
+
       <section className="grid gap-6 rounded-2xl border border-white/10 bg-white/[0.02] px-5 py-6 sm:grid-cols-2 sm:px-6">
         <div className="space-y-2 sm:col-span-2">
           <span className={fieldLabelClassName}>
@@ -101,9 +142,9 @@ export function ProductForm({ brands, categories }: ProductFormProps) {
           <span className={fieldLabelClassName}>
             <label htmlFor="slug">Slug</label>
             <AdminInfoTooltip label="More information about Slug">
-              The product&rsquo;s web address, suggested from the name until you
-              edit it. Existing products are prefixed with their brand, as in
-              maison-margiela-replica-jazz-club.
+              {isEdit
+                ? "The product’s live web address. Changing it changes that address, and the old one stops working."
+                : "The product’s web address, suggested from the name until you edit it. Existing products are prefixed with their brand, as in maison-margiela-replica-jazz-club."}
             </AdminInfoTooltip>
           </span>
           <input
@@ -185,23 +226,45 @@ export function ProductForm({ brands, categories }: ProductFormProps) {
           />
         </div>
 
-        <div className="space-y-2">
-          <span className={fieldLabelClassName}>
-            <label htmlFor="stockQuantity">Stock quantity</label>
-          </span>
-          <input
-            id="stockQuantity"
-            type="number"
-            name="stockQuantity"
-            value={stockQuantity}
-            onChange={(event) => setStockQuantity(event.target.value)}
-            min="0"
-            step="1"
-            inputMode="numeric"
-            disabled={isPending}
-            className={inputClassName}
-          />
-        </div>
+        {/* Existing stock is moved by the paid-order and restoration RPCs
+            against real orders, so an edit shows the figure without offering to
+            overwrite it. Rendered as text rather than a disabled input so there
+            is no field here to submit at all. */}
+        {isEdit ? (
+          <div className="space-y-2">
+            <span className={fieldLabelClassName}>
+              <span id="stockQuantityLabel">Stock quantity</span>
+              <AdminInfoTooltip label="More information about Stock quantity">
+                Changed by orders and by restoring stock after a refund, not
+                from here.
+              </AdminInfoTooltip>
+            </span>
+            <p
+              aria-labelledby="stockQuantityLabel"
+              className="px-4 py-3 text-sm text-stone-300"
+            >
+              {stockQuantity}
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <span className={fieldLabelClassName}>
+              <label htmlFor="stockQuantity">Stock quantity</label>
+            </span>
+            <input
+              id="stockQuantity"
+              type="number"
+              name="stockQuantity"
+              value={stockQuantity}
+              onChange={(event) => setStockQuantity(event.target.value)}
+              min="0"
+              step="1"
+              inputMode="numeric"
+              disabled={isPending}
+              className={inputClassName}
+            />
+          </div>
+        )}
 
         <div className="space-y-2">
           <span className={fieldLabelClassName}>
@@ -292,8 +355,9 @@ export function ProductForm({ brands, categories }: ProductFormProps) {
           <span className="inline-flex items-center gap-1.5 text-sm text-stone-200">
             <label htmlFor="isActive">Active</label>
             <AdminInfoTooltip label="More information about Active">
-              Active products are visible in the shop straight away. This product
-              has no images yet, so leave it inactive until they are added.
+              {isEdit
+                ? "Active products are visible in the shop straight away. Turning this off removes it from the storefront."
+                : "Active products are visible in the shop straight away. This product has no images yet, so leave it inactive until they are added."}
             </AdminInfoTooltip>
           </span>
         </div>
@@ -314,7 +378,7 @@ export function ProductForm({ brands, categories }: ProductFormProps) {
           disabled={isPending}
           className="rounded-full border border-white/10 bg-white/5 px-6 py-3 text-xs uppercase tracking-[0.2em] text-stone-100 transition-colors hover:border-white/20 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {isPending ? "Saving…" : "Create product"}
+          {isPending ? "Saving…" : isEdit ? "Save changes" : "Create product"}
         </button>
         <Link href="/admin/inventory" className={secondaryButtonClassName}>
           Cancel

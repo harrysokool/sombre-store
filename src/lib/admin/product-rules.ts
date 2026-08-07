@@ -72,8 +72,33 @@ export type ValidatedProductInsert = {
   is_active: boolean;
 };
 
+/**
+ * The columns an edit is allowed to write, and the only shape the update path
+ * ever hands to the database.
+ *
+ * `stock_quantity` is deliberately absent. Existing stock is moved by the paid
+ * order and restoration RPCs, which reconcile it against real orders; letting a
+ * form overwrite that figure would silently discard whatever those recorded.
+ */
+export type ValidatedProductUpdate = {
+  name: string;
+  slug: string;
+  brand_id: string;
+  category_id: string;
+  size_label: string | null;
+  short_description: string | null;
+  description: string | null;
+  price: string;
+  retail_price: string | null;
+  is_active: boolean;
+};
+
 export type ProductValidationResult =
   | { ok: true; value: ValidatedProductInsert }
+  | { ok: false; error: string };
+
+export type ProductUpdateValidationResult =
+  | { ok: true; value: ValidatedProductUpdate }
   | { ok: false; error: string };
 
 function normalizeText(value: unknown): string {
@@ -259,4 +284,78 @@ export function validateAdminProductSubmission(
       is_active: input.isActive === true,
     },
   };
+}
+
+/**
+ * Narrows a validated submission to the columns an edit may write.
+ *
+ * Written out field by field rather than spread from the insert shape, so the
+ * set of editable columns is stated here and adding a column to the insert can
+ * never silently make it editable. `stock_quantity` is what this is protecting.
+ */
+function toProductUpdate(
+  value: ValidatedProductInsert,
+): ValidatedProductUpdate {
+  return {
+    name: value.name,
+    slug: value.slug,
+    brand_id: value.brand_id,
+    category_id: value.category_id,
+    size_label: value.size_label,
+    short_description: value.short_description,
+    description: value.description,
+    price: value.price,
+    retail_price: value.retail_price,
+    is_active: value.is_active,
+  };
+}
+
+/**
+ * Validates an edit of an existing product.
+ *
+ * Every rule a create is held to applies unchanged; the one difference is the
+ * slug. A create may leave the field empty and take the suggestion derived from
+ * the name, but an existing product's slug is a live URL that the sitemap and
+ * every shared link already point at, so an omitted slug is refused here rather
+ * than quietly moving the product to a new address.
+ */
+export function validateAdminProductUpdate(
+  input: AdminProductSubmission,
+): ProductUpdateValidationResult {
+  if (normalizeText(input.slug) === "") {
+    return { ok: false, error: "Enter a product slug." };
+  }
+
+  const validated = validateAdminProductSubmission(input);
+
+  if (!validated.ok) {
+    return validated;
+  }
+
+  return { ok: true, value: toProductUpdate(validated.value) };
+}
+
+/**
+ * The decimal string a price input should start with.
+ *
+ * PostgREST returns numeric columns as strings to avoid float rounding, but a
+ * number is accepted too so this does not depend on that. Anything unreadable
+ * becomes "", which shows an empty field rather than NaN.
+ */
+export function formatProductPriceInput(value: unknown): string {
+  if (typeof value === "number") {
+    return Number.isFinite(value) && value >= 0 ? value.toFixed(2) : "";
+  }
+
+  const text = normalizeText(value);
+
+  if (text === "") {
+    return "";
+  }
+
+  try {
+    return formatHkdCentsForDatabase(parseHkdDecimalToCents(text));
+  } catch {
+    return "";
+  }
 }

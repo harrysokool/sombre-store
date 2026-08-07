@@ -4,14 +4,17 @@ import "@testing-library/jest-dom/vitest";
 
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   createProductAction: vi.fn(),
+  updateProductAction: vi.fn(),
 }));
 
 vi.mock("@/app/admin/products/actions", () => ({
   createProductAction: mocks.createProductAction,
+  updateProductAction: mocks.updateProductAction,
 }));
 
 vi.mock("next/link", () => ({
@@ -35,13 +38,46 @@ const brands = [
 ];
 const categories = [{ id: CATEGORY_ID, name: "Fragrance" }];
 
-function renderForm() {
-  render(<ProductForm brands={brands} categories={categories} />);
+const PRODUCT_ID = "33333333-3333-4333-8333-333333333333";
+
+/** The values an existing product hands the form in edit mode. */
+const EXISTING_PRODUCT = {
+  productId: PRODUCT_ID,
+  name: "Replica Jazz Club",
+  slug: "maison-margiela-replica-jazz-club",
+  brandId: BRAND_ID,
+  categoryId: CATEGORY_ID,
+  sizeLabel: "100 mL",
+  shortDescription: "Spiced warmth and polished woods.",
+  description: "A smooth perfume with warm spice.",
+  price: "165.00",
+  retailPrice: "220.00",
+  stockQuantity: 5,
+  isActive: true,
+} as const;
+
+function renderForm(
+  props: Partial<ComponentProps<typeof ProductForm>> = {},
+) {
+  render(
+    <ProductForm
+      mode="create"
+      brands={brands}
+      categories={categories}
+      {...props}
+    />,
+  );
 
   return {
     name: screen.getByLabelText("Product name"),
     slug: screen.getByLabelText("Slug") as HTMLInputElement,
   };
+}
+
+function renderEditForm(
+  props: Partial<ComponentProps<typeof ProductForm>> = {},
+) {
+  return renderForm({ mode: "edit", ...EXISTING_PRODUCT, ...props });
 }
 
 /**
@@ -57,6 +93,8 @@ async function fillRequiredFields(user: ReturnType<typeof userEvent.setup>) {
 
 beforeEach(() => {
   mocks.createProductAction.mockReset();
+  mocks.updateProductAction.mockReset();
+  mocks.updateProductAction.mockResolvedValue({ error: null });
   mocks.createProductAction.mockResolvedValue({ error: null });
 });
 
@@ -99,6 +137,122 @@ describe("slug suggestion", () => {
     await user.type(name, " Club");
 
     expect(slug.value).toBe("jazz-club");
+  });
+
+  it("never follows the name when editing an existing product", async () => {
+    // An existing slug is a live URL. Renaming a product must not silently move
+    // it, so the suggestion is create-only.
+    const user = userEvent.setup();
+    const { name, slug } = renderEditForm();
+
+    await user.clear(name);
+    await user.type(name, "Replica Jazz Club Reissue");
+
+    expect(slug.value).toBe("maison-margiela-replica-jazz-club");
+  });
+
+  it("leaves a cleared slug alone when editing", async () => {
+    const user = userEvent.setup();
+    const { name, slug } = renderEditForm();
+
+    await user.clear(slug);
+    await user.type(name, " Reissue");
+
+    expect(slug.value).toBe("");
+  });
+});
+
+describe("edit mode", () => {
+  it("starts every field at the product's current value", () => {
+    renderEditForm();
+
+    expect(screen.getByLabelText("Product name")).toHaveValue(
+      "Replica Jazz Club",
+    );
+    expect(screen.getByLabelText("Slug")).toHaveValue(
+      "maison-margiela-replica-jazz-club",
+    );
+    expect(screen.getByLabelText("Brand")).toHaveValue(BRAND_ID);
+    expect(screen.getByLabelText("Category")).toHaveValue(CATEGORY_ID);
+    expect(screen.getByLabelText("Size label")).toHaveValue("100 mL");
+    expect(screen.getByLabelText("Short description")).toHaveValue(
+      "Spiced warmth and polished woods.",
+    );
+    expect(screen.getByLabelText("Description")).toHaveValue(
+      "A smooth perfume with warm spice.",
+    );
+    expect(screen.getByLabelText("Sombre price")).toHaveValue(165);
+    expect(screen.getByLabelText("Retail price")).toHaveValue(220);
+    expect(screen.getByLabelText("Active")).toBeChecked();
+  });
+
+  it("reflects an inactive product", () => {
+    renderEditForm({ isActive: false });
+
+    expect(screen.getByLabelText("Active")).not.toBeChecked();
+  });
+
+  it("carries the product reference so the action knows what to save", () => {
+    renderEditForm();
+
+    expect(
+      document.body.querySelector('input[name="productId"]'),
+    ).toHaveValue(PRODUCT_ID);
+  });
+
+  it("shows stock read-only, with no field to submit", () => {
+    // Stock is moved by the order and restoration RPCs. There is deliberately
+    // no input here for a form post to carry.
+    renderEditForm();
+
+    expect(screen.getByText("Stock quantity")).toBeInTheDocument();
+    expect(screen.getByText("5")).toBeInTheDocument();
+    expect(
+      document.body.querySelector('[name="stockQuantity"]'),
+    ).toBeNull();
+  });
+
+  it("labels the submit control as saving rather than creating", () => {
+    renderEditForm();
+
+    expect(
+      screen.getByRole("button", { name: "Save changes" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Create product" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("submits through the update action, not the create action", async () => {
+    const user = userEvent.setup();
+    renderEditForm();
+
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+
+    expect(mocks.updateProductAction).toHaveBeenCalled();
+    expect(mocks.createProductAction).not.toHaveBeenCalled();
+  });
+});
+
+describe("create mode is unchanged", () => {
+  it("starts empty and submits through the create action", async () => {
+    const user = userEvent.setup();
+    renderForm();
+
+    expect(screen.getByLabelText("Product name")).toHaveValue("");
+    expect(screen.getByLabelText("Slug")).toHaveValue("");
+    expect(screen.getByLabelText("Active")).not.toBeChecked();
+    // Stock stays editable on a product that has no order history yet.
+    expect(screen.getByLabelText("Stock quantity")).toHaveValue(0);
+    expect(
+      document.body.querySelector('input[name="productId"]'),
+    ).toBeNull();
+
+    await fillRequiredFields(user);
+    await user.click(screen.getByRole("button", { name: "Create product" }));
+
+    expect(mocks.createProductAction).toHaveBeenCalled();
+    expect(mocks.updateProductAction).not.toHaveBeenCalled();
   });
 });
 

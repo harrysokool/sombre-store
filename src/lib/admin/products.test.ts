@@ -16,7 +16,12 @@ vi.mock("@/lib/supabase/service-role", () => ({
 }));
 
 import type { AdminProductSubmission } from "./product-rules";
-import { createAdminProduct, listAdminProductFormOptions } from "./products";
+import {
+  createAdminProduct,
+  getAdminProductEditorData,
+  listAdminProductFormOptions,
+  updateAdminProduct,
+} from "./products";
 
 const BRAND_ID = "11111111-1111-4111-8111-111111111111";
 const CATEGORY_ID = "22222222-2222-4222-8222-222222222222";
@@ -34,7 +39,7 @@ function query(result: QueryResult = {}) {
   };
   const builder: Record<string, ReturnType<typeof vi.fn>> = {};
 
-  for (const method of ["select", "eq", "order", "insert"]) {
+  for (const method of ["select", "eq", "neq", "order", "insert", "update"]) {
     builder[method] = vi.fn(() => builder);
   }
 
@@ -346,6 +351,368 @@ describe("createAdminProduct", () => {
     await expect(createAdminProduct(submission())).resolves.toEqual({
       ok: false,
       error: "Product could not be created. Try again.",
+    });
+  });
+});
+
+const PRODUCT_ROW = {
+  id: PRODUCT_ID,
+  name: "Replica Jazz Club",
+  slug: "maison-margiela-replica-jazz-club",
+  brand_id: BRAND_ID,
+  category_id: CATEGORY_ID,
+  size_label: "100 mL",
+  short_description: "Spiced warmth and polished woods.",
+  description: "A smooth perfume with warm spice.",
+  price: "165.00",
+  retail_price: "220.00",
+  stock_quantity: 5,
+  is_active: true,
+};
+
+describe("getAdminProductEditorData", () => {
+  it("refuses without an approved session", async () => {
+    mocks.getAdminUser.mockResolvedValue(null);
+
+    await expect(getAdminProductEditorData(PRODUCT_ID)).rejects.toThrow(
+      "Admin product data requested without an approved session.",
+    );
+    expect(mocks.createSupabase).not.toHaveBeenCalled();
+  });
+
+  it("returns the product shaped for the form, with its dropdown options", async () => {
+    supabaseWith({
+      products: [query({ data: PRODUCT_ROW })],
+      brands: [query({ data: [{ id: BRAND_ID, name: "Maison Margiela" }] })],
+      categories: [query({ data: [{ id: CATEGORY_ID, name: "Fragrance" }] })],
+    });
+
+    await expect(getAdminProductEditorData(PRODUCT_ID)).resolves.toEqual({
+      product: {
+        id: PRODUCT_ID,
+        name: "Replica Jazz Club",
+        slug: "maison-margiela-replica-jazz-club",
+        brandId: BRAND_ID,
+        categoryId: CATEGORY_ID,
+        sizeLabel: "100 mL",
+        shortDescription: "Spiced warmth and polished woods.",
+        description: "A smooth perfume with warm spice.",
+        price: "165.00",
+        retailPrice: "220.00",
+        stockQuantity: 5,
+        isActive: true,
+      },
+      brands: [{ id: BRAND_ID, name: "Maison Margiela" }],
+      categories: [{ id: CATEGORY_ID, name: "Fragrance" }],
+    });
+  });
+
+  it("reads an inactive product too", async () => {
+    // The public RLS policy hides these, which is exactly the product an
+    // administrator most needs to open.
+    supabaseWith({
+      products: [query({ data: { ...PRODUCT_ROW, is_active: false } })],
+      brands: [query({ data: [] })],
+      categories: [query({ data: [] })],
+    });
+
+    const data = await getAdminProductEditorData(PRODUCT_ID);
+
+    expect(data?.product.isActive).toBe(false);
+  });
+
+  it("turns absent optional columns into empty strings for the inputs", async () => {
+    // A controlled input given null would go uncontrolled.
+    supabaseWith({
+      products: [
+        query({
+          data: {
+            ...PRODUCT_ROW,
+            size_label: null,
+            short_description: null,
+            description: null,
+            retail_price: null,
+          },
+        }),
+      ],
+      brands: [query({ data: [] })],
+      categories: [query({ data: [] })],
+    });
+
+    const data = await getAdminProductEditorData(PRODUCT_ID);
+
+    expect(data?.product).toMatchObject({
+      sizeLabel: "",
+      shortDescription: "",
+      description: "",
+      retailPrice: "",
+    });
+  });
+
+  it("returns null for a product that does not exist", async () => {
+    supabaseWith({ products: [query({ data: null })] });
+
+    await expect(getAdminProductEditorData(PRODUCT_ID)).resolves.toBeNull();
+  });
+
+  it("returns null for a malformed id without querying", async () => {
+    // A malformed URL should produce the ordinary not-found page, not a
+    // database error.
+    supabaseWith({});
+
+    await expect(
+      getAdminProductEditorData("not-a-uuid"),
+    ).resolves.toBeNull();
+    expect(mocks.createSupabase).not.toHaveBeenCalled();
+  });
+
+  it("throws when the product cannot be read", async () => {
+    supabaseWith({ products: [query({ error: { message: "boom" } })] });
+
+    await expect(getAdminProductEditorData(PRODUCT_ID)).rejects.toThrow(
+      "Product details could not be loaded.",
+    );
+  });
+});
+
+describe("updateAdminProduct", () => {
+  /**
+   * Wires the happy path: both relations found, no other product holding the
+   * slug, update succeeds. Returns the update builder so a test can read what
+   * was written.
+   */
+  function updateSucceeds() {
+    const update = query({ data: { id: PRODUCT_ID } });
+
+    supabaseWith({
+      brands: [query({ data: { id: BRAND_ID } })],
+      categories: [query({ data: { id: CATEGORY_ID } })],
+      products: [query({ data: null }), update],
+    });
+
+    return update;
+  }
+
+  it("refuses without an approved session", async () => {
+    mocks.getAdminUser.mockResolvedValue(null);
+
+    await expect(
+      updateAdminProduct(PRODUCT_ID, submission()),
+    ).rejects.toThrow(
+      "Admin product data requested without an approved session.",
+    );
+    expect(mocks.createSupabase).not.toHaveBeenCalled();
+  });
+
+  it("refuses a malformed product reference before touching the database", async () => {
+    supabaseWith({});
+
+    await expect(
+      updateAdminProduct("not-a-uuid", submission()),
+    ).resolves.toEqual({
+      ok: false,
+      error: "That product reference is not valid.",
+    });
+    expect(mocks.createSupabase).not.toHaveBeenCalled();
+  });
+
+  it("updates the name and returns the product id", async () => {
+    const update = updateSucceeds();
+
+    await expect(
+      updateAdminProduct(PRODUCT_ID, submission({ name: "Replica Jazz Club Reissue" })),
+    ).resolves.toEqual({ ok: true, productId: PRODUCT_ID });
+
+    const [written] = update.update.mock.calls[0] as [{ name: string }];
+
+    expect(written.name).toBe("Replica Jazz Club Reissue");
+    expect(update.eq).toHaveBeenCalledWith("id", PRODUCT_ID);
+  });
+
+  it("writes only the editable columns", async () => {
+    const update = updateSucceeds();
+
+    await updateAdminProduct(PRODUCT_ID, submission({ stockQuantity: "999" }));
+
+    const [written] = update.update.mock.calls[0] as [Record<string, unknown>];
+
+    expect(Object.keys(written).sort()).toEqual([
+      "brand_id",
+      "category_id",
+      "description",
+      "is_active",
+      "name",
+      "price",
+      "retail_price",
+      "short_description",
+      "size_label",
+      "slug",
+    ]);
+    // Stock belongs to the order and restoration RPCs, so no edit can move it.
+    expect(written).not.toHaveProperty("stock_quantity");
+  });
+
+  it("lets a product keep the slug it already has", async () => {
+    const slugCheck = query({ data: null });
+
+    supabaseWith({
+      brands: [query({ data: { id: BRAND_ID } })],
+      categories: [query({ data: { id: CATEGORY_ID } })],
+      products: [slugCheck, query({ data: { id: PRODUCT_ID } })],
+    });
+
+    await expect(
+      updateAdminProduct(PRODUCT_ID, submission()),
+    ).resolves.toEqual({ ok: true, productId: PRODUCT_ID });
+
+    // Excluding itself by id is what makes an unchanged slug savable.
+    expect(slugCheck.eq).toHaveBeenCalledWith(
+      "slug",
+      "maison-margiela-replica-jazz-club",
+    );
+    expect(slugCheck.neq).toHaveBeenCalledWith("id", PRODUCT_ID);
+  });
+
+  it("accepts a changed slug that nothing else holds", async () => {
+    const update = updateSucceeds();
+
+    await expect(
+      updateAdminProduct(PRODUCT_ID, submission({ slug: "replica-jazz-club-reissue" })),
+    ).resolves.toEqual({ ok: true, productId: PRODUCT_ID });
+
+    const [written] = update.update.mock.calls[0] as [{ slug: string }];
+
+    expect(written.slug).toBe("replica-jazz-club-reissue");
+  });
+
+  it("refuses a slug that belongs to another product", async () => {
+    supabaseWith({
+      brands: [query({ data: { id: BRAND_ID } })],
+      categories: [query({ data: { id: CATEGORY_ID } })],
+      products: [query({ data: { id: "some-other-product" } })],
+    });
+
+    await expect(
+      updateAdminProduct(PRODUCT_ID, submission()),
+    ).resolves.toEqual({
+      ok: false,
+      error: "A product with that slug already exists. Choose a different slug.",
+    });
+  });
+
+  it("reports the same duplicate message when two edits race", async () => {
+    supabaseWith({
+      brands: [query({ data: { id: BRAND_ID } })],
+      categories: [query({ data: { id: CATEGORY_ID } })],
+      products: [query({ data: null }), query({ error: { code: "23505" } })],
+    });
+
+    await expect(
+      updateAdminProduct(PRODUCT_ID, submission()),
+    ).resolves.toEqual({
+      ok: false,
+      error: "A product with that slug already exists. Choose a different slug.",
+    });
+  });
+
+  it("returns the validation refusal without touching the database", async () => {
+    supabaseWith({});
+
+    await expect(
+      updateAdminProduct(PRODUCT_ID, submission({ price: "-5" })),
+    ).resolves.toMatchObject({ ok: false });
+    expect(mocks.createSupabase).not.toHaveBeenCalled();
+  });
+
+  it("refuses an omitted slug rather than deriving one", async () => {
+    supabaseWith({});
+
+    await expect(
+      updateAdminProduct(PRODUCT_ID, submission({ slug: "" })),
+    ).resolves.toEqual({ ok: false, error: "Enter a product slug." });
+    expect(mocks.createSupabase).not.toHaveBeenCalled();
+  });
+
+  it("refuses a brand that no longer exists", async () => {
+    supabaseWith({
+      brands: [query({ data: null })],
+      categories: [query({ data: { id: CATEGORY_ID } })],
+    });
+
+    await expect(
+      updateAdminProduct(PRODUCT_ID, submission()),
+    ).resolves.toEqual({
+      ok: false,
+      error: "That brand no longer exists. Reload the form and try again.",
+    });
+  });
+
+  it("saves an active change", async () => {
+    const update = updateSucceeds();
+
+    await updateAdminProduct(PRODUCT_ID, submission({ isActive: true }));
+
+    const [written] = update.update.mock.calls[0] as [{ is_active: boolean }];
+
+    expect(written.is_active).toBe(true);
+  });
+
+  it("saves an inactive change", async () => {
+    const update = updateSucceeds();
+
+    await updateAdminProduct(PRODUCT_ID, submission({ isActive: false }));
+
+    const [written] = update.update.mock.calls[0] as [{ is_active: boolean }];
+
+    expect(written.is_active).toBe(false);
+  });
+
+  it("hides database detail behind one generic message", async () => {
+    supabaseWith({
+      brands: [query({ data: { id: BRAND_ID } })],
+      categories: [query({ data: { id: CATEGORY_ID } })],
+      products: [
+        query({ data: null }),
+        query({
+          error: {
+            code: "42501",
+            message: 'permission denied for table "products"',
+          },
+        }),
+      ],
+    });
+
+    const result = await updateAdminProduct(PRODUCT_ID, submission());
+
+    expect(result).toEqual({
+      ok: false,
+      error: "Product could not be saved. Try again.",
+    });
+
+    if (result.ok) {
+      throw new Error("Expected the update to fail.");
+    }
+
+    // The detail belongs in the server log, never in the browser.
+    expect(result.error).not.toContain("permission denied");
+    expect(console.error).toHaveBeenCalledWith(
+      "Failed to update product",
+      expect.objectContaining({ code: "42501" }),
+    );
+  });
+
+  it("reports a product removed between opening the form and saving", async () => {
+    supabaseWith({
+      brands: [query({ data: { id: BRAND_ID } })],
+      categories: [query({ data: { id: CATEGORY_ID } })],
+      products: [query({ data: null }), query({ data: null })],
+    });
+
+    await expect(
+      updateAdminProduct(PRODUCT_ID, submission()),
+    ).resolves.toEqual({
+      ok: false,
+      error: "That product no longer exists. Reload the inventory list.",
     });
   });
 });

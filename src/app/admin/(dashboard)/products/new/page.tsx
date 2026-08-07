@@ -63,7 +63,11 @@ export default async function NewAdminProductPage() {
             : "A product needs an existing brand and category, and at least one of those is missing."}
         </p>
       ) : (
-        <ProductForm brands={options.brands} categories={options.categories} />
+        <ProductForm
+          mode="create"
+          brands={options.brands}
+          categories={options.categories}
+        />
       )}
     </div>
   );

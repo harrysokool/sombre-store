@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   getAdminUser: vi.fn(),
   createAdminProduct: vi.fn(),
+  updateAdminProduct: vi.fn(),
   revalidatePath: vi.fn(),
   redirect: vi.fn(),
 }));
@@ -24,9 +25,10 @@ vi.mock("@/lib/supabase/admin-auth", () => ({
 
 vi.mock("@/lib/admin/products", () => ({
   createAdminProduct: mocks.createAdminProduct,
+  updateAdminProduct: mocks.updateAdminProduct,
 }));
 
-import { createProductAction } from "./actions";
+import { createProductAction, updateProductAction } from "./actions";
 
 const BRAND_ID = "11111111-1111-4111-8111-111111111111";
 const CATEGORY_ID = "22222222-2222-4222-8222-222222222222";
@@ -70,6 +72,11 @@ beforeEach(() => {
     email: "admin@example.com",
   });
   mocks.createAdminProduct.mockResolvedValue({
+    ok: true,
+    productId: PRODUCT_ID,
+  });
+  mocks.updateAdminProduct.mockReset();
+  mocks.updateAdminProduct.mockResolvedValue({
     ok: true,
     productId: PRODUCT_ID,
   });
@@ -198,6 +205,122 @@ describe("failure", () => {
     // into a generic error message and strand the administrator on the form.
     await expect(
       createProductAction(initialState, formData()),
+    ).rejects.toThrow("NEXT_REDIRECT");
+
+    expect(console.error).not.toHaveBeenCalled();
+  });
+});
+
+describe("updateProductAction", () => {
+  /** The edit form posts the product reference and no stock field. */
+  function editFormData(entries: Record<string, string> = {}) {
+    const data = formData({ productId: PRODUCT_ID, ...entries });
+
+    data.delete("stockQuantity");
+
+    return data;
+  }
+
+  it("refuses an expired session before reaching the data layer", async () => {
+    mocks.getAdminUser.mockResolvedValue(null);
+
+    const state = await updateProductAction(initialState, editFormData());
+
+    expect(state.error).toContain("admin session has ended");
+    expect(mocks.updateAdminProduct).not.toHaveBeenCalled();
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    expect(mocks.redirect).not.toHaveBeenCalled();
+  });
+
+  it("refuses a submission with no product reference", async () => {
+    const state = await updateProductAction(initialState, formData());
+
+    expect(state.error).toBe("That product reference is not valid.");
+    expect(mocks.updateAdminProduct).not.toHaveBeenCalled();
+  });
+
+  it("passes the product id and every field through to the data layer", async () => {
+    await expect(
+      updateProductAction(initialState, editFormData()),
+    ).rejects.toThrow("NEXT_REDIRECT");
+
+    expect(mocks.updateAdminProduct).toHaveBeenCalledWith(PRODUCT_ID, {
+      name: "Replica Jazz Club",
+      slug: "maison-margiela-replica-jazz-club",
+      brandId: BRAND_ID,
+      categoryId: CATEGORY_ID,
+      sizeLabel: "100 mL",
+      shortDescription: "Spiced warmth and polished woods.",
+      description: "A smooth perfume with warm spice.",
+      price: "165.00",
+      retailPrice: "",
+      // The edit form renders stock read-only, so nothing is posted for it.
+      stockQuantity: null,
+      isActive: false,
+    });
+  });
+
+  it("reads a checked box as active", async () => {
+    await expect(
+      updateProductAction(initialState, editFormData({ isActive: "on" })),
+    ).rejects.toThrow("NEXT_REDIRECT");
+
+    expect(mocks.updateAdminProduct).toHaveBeenCalledWith(
+      PRODUCT_ID,
+      expect.objectContaining({ isActive: true }),
+    );
+  });
+
+  it("refreshes both views and redirects to inventory", async () => {
+    await expect(
+      updateProductAction(initialState, editFormData()),
+    ).rejects.toThrow("NEXT_REDIRECT");
+
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/inventory");
+    expect(mocks.revalidatePath).toHaveBeenCalledWith(
+      `/admin/products/${PRODUCT_ID}/edit`,
+    );
+    expect(mocks.redirect).toHaveBeenCalledWith("/admin/inventory");
+    expect(mocks.revalidatePath.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.redirect.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("keeps the administrator on the form when the data layer refuses", async () => {
+    mocks.updateAdminProduct.mockResolvedValue({
+      ok: false,
+      error: "A product with that slug already exists. Choose a different slug.",
+    });
+
+    const state = await updateProductAction(initialState, editFormData());
+
+    expect(state.error).toBe(
+      "A product with that slug already exists. Choose a different slug.",
+    );
+    // Nothing was written, so the cached views are still correct.
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    expect(mocks.redirect).not.toHaveBeenCalled();
+  });
+
+  it("shows one generic message when the data layer throws", async () => {
+    mocks.updateAdminProduct.mockRejectedValue(
+      new Error('permission denied for table "products"'),
+    );
+
+    const state = await updateProductAction(initialState, editFormData());
+
+    expect(state.error).toBe("Product could not be saved. Try again.");
+    expect(state.error).not.toContain("permission denied");
+    expect(console.error).toHaveBeenCalledWith(
+      "Admin product update failed",
+      expect.any(Error),
+    );
+    expect(mocks.redirect).not.toHaveBeenCalled();
+  });
+
+  it("lets the redirect signal escape the try/catch", async () => {
+    await expect(
+      updateProductAction(initialState, editFormData()),
     ).rejects.toThrow("NEXT_REDIRECT");
 
     expect(console.error).not.toHaveBeenCalled();

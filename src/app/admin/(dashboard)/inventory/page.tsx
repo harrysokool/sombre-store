@@ -46,6 +46,26 @@ const ACTIVE_FILTER_OPTIONS = [
   { value: "inactive", label: "Inactive" },
 ] as const;
 
+// Row-level navigation, styled like the order list's row links. The label is
+// the same on every row, so the product name goes in the accessible name.
+function EditProductLink({
+  product,
+  className,
+}: {
+  product: AdminInventoryProduct;
+  className: string;
+}) {
+  return (
+    <Link
+      href={`/admin/products/${product.id}/edit`}
+      aria-label={`Edit ${product.name}`}
+      className={className}
+    >
+      Edit
+    </Link>
+  );
+}
+
 const SORT_OPTIONS = [
   { value: "name", label: "Product name" },
   { value: "brand", label: "Brand" },
@@ -338,7 +358,13 @@ function InventoryProducts({
                   <h2 className="break-words text-base font-medium text-stone-100 [overflow-wrap:anywhere]">
                     {product.name}
                   </h2>
-                  <ProductStatusBadge isActive={product.isActive} />
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                    <ProductStatusBadge isActive={product.isActive} />
+                    <EditProductLink
+                      product={product}
+                      className="text-xs uppercase tracking-[0.18em] text-stone-300 underline underline-offset-4 transition-colors hover:text-stone-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -376,6 +402,7 @@ function InventoryProducts({
               <th className="px-4 py-4 text-right font-normal">Price</th>
               <th className="px-4 py-4 font-normal">Product status</th>
               <th className="px-4 py-4 font-normal">Stock status</th>
+              <th className="px-4 py-4 font-normal">Edit</th>
             </tr>
           </thead>
           <tbody>
@@ -414,6 +441,12 @@ function InventoryProducts({
                   </td>
                   <td className="px-4 py-4">
                     <StockStatusBadge status={stockStatus} />
+                  </td>
+                  <td className="px-4 py-4">
+                    <EditProductLink
+                      product={product}
+                      className="text-xs text-stone-300 underline underline-offset-4 transition-colors hover:text-stone-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
+                    />
                   </td>
                 </tr>
               );

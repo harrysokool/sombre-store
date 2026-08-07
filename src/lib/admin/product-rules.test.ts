@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  formatProductPriceInput,
   PRODUCT_TEXT_LIMITS,
   validateAdminProductSubmission,
+  validateAdminProductUpdate,
   type AdminProductSubmission,
 } from "./product-rules";
 
@@ -268,5 +270,141 @@ describe("active status", () => {
 
   it("saves an unchecked box as inactive", () => {
     expect(validated({ isActive: false }).is_active).toBe(false);
+  });
+});
+
+describe("validateAdminProductUpdate", () => {
+  /** Unwraps an edit expected to pass. */
+  function updated(overrides: Partial<AdminProductSubmission> = {}) {
+    const result = validateAdminProductUpdate(submission(overrides));
+
+    if (!result.ok) {
+      throw new Error(`Expected a valid update, got: ${result.error}`);
+    }
+
+    return result.value;
+  }
+
+  /** Unwraps an edit expected to be refused. */
+  function updateRefusal(overrides: Partial<AdminProductSubmission> = {}) {
+    const result = validateAdminProductUpdate(submission(overrides));
+
+    if (result.ok) {
+      throw new Error("Expected the update to be refused.");
+    }
+
+    return result.error;
+  }
+
+  it("writes only the editable columns, and never stock", () => {
+    // The guard against a future column on the insert shape silently becoming
+    // editable. Stock is moved by the order and restoration RPCs.
+    expect(Object.keys(updated()).sort()).toEqual([
+      "brand_id",
+      "category_id",
+      "description",
+      "is_active",
+      "name",
+      "price",
+      "retail_price",
+      "short_description",
+      "size_label",
+      "slug",
+    ]);
+    expect(updated()).not.toHaveProperty("stock_quantity");
+  });
+
+  it("ignores a stock quantity smuggled into the submission", () => {
+    // Even a hand-crafted post naming stock cannot move it.
+    expect(updated({ stockQuantity: "9999" })).not.toHaveProperty(
+      "stock_quantity",
+    );
+  });
+
+  it("keeps every other rule a create is held to", () => {
+    expect(updated()).toMatchObject({
+      name: "Replica Jazz Club",
+      slug: "maison-margiela-replica-jazz-club",
+      brand_id: BRAND_ID,
+      category_id: CATEGORY_ID,
+      size_label: "100 mL",
+      price: "165.00",
+      retail_price: null,
+      is_active: false,
+    });
+  });
+
+  it("refuses an omitted slug instead of deriving one from the name", () => {
+    // A create may take the suggestion, but an existing product's slug is a
+    // live URL: deriving one here would silently move the product.
+    expect(updateRefusal({ slug: "" })).toBe("Enter a product slug.");
+    expect(updateRefusal({ slug: "   " })).toBe("Enter a product slug.");
+  });
+
+  it("still refuses a slug in the wrong format", () => {
+    expect(updateRefusal({ slug: "Replica Jazz" })).toContain(
+      "The slug must be lowercase letters",
+    );
+  });
+
+  it.each<RefusalCase>([
+    ["an empty name", { name: "" }, "Enter a product name."],
+    ["an empty price", { price: "" }, "Enter a Sombre price."],
+    ["a missing brand", { brandId: "" }, "Select a brand."],
+    ["a missing category", { categoryId: "" }, "Select a category."],
+  ])("refuses %s just as a create does", (_label, overrides, expected) => {
+    expect(updateRefusal(overrides)).toBe(expected);
+  });
+
+  it("refuses an invalid Sombre price", () => {
+    expect(updateRefusal({ price: "-5" })).toContain(
+      "Sombre price must be an amount",
+    );
+    expect(updateRefusal({ price: "165.123" })).toContain(
+      "Sombre price must be an amount",
+    );
+  });
+
+  it("keeps the retail price optional and clearable", () => {
+    // Emptying the field is how an admin removes a published retail price.
+    expect(updated({ retailPrice: "" }).retail_price).toBeNull();
+    expect(updated({ retailPrice: "220" }).retail_price).toBe("220.00");
+  });
+
+  it("refuses an invalid retail price", () => {
+    expect(updateRefusal({ retailPrice: "-1" })).toContain(
+      "Retail price must be an amount",
+    );
+  });
+
+  it.each([
+    [true, true],
+    [false, false],
+  ])("saves isActive %s", (isActive, expected) => {
+    expect(updated({ isActive }).is_active).toBe(expected);
+  });
+});
+
+describe("formatProductPriceInput", () => {
+  it.each([
+    ["165.00", "165.00"],
+    ["165", "165.00"],
+    ["165.5", "165.50"],
+    ["0", "0.00"],
+  ])("turns the stored string %s into %s", (stored, expected) => {
+    // PostgREST returns numeric columns as strings.
+    expect(formatProductPriceInput(stored)).toBe(expected);
+  });
+
+  it("accepts a number too, in case the driver returns one", () => {
+    expect(formatProductPriceInput(165)).toBe("165.00");
+    expect(formatProductPriceInput(0)).toBe("0.00");
+  });
+
+  it("shows an empty field rather than NaN for an absent price", () => {
+    expect(formatProductPriceInput(null)).toBe("");
+    expect(formatProductPriceInput(undefined)).toBe("");
+    expect(formatProductPriceInput("")).toBe("");
+    expect(formatProductPriceInput("not a price")).toBe("");
   });
 });

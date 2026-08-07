@@ -159,6 +159,36 @@ describe("admin inventory page", () => {
     ).toBeInTheDocument();
   });
 
+  describe("edit access", () => {
+    it("links each product to its own edit page", async () => {
+      await renderPage();
+
+      // Every row shows the same "Edit" label, so the product name is what
+      // tells the two links apart.
+      expect(
+        screen.getAllByRole("link", { name: "Edit Amber Serum" })[0],
+      ).toHaveAttribute("href", "/admin/products/product-a/edit");
+      expect(
+        screen.getAllByRole("link", { name: "Edit Birch Balm" })[0],
+      ).toHaveAttribute("href", "/admin/products/product-b/edit");
+    });
+
+    it("offers the edit link in both the card and the table layout", async () => {
+      // The page renders a mobile card list and a desktop table, so an edit
+      // action missing from either would be unreachable at that width.
+      await renderPage();
+
+      expect(
+        mobileCards().getByRole("link", { name: "Edit Amber Serum" }),
+      ).toHaveAttribute("href", "/admin/products/product-a/edit");
+      expect(
+        within(screen.getByRole("table")).getByRole("link", {
+          name: "Edit Amber Serum",
+        }),
+      ).toHaveAttribute("href", "/admin/products/product-a/edit");
+    });
+  });
+
   it("no longer renders the old page subtitle beneath the title", async () => {
     await renderPage();
 
@@ -446,7 +476,10 @@ describe("admin inventory page", () => {
     );
   });
 
-  it("remains read-only and exposes no stock or product mutation controls", async () => {
+  it("mutates nothing itself, offering only navigation to the editor", async () => {
+    // The page gained edit links, but it still writes nothing of its own: the
+    // only button submits the filter form, the only form is a GET, and every
+    // change happens on the edit page behind its own admin gate.
     await renderPage();
 
     expect(screen.getAllByRole("button")).toHaveLength(1);
@@ -457,7 +490,15 @@ describe("admin inventory page", () => {
       screen.queryByRole("button", { name: /adjust|edit|delete|create/i }),
     ).toBeNull();
     expect(
-      screen.queryByRole("link", { name: /adjust|edit|delete|create/i }),
+      screen.queryByRole("link", { name: /adjust|delete|create/i }),
     ).toBeNull();
+
+    // Every edit link is navigation to the editor, never a direct mutation.
+    for (const link of screen.getAllByRole("link", { name: /^Edit / })) {
+      expect(link).toHaveAttribute(
+        "href",
+        expect.stringMatching(/^\/admin\/products\/[^/]+\/edit$/),
+      );
+    }
   });
 });

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { createAdminProduct } from "@/lib/admin/products";
+import { createAdminProduct, updateAdminProduct } from "@/lib/admin/products";
 import { getAdminUser } from "@/lib/supabase/admin-auth";
 
 export type ProductActionState = {
@@ -12,6 +12,8 @@ export type ProductActionState = {
 
 const EXPIRED_SESSION_ERROR =
   "Your admin session has ended. Sign in again to create a product.";
+const EXPIRED_SESSION_EDIT_ERROR =
+  "Your admin session has ended. Sign in again to save this product.";
 
 function readProductSubmission(formData: FormData) {
   return {
@@ -62,6 +64,53 @@ export async function createProductAction(
   // Inventory is where the new product is listed, and where the administrator
   // is sent below to see it.
   revalidatePath("/admin/inventory");
+
+  // Only after a confirmed write. redirect() throws to signal, so it must run
+  // outside the try/catch above, which would otherwise swallow it.
+  redirect("/admin/inventory");
+}
+
+export async function updateProductAction(
+  _previousState: ProductActionState,
+  formData: FormData,
+): Promise<ProductActionState> {
+  // A Server Action is its own endpoint: anyone can post to it without ever
+  // rendering the admin page, so the gate is re-checked here. updateAdminProduct
+  // checks again and throws, which is the real backstop — this branch only
+  // turns an expired session into a message instead of a crash.
+  if (!(await getAdminUser())) {
+    return { error: EXPIRED_SESSION_EDIT_ERROR };
+  }
+
+  const productId = formData.get("productId");
+
+  if (typeof productId !== "string") {
+    return { error: "That product reference is not valid." };
+  }
+
+  let result: Awaited<ReturnType<typeof updateAdminProduct>>;
+
+  try {
+    result = await updateAdminProduct(
+      productId.trim(),
+      readProductSubmission(formData),
+    );
+  } catch (error) {
+    // Nothing from Supabase or PostgreSQL reaches the administrator: the detail
+    // goes to the server log and the form gets one generic message.
+    console.error("Admin product update failed", error);
+    return { error: "Product could not be saved. Try again." };
+  }
+
+  // A refusal keeps the administrator on the form with their input intact.
+  if (!result.ok) {
+    return { error: result.error };
+  }
+
+  // Both views the change is visible in. The storefront reads products with
+  // `force-dynamic`, so it needs no invalidation of its own.
+  revalidatePath("/admin/inventory");
+  revalidatePath(`/admin/products/${result.productId}/edit`);
 
   // Only after a confirmed write. redirect() throws to signal, so it must run
   // outside the try/catch above, which would otherwise swallow it.
