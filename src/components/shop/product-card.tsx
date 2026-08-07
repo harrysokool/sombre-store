@@ -4,6 +4,24 @@ import Link from "next/link";
 import { ProductPrice } from "@/components/product/product-price";
 import type { ProductPriceDisplay } from "@/lib/storefront/promotion-display";
 
+// Matches the 1 / 2 / 3 / 4 column grid on the shop page at its current
+// gutters, so a phone never downloads a desktop-width candidate — and the
+// sub-360px single column is described at its true width (~90vw) rather than
+// the two-column 47vw, which would pick a too-small, soft candidate.
+// `object-contain` fits a squarish source to the width of the 4/5 box, so
+// these stay width-based.
+const MEDIA_SIZES =
+  "(min-width: 1280px) 23vw, (min-width: 768px) 30vw, (min-width: 360px) 47vw, 90vw";
+
+// Shared by both layers, so a crossfading pair scales together and reads as one
+// image changing rather than as two stacked ones.
+const MEDIA_BASE = "object-contain p-3 ease-out sm:p-4 md:group-hover:scale-[1.04]";
+
+// `md:` keeps the swap off phones, matching the zoom beside it, and
+// `motion-safe:` drops it entirely for a reader who has asked for less motion —
+// leaving them the primary image, held still.
+const CROSSFADE = "transition-[opacity,transform] duration-700";
+
 type ProductCardProps = {
   name: string;
   slug: string;
@@ -15,6 +33,15 @@ type ProductCardProps = {
   stockQuantity: number;
   imageUrl: string | null;
   imageAlt: string | null;
+  /**
+   * A second view of the product, crossfaded in on hover. Null whenever the
+   * product has only one image, which leaves the tile exactly as it was.
+   *
+   * No alt text travels with it: it is only ever reachable by hovering a
+   * pointer, so it is decorative here and is hidden from assistive technology
+   * rather than announced a second time. See the render below.
+   */
+  hoverImageUrl?: string | null;
 };
 
 export function ProductCard({
@@ -27,6 +54,7 @@ export function ProductCard({
   stockQuantity,
   imageUrl,
   imageAlt,
+  hoverImageUrl = null,
 }: ProductCardProps) {
   const isSoldOut = stockQuantity <= 0;
   // Notes and size share one muted line — "Spiced warmth · 100 mL" — rather
@@ -61,21 +89,40 @@ export function ProductCard({
           ) : null}
 
           {imageUrl ? (
-            <Image
-              src={imageUrl}
-              alt={imageAlt ?? `${name} product image`}
-              fill
-              // Matches the 1 / 2 / 3 / 4 column grid below at its current
-              // gutters, so a phone never downloads a desktop-width candidate —
-              // and the sub-360px single column is described at its true width
-              // (~85vw) rather than the two-column 46vw, which would pick a
-              // too-small, soft candidate. `object-contain` fits a squarish
-              // source to the width of the 4/5 box, so these stay width-based.
-              sizes="(min-width: 1280px) 23vw, (min-width: 768px) 30vw, (min-width: 360px) 46vw, 85vw"
-              className={`object-contain p-3 transition-transform duration-700 ease-out sm:p-4 md:group-hover:scale-[1.04] ${
-                isSoldOut ? "opacity-60" : ""
-              }`}
-            />
+            <>
+              <Image
+                src={imageUrl}
+                alt={imageAlt ?? `${name} product image`}
+                fill
+                sizes={MEDIA_SIZES}
+                className={`${MEDIA_BASE} ${
+                  hoverImageUrl
+                    ? `${CROSSFADE} motion-safe:md:group-hover:opacity-0`
+                    : "transition-transform duration-700"
+                } ${isSoldOut ? "opacity-60" : ""}`}
+              />
+
+              {/* Decorative: reachable only by hovering a pointer, so it is
+                  hidden from assistive technology rather than announced as a
+                  second image of a product already named by the tile. Empty
+                  alt is the correct alt here, not a missing one. */}
+              {hoverImageUrl ? (
+                <Image
+                  src={hoverImageUrl}
+                  alt=""
+                  aria-hidden="true"
+                  fill
+                  sizes={MEDIA_SIZES}
+                  className={`${MEDIA_BASE} ${CROSSFADE} opacity-0 ${
+                    // Sold-out dimming has to survive the swap, or the tile
+                    // would brighten under the pointer as it changes image.
+                    isSoldOut
+                      ? "motion-safe:md:group-hover:opacity-60"
+                      : "motion-safe:md:group-hover:opacity-100"
+                  }`}
+                />
+              ) : null}
+            </>
           ) : (
             <div className="flex h-full items-center justify-center">
               <p className="text-[0.6rem] uppercase tracking-[0.24em] text-stone-500">
@@ -95,17 +142,22 @@ export function ProductCard({
             </p>
           ) : null}
 
-          <h2 className="mt-2 font-display text-lg font-normal leading-snug text-stone-100 transition-colors group-hover:text-white sm:text-xl">
+          {/* Two lines, always: clamped so a long name cannot run away, and
+              floored at the same two lines so a one-line name reserves the
+              space a two-line one would take. Without the floor, "Jazz Club"
+              and "By the Fireplace" sit side by side with their prices at
+              different heights. `2lh` is exactly twice the computed line box,
+              so it tracks the font size across the breakpoint on its own. */}
+          <h2 className="mt-2 line-clamp-2 min-h-[2lh] font-display text-lg font-normal leading-snug text-stone-100 transition-colors group-hover:text-white sm:text-xl">
             {name}
           </h2>
 
-          {detailLine ? (
-            // Clamped so a long note cannot push one tile's price out of line
-            // with its neighbours across a row.
-            <p className="mt-2 line-clamp-2 text-xs leading-5 text-stone-400">
-              {detailLine}
-            </p>
-          ) : null}
+          {/* Always rendered, for the same reason: the slot holds its two lines
+              whether the copy fills them, half-fills them, or is missing
+              entirely, so every tile in a row puts its price at one height. */}
+          <p className="mt-2 line-clamp-2 min-h-[2lh] text-xs leading-5 text-stone-400">
+            {detailLine}
+          </p>
 
           <p className="mt-3 text-sm text-stone-300">
             {isSoldOut ? (

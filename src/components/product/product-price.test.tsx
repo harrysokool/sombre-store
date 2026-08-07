@@ -116,7 +116,7 @@ describe("ProductPrice", () => {
       expect(prices).toHaveLength(2);
     });
 
-    // The shop tile is only ~150px wide in the two-column mobile grid, and this
+    // The shop tile is only ~160px wide in the two-column mobile grid, and this
     // is the line a customer acts on, so it must not break mid-phrase.
     it("holds the promotional price on one line", () => {
       render(<ProductPrice display={PROMOTIONAL} variant="card" />);
@@ -124,6 +124,21 @@ describe("ProductPrice", () => {
       expect(
         screen.getByText("HK$640.00 w/ HAPPY2026").className,
       ).toContain("whitespace-nowrap");
+    });
+
+    // It is the commercially important line, so it is not shrunk below the
+    // body minimum to buy room. The fit is bought with tracking and with the
+    // tile width the page's mobile gutters leave, not with type size.
+    it("keeps the promotional price at the 12px body step, not smaller", () => {
+      render(<ProductPrice display={PROMOTIONAL} variant="card" />);
+
+      const promotional = screen.getByText("HK$640.00 w/ HAPPY2026");
+
+      expect(promotional.className).toContain("text-xs");
+      expect(promotional.className).toContain("tracking-[-0.03em]");
+      // Steps up, and drops the tightening, once the tile has room for it.
+      expect(promotional.className).toContain("sm:text-sm");
+      expect(promotional.className).toContain("sm:tracking-normal");
     });
 
     // The tile already carries one tracked-uppercase line for the brand. The

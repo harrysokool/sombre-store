@@ -98,6 +98,19 @@ async function getActiveProducts() {
         `,
       )
       .eq("is_active", true)
+      // Without this the grid renders in whatever order Postgres happens to
+      // return rows, which can change after any update to a product.
+      //
+      // `is_featured` is the curation signal an admin already controls, so the
+      // shop leads with whatever is currently being pushed without needing a
+      // new column or a sort control. `name` breaks the tie, which keeps the
+      // remainder stable and predictable rather than merely deterministic.
+      //
+      // Deliberately not `created_at`: that is the New Arrivals ordering, and
+      // reusing it here would make that collection a duplicate of the default
+      // view. See `getScopedProducts`, which still re-sorts for that one case.
+      .order("is_featured", { ascending: false })
+      .order("name", { ascending: true })
       .returns<ProductListItemRow[]>();
 
     if (error) {
@@ -135,6 +148,9 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
   const pageCopy = getShopPageCopy(shopView, params, scopedBrands);
   const categoryLinks = getShopCategoryLinks(products, shopView);
   const brandLinks = getShopBrandLinks(scopedBrands, shopView, selectedBrandSlug);
+  // Whether anything is narrowing the catalog right now, which decides if the
+  // empty state has somewhere useful to send the reader.
+  const isFiltered = shopView.type !== "all" || selectedBrandSlug !== null;
   // One call for the whole grid, after filtering, so exactly the products being
   // rendered are asked about and the page makes a single promotion request
   // however many tiles it shows.
@@ -143,7 +159,10 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
   );
 
   return (
-    <section className="px-6 py-12 sm:px-10 sm:py-16 lg:px-12">
+    // 16px gutters below `sm` rather than 24px: it is the standard mobile
+    // measure, it widens every tile by 8px, and that width is what lets the
+    // promotional price hold one line at 12px in the two-column grid.
+    <section className="px-4 py-12 sm:px-10 sm:py-16 lg:px-12">
       <div className="mx-auto w-full max-w-7xl">
         <header className="mx-auto max-w-2xl text-center">
           <p className="text-[0.65rem] uppercase tracking-[0.42em] text-stone-400 sm:text-xs">
@@ -177,7 +196,7 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
                 Narrow column gutters and generous row gaps: the air belongs
                 between rows, where it separates products, rather than beside
                 them, where it only shrinks the photography. */}
-            <div className="grid grid-cols-1 gap-x-3 gap-y-16 min-[360px]:grid-cols-2 sm:gap-x-4 sm:gap-y-20 md:grid-cols-3 xl:grid-cols-4">
+            <div className="grid grid-cols-1 gap-x-2 gap-y-16 min-[360px]:grid-cols-2 sm:gap-x-4 sm:gap-y-20 md:grid-cols-3 xl:grid-cols-4">
               {visibleProducts.map((product) => (
                 <ProductCard
                   key={product.id}
@@ -194,6 +213,7 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
                   stockQuantity={product.stock_quantity}
                   imageUrl={product.primaryImage?.image_url ?? null}
                   imageAlt={product.primaryImage?.alt_text ?? null}
+                  hoverImageUrl={product.secondaryImage?.image_url ?? null}
                 />
               ))}
             </div>
@@ -203,24 +223,39 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
               {visibleProducts.length === 1 ? "Product" : "Products"}
             </p>
           </div>
-        ) : (
-          // Reached by a direct or bookmarked URL for a category that is empty,
-          // or when the catalog itself could not be loaded.
+        ) : hasError ? (
+          // The catalog itself could not be loaded. No "view all" link here: it
+          // would re-run the query that just failed and land back on this page.
           <div className="mx-auto mt-20 max-w-xl text-center sm:mt-24">
             <h2 className="font-display text-2xl font-light text-stone-200 sm:text-3xl">
-              {hasError ? "The collection is unavailable" : "Nothing here yet"}
+              The collection is unavailable
             </h2>
             <p className="mt-5 text-sm leading-8 text-stone-400">
-              {hasError
-                ? "We could not load the collection right now. Please try again shortly."
-                : "This part of the edit is still being composed. The rest of the collection is waiting."}
+              We could not load the collection right now. Please try again
+              shortly.
             </p>
-            <Link
-              href="/shop"
-              className="mt-9 inline-block border-b border-stone-600 pb-1 text-xs uppercase tracking-[0.28em] text-stone-200 transition-colors hover:border-stone-300 hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-stone-300 focus-visible:ring-offset-4 focus-visible:ring-offset-stone-950"
-            >
-              View all products
-            </Link>
+          </div>
+        ) : (
+          // A genuinely empty result: the query worked, this view simply has
+          // nothing in it. Usually a direct or bookmarked URL for a category or
+          // brand that is empty right now.
+          <div className="mx-auto mt-20 max-w-xl text-center sm:mt-24">
+            <h2 className="font-display text-2xl font-light text-stone-200 sm:text-3xl">
+              Nothing in this view
+            </h2>
+            <p className="mt-5 text-sm leading-8 text-stone-400">
+              No products match the current selection.
+            </p>
+            {/* Only offered when something is actually filtering the view —
+                otherwise the link points back at the page already being read. */}
+            {isFiltered ? (
+              <Link
+                href="/shop"
+                className="mt-9 inline-block border-b border-stone-600 pb-1 text-xs uppercase tracking-[0.28em] text-stone-200 transition-colors hover:border-stone-300 hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-stone-300 focus-visible:ring-offset-4 focus-visible:ring-offset-stone-950"
+              >
+                View all products
+              </Link>
+            ) : null}
           </div>
         )}
       </div>

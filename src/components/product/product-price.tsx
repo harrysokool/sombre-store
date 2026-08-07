@@ -29,7 +29,7 @@ const VARIANT_CLASSES = {
   card: {
     retail: "text-xs text-stone-400",
     promotional:
-      "mt-1 whitespace-nowrap text-[0.68rem] tracking-tight text-stone-200 sm:text-sm sm:tracking-normal",
+      "mt-1 whitespace-nowrap text-xs tracking-[-0.03em] text-stone-200 sm:text-sm sm:tracking-normal",
   },
   detail: {
     retail: "text-xs uppercase tracking-[0.16em] text-stone-400",

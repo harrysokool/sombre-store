@@ -1,5 +1,6 @@
 import {
   getPrimaryProductImage,
+  getSecondaryProductImage,
   normalizeProductRelation,
   type ProductImage,
   type ProductRelationWithSlug,
@@ -38,6 +39,13 @@ export type ProductListItem = {
   brand: RelationName | null;
   category: RelationName | null;
   primaryImage: ProductImage | null;
+  /**
+   * The image a shop tile crossfades to on hover, or null when the product has
+   * only one. Just the one extra image is carried, not the whole array: the
+   * tile shows at most two, and the rest would be dead weight on every list
+   * this type feeds.
+   */
+  secondaryImage: ProductImage | null;
 };
 
 export type ShopSearchParams = {
@@ -163,6 +171,7 @@ export function normalizeProductListItem(
     brand: normalizeProductRelation(row.brand),
     category: normalizeProductRelation(row.category),
     primaryImage: getPrimaryProductImage(row.product_images),
+    secondaryImage: getSecondaryProductImage(row.product_images),
   };
 }
 

@@ -53,4 +53,66 @@ describe("normalizeProductListItem", () => {
 
     expect(item.price).toBe("640.00");
   });
+
+  describe("images", () => {
+    function productImage(url: string, sortOrder: number, isPrimary = false) {
+      return {
+        image_url: url,
+        alt_text: `${url} alt`,
+        sort_order: sortOrder,
+        is_primary: isPrimary,
+      };
+    }
+
+    it("keeps the primary image and the one that follows it", () => {
+      const item = normalizeProductListItem(
+        productRow({
+          product_images: [
+            productImage("/c.jpg", 2),
+            productImage("/a.jpg", 0, true),
+            productImage("/b.jpg", 1),
+          ],
+        }),
+      );
+
+      expect(item.primaryImage?.image_url).toBe("/a.jpg");
+      expect(item.secondaryImage?.image_url).toBe("/b.jpg");
+    });
+
+    // Only the two the tile can show are carried; a third would be dead weight
+    // on every list this mapping feeds.
+    it("carries no image beyond those two", () => {
+      const item = normalizeProductListItem(
+        productRow({
+          product_images: [
+            productImage("/a.jpg", 0, true),
+            productImage("/b.jpg", 1),
+            productImage("/c.jpg", 2),
+          ],
+        }),
+      );
+
+      expect(Object.keys(item).filter((key) => key.endsWith("Image"))).toEqual([
+        "primaryImage",
+        "secondaryImage",
+      ]);
+    });
+
+    // The existing fallback is untouched: one image still resolves as primary.
+    it("leaves the secondary null for a single-image product", () => {
+      const item = normalizeProductListItem(
+        productRow({ product_images: [productImage("/a.jpg", 0, true)] }),
+      );
+
+      expect(item.primaryImage?.image_url).toBe("/a.jpg");
+      expect(item.secondaryImage).toBeNull();
+    });
+
+    it("leaves both null when the product has no images", () => {
+      const item = normalizeProductListItem(productRow({ product_images: null }));
+
+      expect(item.primaryImage).toBeNull();
+      expect(item.secondaryImage).toBeNull();
+    });
+  });
 });
