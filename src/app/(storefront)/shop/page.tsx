@@ -143,22 +143,24 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
   );
 
   return (
-    <section className="px-6 py-20 sm:px-10 sm:py-28 lg:px-12">
+    <section className="px-6 py-12 sm:px-10 sm:py-16 lg:px-12">
       <div className="mx-auto w-full max-w-7xl">
         <header className="mx-auto max-w-2xl text-center">
           <p className="text-[0.65rem] uppercase tracking-[0.42em] text-stone-400 sm:text-xs">
             {pageCopy.eyebrow}
           </p>
-          <h1 className="mt-5 font-display text-4xl font-light leading-[1.1] text-stone-100 sm:text-5xl lg:text-6xl">
+          <h1 className="mt-4 font-display text-3xl font-light leading-[1.1] text-stone-100 sm:text-4xl lg:text-5xl">
             {pageCopy.title}
           </h1>
-          <p className="mt-6 text-sm leading-8 text-stone-400 sm:text-base">
+          <p className="mt-4 text-sm leading-7 text-stone-400 sm:text-base">
             {pageCopy.description}
           </p>
         </header>
 
         {hasError ? null : (
-          <div className="mt-14 sm:mt-16">
+          // The rule closes the header and opens the grid, so the nav reads as
+          // the page's control rather than as a footnote under the title.
+          <div className="mt-10 border-b border-stone-800 pb-8 sm:mt-12 sm:pb-10">
             <ShopCategoryNav
               categoryLinks={categoryLinks}
               brandLinks={brandLinks}
@@ -167,11 +169,15 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
         )}
 
         {visibleProducts.length > 0 ? (
-          <div className="mt-14 sm:mt-16">
+          <div className="mt-12 sm:mt-14">
             {/* Two up from 360px, where a tile is still wide enough to hold the
                 brand line without breaking it mid-phrase. Narrower than that
-                goes single column rather than cramped. */}
-            <div className="grid grid-cols-1 gap-x-4 gap-y-14 min-[360px]:grid-cols-2 sm:gap-x-6 sm:gap-y-16 md:grid-cols-3 xl:grid-cols-4">
+                goes single column rather than cramped.
+
+                Narrow column gutters and generous row gaps: the air belongs
+                between rows, where it separates products, rather than beside
+                them, where it only shrinks the photography. */}
+            <div className="grid grid-cols-1 gap-x-3 gap-y-16 min-[360px]:grid-cols-2 sm:gap-x-4 sm:gap-y-20 md:grid-cols-3 xl:grid-cols-4">
               {visibleProducts.map((product) => (
                 <ProductCard
                   key={product.id}

@@ -3,11 +3,11 @@ import type { ProductPriceDisplay } from "@/lib/storefront/promotion-display";
 type ProductPriceProps = {
   display: ProductPriceDisplay;
   /**
-   * "compact" for the product cards on the shop grid and the homepage row;
+   * "compact" for the homepage product row; "card" for the shop grid tiles;
    * "detail" for the product page, where the price sits on its own line and
    * carries more weight.
    */
-  variant?: "compact" | "detail";
+  variant?: "compact" | "card" | "detail";
 };
 
 // Renders content only, no wrapper, so each caller keeps its existing element
@@ -17,6 +17,19 @@ const VARIANT_CLASSES = {
   compact: {
     retail: "text-[0.7rem] uppercase tracking-[0.16em] text-stone-400",
     promotional: "mt-1 text-sm text-stone-200",
+  },
+  // The shop tile. The retail line drops the tracked uppercase of "compact" so
+  // it shares the muted body style already used by the tile's own description
+  // line, leaving the promotional figure as the only emphasis in the block.
+  //
+  // `whitespace-nowrap` plus the smaller step below `sm` is what keeps
+  // "HK$1,188.00 w/ HAPPY2026" on one line in the two-column mobile grid, where
+  // the tile is only ~150px wide. It is the line a customer acts on, so it must
+  // never break mid-phrase.
+  card: {
+    retail: "text-xs text-stone-400",
+    promotional:
+      "mt-1 whitespace-nowrap text-[0.68rem] tracking-tight text-stone-200 sm:text-sm sm:tracking-normal",
   },
   detail: {
     retail: "text-xs uppercase tracking-[0.16em] text-stone-400",
