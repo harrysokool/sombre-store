@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { ProductForm } from "@/app/admin/products/product-form";
+import { ProductImagesEditor } from "@/app/admin/products/product-images-editor";
 import { AdminBackLink } from "@/components/admin/admin-back-link";
 import {
   getAdminProductEditorData,
@@ -87,6 +88,14 @@ export default async function EditAdminProductPage({
         retailPrice={data.product.retailPrice}
         stockQuantity={data.product.stockQuantity}
         isActive={data.product.isActive}
+      />
+
+      {/* Its own section beneath the product fields, with its own actions: an
+          image change saves on its own rather than waiting for the form above
+          to be submitted. */}
+      <ProductImagesEditor
+        productId={data.product.id}
+        images={data.images}
       />
     </div>
   );

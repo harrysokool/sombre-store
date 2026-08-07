@@ -146,29 +146,37 @@ function getMaxSortOrder(images: readonly AdminProductImageRow[]): number {
   return images.reduce((max, image) => Math.max(max, image.sort_order), -1);
 }
 
+type LoadedProductImages =
+  | {
+      ok: true;
+      images: AdminProductImageRow[];
+      target: AdminProductImageRow;
+    }
+  | { ok: false; error: string };
+
 /**
  * Loads the images and locates one of them, which is also the ownership check:
  * the query is scoped to the product, so an image belonging to anything else is
- * simply not in the list.
+ * simply not in the list and is reported as missing.
  */
 async function loadImagesAndTarget(
   supabase: SupabaseClient,
   productId: string,
   imageId: string,
-) {
+): Promise<LoadedProductImages> {
   const images = await loadOrderedImages(supabase, productId);
 
   if (!images) {
-    return { error: LOAD_FAILED_MESSAGE } as const;
+    return { ok: false, error: LOAD_FAILED_MESSAGE };
   }
 
   const target = images.find((image) => image.id === imageId);
 
   if (!target) {
-    return { error: MISSING_IMAGE_MESSAGE } as const;
+    return { ok: false, error: MISSING_IMAGE_MESSAGE };
   }
 
-  return { images, target } as const;
+  return { ok: true, images, target };
 }
 
 function getReferenceError(productId: string, imageId?: string) {
@@ -320,8 +328,8 @@ export async function setAdminPrimaryProductImage(
   const supabase = createSupabaseServiceRoleClient();
   const loaded = await loadImagesAndTarget(supabase, productId, imageId);
 
-  if ("error" in loaded) {
-    return { ok: false, error: loaded.error };
+  if (!loaded.ok) {
+    return loaded;
   }
 
   if (loaded.target.is_primary) {
@@ -380,8 +388,8 @@ export async function moveAdminProductImage(
   const supabase = createSupabaseServiceRoleClient();
   const loaded = await loadImagesAndTarget(supabase, productId, imageId);
 
-  if ("error" in loaded) {
-    return { ok: false, error: loaded.error };
+  if (!loaded.ok) {
+    return loaded;
   }
 
   const reordered = getReorderedImageIds(
@@ -431,8 +439,8 @@ export async function removeAdminProductImage(
   const supabase = createSupabaseServiceRoleClient();
   const loaded = await loadImagesAndTarget(supabase, productId, imageId);
 
-  if ("error" in loaded) {
-    return { ok: false, error: loaded.error };
+  if (!loaded.ok) {
+    return loaded;
   }
 
   const { error: deleteError } = await supabase

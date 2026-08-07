@@ -7,6 +7,10 @@ import {
   type AdminProductSubmission,
 } from "@/lib/admin/product-rules";
 import { normalizeStockQuantity } from "@/lib/admin/inventory";
+import {
+  listAdminProductImages,
+  type AdminProductImage,
+} from "@/lib/admin/product-images";
 import { getAdminUser } from "@/lib/supabase/admin-auth";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
@@ -48,6 +52,8 @@ export type AdminProductDetail = {
 
 export type AdminProductEditorData = AdminProductFormOptions & {
   product: AdminProductDetail;
+  /** In storefront display order, ready for the images section. */
+  images: AdminProductImage[];
 };
 
 const CREATE_FAILED_MESSAGE = "Product could not be created. Try again.";
@@ -309,12 +315,18 @@ export async function getAdminProductEditorData(
     return null;
   }
 
-  const options = await listAdminProductFormOptions();
+  // Both read only after the product is known to exist, so a missing product
+  // never triggers work for rows that cannot be shown.
+  const [options, images] = await Promise.all([
+    listAdminProductFormOptions(),
+    listAdminProductImages(productId),
+  ]);
 
   return {
     product: toProductDetail(data),
     brands: options.brands,
     categories: options.categories,
+    images,
   };
 }
 

@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   getAdminProductEditorData: vi.fn(),
   notFound: vi.fn(),
   ProductForm: vi.fn(),
+  ProductImagesEditor: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/admin-auth", () => ({
@@ -46,6 +47,13 @@ vi.mock("@/app/admin/products/product-form", () => ({
   },
 }));
 
+vi.mock("@/app/admin/products/product-images-editor", () => ({
+  ProductImagesEditor: (props: Record<string, unknown>) => {
+    mocks.ProductImagesEditor(props);
+    return <div data-testid="product-images-editor" />;
+  },
+}));
+
 import EditAdminProductPage, { metadata } from "./page";
 
 const PRODUCT_ID = "33333333-3333-4333-8333-333333333333";
@@ -69,6 +77,15 @@ const EDITOR_DATA: AdminProductEditorData = {
   },
   brands: [{ id: BRAND_ID, name: "Maison Margiela" }],
   categories: [{ id: CATEGORY_ID, name: "Fragrance" }],
+  images: [
+    {
+      id: "image-a",
+      imageUrl: "/images/products/a.jpg",
+      altText: "Bottle on stone",
+      sortOrder: 0,
+      isPrimary: true,
+    },
+  ],
 };
 
 async function renderPage(id = PRODUCT_ID) {
@@ -80,6 +97,7 @@ beforeEach(() => {
   mocks.getAdminProductEditorData.mockReset();
   mocks.notFound.mockReset();
   mocks.ProductForm.mockReset();
+  mocks.ProductImagesEditor.mockReset();
   mocks.requireAdminUser.mockResolvedValue({
     id: "admin-1",
     email: "admin@example.com",
@@ -155,6 +173,25 @@ describe("loading an existing product", () => {
     await renderPage();
 
     expect(mocks.getAdminProductEditorData).toHaveBeenCalledWith(PRODUCT_ID);
+  });
+
+  it("hands the product's images to the images section", async () => {
+    await renderPage();
+
+    expect(mocks.ProductImagesEditor).toHaveBeenCalledWith({
+      productId: PRODUCT_ID,
+      images: EDITOR_DATA.images,
+    });
+    expect(screen.getByTestId("product-images-editor")).toBeInTheDocument();
+  });
+
+  it("keeps the images section separate from the product form", async () => {
+    // Nested forms are not legal HTML, so an image change saves on its own
+    // rather than being submitted with the fields above it.
+    await renderPage();
+
+    expect(screen.getByTestId("product-form")).toBeInTheDocument();
+    expect(screen.getByTestId("product-images-editor")).toBeInTheDocument();
   });
 });
 

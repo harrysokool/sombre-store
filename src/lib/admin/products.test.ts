@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   getAdminUser: vi.fn(),
   createSupabase: vi.fn(),
+  listAdminProductImages: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
@@ -13,6 +14,13 @@ vi.mock("@/lib/supabase/admin-auth", () => ({
 
 vi.mock("@/lib/supabase/service-role", () => ({
   createSupabaseServiceRoleClient: mocks.createSupabase,
+}));
+
+// The editor loads a product's images alongside it. Those have their own
+// module and their own tests; here they are stubbed so this file keeps testing
+// the product row.
+vi.mock("@/lib/admin/product-images", () => ({
+  listAdminProductImages: mocks.listAdminProductImages,
 }));
 
 import type { AdminProductSubmission } from "./product-rules";
@@ -119,6 +127,8 @@ beforeEach(() => {
     id: "admin-1",
     email: "admin@example.com",
   });
+  mocks.listAdminProductImages.mockReset();
+  mocks.listAdminProductImages.mockResolvedValue([]);
   // Re-spying on an already-spied method reuses the existing spy without
   // clearing it, so a message logged by one test would otherwise still be
   // visible to the next.
@@ -404,7 +414,39 @@ describe("getAdminProductEditorData", () => {
       },
       brands: [{ id: BRAND_ID, name: "Maison Margiela" }],
       categories: [{ id: CATEGORY_ID, name: "Fragrance" }],
+      images: [],
     });
+  });
+
+  it("loads the product's images alongside it", async () => {
+    const images = [
+      {
+        id: "image-a",
+        imageUrl: "/images/products/a.jpg",
+        altText: "Bottle on stone",
+        sortOrder: 0,
+        isPrimary: true,
+      },
+    ];
+
+    mocks.listAdminProductImages.mockResolvedValue(images);
+    supabaseWith({
+      products: [query({ data: PRODUCT_ROW })],
+      brands: [query({ data: [] })],
+      categories: [query({ data: [] })],
+    });
+
+    const data = await getAdminProductEditorData(PRODUCT_ID);
+
+    expect(data?.images).toEqual(images);
+    expect(mocks.listAdminProductImages).toHaveBeenCalledWith(PRODUCT_ID);
+  });
+
+  it("does not read images for a product that does not exist", async () => {
+    supabaseWith({ products: [query({ data: null })] });
+
+    await expect(getAdminProductEditorData(PRODUCT_ID)).resolves.toBeNull();
+    expect(mocks.listAdminProductImages).not.toHaveBeenCalled();
   });
 
   it("reads an inactive product too", async () => {
